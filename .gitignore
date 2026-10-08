@@ -3,20 +3,22 @@ assets/three-kingdom/
 # 위 에셋으로 만든 결과물도 커밋하지 않는다
 prototype/web/src/c3b_bb_data.js
 prototype/web/dist/
+godot/assets/bb/
 
 # Ninja Adventure 원본 압축(CC0, 90MB) — 필요할 때만 풀어 둠
 assets/ninja-adventure/
 
 # 봇 스크린샷·임시 결과
 prototype/web/out/
+godot/out/
 
 # 도구
 node_modules/
 __pycache__/
 *.log
 
-# Godot 4
+# Godot 4 (export_presets.cfg는 커밋함 — 키스토어 비밀번호는 .godot/export_credentials.cfg에 따로 저장됨)
 .godot/
-/android/
-export_presets.cfg
+godot/android/
+godot/build/
 *.translation
