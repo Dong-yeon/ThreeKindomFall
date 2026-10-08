@@ -1,10 +1,12 @@
-[gd_resource type="Resource" script_class="HeroData" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="HeroData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://data/hero_data.gd" id="1_hero"]
 [ext_resource type="Script" path="res://data/basic_attack.gd" id="2_basic"]
 
 [sub_resource type="Resource" id="Basic_crescent"]
 script = ExtResource("2_basic")
+display_name = "반달 참격"
+glyph = "월"
 shape = "crescent"
 cooldown = 0.75
 seek = 240.0
@@ -16,10 +18,37 @@ thickness = 18.0
 bulge = 26.0
 pierce = -1
 count = 1
-spread = 0.0
+spread = 0.3
 push = 12.0
 hit_stop = 0.035
 shake = 0.05
+level_desc = PackedStringArray("피해 +20%", "참격이 커져요(+15%)", "더 자주 날려요", "참격 +1(두 줄기)")
+level_mult = PackedFloat32Array(1, 1.2, 1.2, 1.2, 1.2)
+level_size = PackedFloat32Array(1, 1, 1.15, 1.15, 1.15)
+level_cd = PackedFloat32Array(1, 1, 1, 0.85, 0.85)
+level_extra = PackedInt32Array(0, 0, 0, 0, 1)
+
+[sub_resource type="Resource" id="Basic_dragon"]
+script = ExtResource("2_basic")
+display_name = "청룡 강림"
+glyph = "龍"
+shape = "crescent"
+cooldown = 0.6
+seek = 260.0
+mult = 9.0
+speed = 380.0
+reach = 360.0
+width = 140.0
+thickness = 24.0
+bulge = 34.0
+pierce = -1
+count = 3
+spread = 0.35
+push = 20.0
+hit_stop = 0.04
+shake = 0.07
+tint = Color(0.48, 0.91, 0.75, 1)
+tint2 = Color(0.12, 0.48, 0.35, 1)
 
 [resource]
 script = ExtResource("1_hero")
@@ -34,4 +63,7 @@ move_speed = 150.0
 radius = 12.0
 basic = SubResource("Basic_crescent")
 lead_bonus = 0.5
+basic_evo = SubResource("Basic_dragon")
+basic_evo_pair = "mu"
+basic_evo_desc = "반달 참격이 세 줄기 큰 청룡 참격이 돼요"
 musou_name = "무쌍 난무"

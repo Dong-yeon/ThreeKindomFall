@@ -67,7 +67,7 @@ func cb_add(n: int, gauge: float) -> void:
 	cb_n += n
 	cb_idle = 0.0
 	if gauge > 0:
-		mg = minf(100.0, mg + n * gauge)
+		mg = minf(100.0, mg + n * gauge * battle.tactics.gauge_mul())
 	cb_max = maxi(cb_max, cb_n)
 	var mil := _mile_of(cb_n)
 	if mil > cb_mile:
@@ -93,20 +93,32 @@ func attack_tick(dt: float) -> void:
 	if cb_idle > 2.2 and cb_n > 0:
 		cb_n = 0
 		cb_mile = 0
-	var A := data.basic
+	# 기본 공격도 책략처럼 Lv1~5로 오르고, Lv5 + 짝 보조면 진화한 모양으로 바뀜(D-172)
+	var T := battle.tactics
+	var evo := T.evolved("basic") and data.basic_evo != null
+	var A := data.basic_evo if evo else data.basic
 	if cb_t > 0 or A == null:
 		return
 	var tg := battle.nearest_enemy(position, A.seek)
 	if tg == null:
 		cb_t = 0.06
 		return
+	var lv := T.level("basic")
 	var st := cb_stage()
 	var a := (tg.position - position).angle()
 	face = Vector2.from_angle(a)
-	var dmg: float = atk * A.mult * CB_MUL[st]
-	for i in A.count:
-		battle.launch_blade(position, a + (i - (A.count - 1) / 2.0) * A.spread, A, dmg, 1.0 + 0.06 * (st - 1), CB_COL[st])
-	cb_t = A.cooldown / (1.0 + 0.1 * (st - 1))
+	var dmg: float = power() * A.mult * float(A.at_level(A.level_mult, lv, 1.0)) * CB_MUL[st]
+	var size: float = (1.0 + 0.06 * (st - 1)) * float(A.at_level(A.level_size, lv, 1.0)) * T.area_mul()
+	var col: Array = [A.tint, A.tint2] if A.tint.a > 0 else CB_COL[st]
+	var n: int = A.count + int(A.at_level(A.level_extra, lv, 0))
+	for i in n:
+		battle.launch_blade(position, a + (i - (n - 1) / 2.0) * A.spread, A, dmg, size, col)
+	cb_t = A.cooldown * float(A.at_level(A.level_cd, lv, 1.0)) / (1.0 + 0.1 * (st - 1))
+
+
+## 공격력(무력 책략 포함)
+func power() -> float:
+	return atk * battle.tactics.power_mul()
 
 
 func musou_go() -> void:
@@ -127,12 +139,12 @@ func musou_tick(dt: float) -> void:
 	if musou_k <= 0 and musou_t > 0.3:
 		musou_k = data.musou_tick
 		orb_a += 1.3
-		var n := battle.swing(position, orb_a, TAU + 0.1, data.musou_radius, atk * data.musou_mult, GOLD, false, 0)
+		var n := battle.swing(position, orb_a, TAU + 0.1, data.musou_radius, power() * data.musou_mult, GOLD, false, 0)
 		cb_add(n, 0)
 		battle.push_away(position, 130, 8)
 		battle.shake = maxf(battle.shake, 0.08)
 	if musou_t <= 0:
-		var n := battle.blast(position, data.musou_blast_radius, atk * data.musou_blast_mult)
+		var n := battle.blast(position, data.musou_blast_radius, power() * data.musou_blast_mult)
 		cb_add(n, 0)
 		battle.add_fx({"k": "ring", "pos": position, "t": 0.5, "r": 220.0, "c": Color("ffd34a")})
 		battle.add_fx({"k": "ring", "pos": position, "t": 0.35, "r": 140.0, "c": Color("fff2b0")})
@@ -146,8 +158,8 @@ func hurt(d: float) -> void:
 		return
 	if musou_t > 0:
 		return
-	d *= 1.0 - data.damage_reduction
-	mg = minf(100.0, mg + d * 0.35)
+	d *= (1.0 - data.damage_reduction) * battle.tactics.hurt_mul()
+	mg = minf(100.0, mg + d * 0.35 * battle.tactics.gauge_mul())
 	if cb_n > 0:
 		cb_n = cb_n / 2
 		cb_mile = _mile_of(cb_n)

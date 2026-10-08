@@ -1,11 +1,13 @@
 class_name Hud
 extends CanvasLayer
 ## 화면 위 겹쳐 그리기(웹판 fieldHud · fieldOverlay): 위 목표 글 · 장수급 체력 · 작은 지도 · 화면 밖 목표 화살표 · 연격 수 ·
-## 끌기 표시 · 무쌍 버튼 · 알림 · 결과.
+## 끌기 표시 · 무쌍 버튼 · 알림 · 결과 · 공적 레벨 · 책략 칸 · 레벨업 카드(D-172).
 
 const INK := Color(0.11, 0.09, 0.07)
-const TOP_H := 58.0
+const TOP_H := 80.0
 const MM_W := 44.0
+const CARD_INK := Color("3a2a1a")
+const CARD_GOLD := Color("e2a83a")
 
 var b: Battle
 var overlay: Control
@@ -21,6 +23,12 @@ var end_panel: PanelContainer
 var end_title: Label
 var end_stats: Label
 var vignette: GradientTexture2D
+var slots_ctl: Control
+var pick_panel: PanelContainer
+var pick_title: Label
+var pick_sub: Label
+## 카드 3장: {btn, box(StyleBoxFlat), icon(StyleBoxFlat), glyph, name, desc, pair, glow: ""|ready|evo}
+var cards: Array[Dictionary] = []
 
 
 func setup(battle: Battle) -> void:
@@ -46,6 +54,12 @@ func setup(battle: Battle) -> void:
 	tags_lbl = _label(11, Color("cfe2f4"))
 	tags_lbl.position = Vector2(10, 39)
 	top.add_child(tags_lbl)
+	# 책략 칸(공격 6 + 보조 6) · 공적 경험 막대
+	slots_ctl = Control.new()
+	slots_ctl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	slots_ctl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slots_ctl.draw.connect(_draw_slots)
+	top.add_child(slots_ctl)
 	# 알림(가운데 위)
 	banner_box = VBoxContainer.new()
 	banner_box.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -108,6 +122,7 @@ func setup(battle: Battle) -> void:
 	g.set_color(1, Color(0.24, 0.12, 0, 0.45))
 	g.add_point(0.55, Color(0.24, 0.12, 0, 0))
 	vignette.gradient = g
+	_build_pick()
 
 
 func _label(size: int, col: Color, outline := 3) -> Label:
@@ -128,7 +143,7 @@ func musou_hit(p: Vector2) -> bool:
 
 ## 이 자리를 누르면 끌어서 이동을 시작하지 않음(버튼 · 결과 창)
 func blocks(p: Vector2) -> bool:
-	return musou_hit(p) or end_panel.visible
+	return musou_hit(p) or end_panel.visible or pick_panel.visible
 
 
 func banner(title: String, sub: String) -> void:
@@ -143,7 +158,7 @@ func banner(title: String, sub: String) -> void:
 func refresh() -> void:
 	var h := b.hero
 	var T := b.field_target()
-	var title := "%s · %s" % [Stage1.NAME, _fmt_t(b.t)]
+	var title := "%s · %s · 공적 Lv %d" % [Stage1.NAME, _fmt_t(b.t), b.lvl]
 	if title_lbl.text != title:
 		title_lbl.text = title
 	var goal := "목표  " + String(T.n)
@@ -156,7 +171,10 @@ func refresh() -> void:
 		banner_t -= get_process_delta_time()
 		banner_box.modulate.a = clampf(banner_t / 0.5, 0, 1)
 	musou_btn.visible = b.state == "play"
+	if pick_panel.visible:
+		_pulse_cards()
 	overlay.queue_redraw()
+	slots_ctl.queue_redraw()
 
 
 func show_end() -> void:
@@ -168,7 +186,13 @@ func show_end() -> void:
 		end_title.text = "아군 본진이 함락됐어요"
 	else:
 		end_title.text = "%s가 쓰러졌어요" % hn if Battle.eul(hn) == "를" else "%s이 쓰러졌어요" % hn
-	end_stats.text = "걸린 시간   %s\n점령한 진영   %d / 3\n쓰러뜨린 적   %d\n최대 연격   %d" % [_fmt_t(b.t), b.cap_n, b.kills, b.hero.cb_max]
+	var T := b.tactics
+	var evos: Array[String] = []
+	for k in T.evo:
+		evos.append(T.evo_name(k))
+	end_stats.text = "걸린 시간   %s\n점령한 진영   %d / 3\n쓰러뜨린 적   %d\n최대 연격   %d\n공적 레벨   %d (공격 %d/%d · 보조 %d/%d)\n진화   %s" % [
+		_fmt_t(b.t), b.cap_n, b.kills, b.hero.cb_max, b.lvl, T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS,
+		", ".join(evos) if not evos.is_empty() else "없음"]
 	end_panel.visible = true
 
 
@@ -310,3 +334,204 @@ func _text(c: Control, font: Font, s: String, at: Vector2, size: int, col: Color
 	var pos := Vector2(x, at.y + size * 0.35)
 	c.draw_string_outline(font, pos, s, align, w, size, outline, Color(INK, col.a))
 	c.draw_string(font, pos, s, align, w, size, col)
+
+
+# ─────────── 책략 칸 · 공적 경험 ───────────
+
+## 위 패널 맨 아래 줄: 공격 6칸 · 보조 6칸(빈 칸은 테두리만, 진화하면 금테 + '진') + 공적 경험 막대
+func _draw_slots() -> void:
+	var c := slots_ctl
+	var T := b.tactics
+	var font := ThemeDB.fallback_font
+	var y := 55.0
+	var x := 10.0
+	for side in 2:
+		var keys: Array[String] = T.act_order if side == 0 else T.pas_order
+		var cap := TacticsData.ACT_SLOTS if side == 0 else TacticsData.PAS_SLOTS
+		for i in cap:
+			var r := Rect2(x, y, 18, 18)
+			if i < keys.size():
+				var k: String = keys[i]
+				var ev := T.evolved(k)
+				c.draw_rect(r, T.color_of(k))
+				c.draw_rect(r, Color("fff2b0") if ev else INK, false, 2.0 if ev else 1.0)
+				c.draw_string(font, Vector2(x, y + 14), T.glyph_of(k), HORIZONTAL_ALIGNMENT_CENTER, 18, 12, Color("fffaf0"))
+				var lvt := "진" if ev else str(T.level(k))
+				c.draw_string_outline(font, Vector2(x + 11, y + 20), lvt, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, 2, INK)
+				c.draw_string(font, Vector2(x + 11, y + 20), lvt, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color("fff2c0"))
+			else:
+				c.draw_rect(r, Color(1, 1, 1, 0.06))
+				c.draw_rect(r, Color(0.8, 0.72, 0.56, 0.35), false, 1.0)
+			x += 21
+		x += 12
+	var need := float(TacticsData.xp_need(b.lvl))
+	c.draw_rect(Rect2(0, TOP_H - 3, c.size.x, 3), Color(0.23, 0.19, 0.14))
+	c.draw_rect(Rect2(0, TOP_H - 3, c.size.x * clampf(b.xp / need, 0, 1), 3), Color("6ac0e0"))
+
+
+# ─────────── 레벨업 카드(3개 중 1개) ───────────
+
+func _build_pick() -> void:
+	pick_panel = PanelContainer.new()
+	pick_panel.set_anchors_preset(Control.PRESET_CENTER)
+	pick_panel.custom_minimum_size = Vector2(340, 0)
+	pick_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	pick_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.11, 0.09, 0.07, 0.92)
+	sb.border_color = CARD_GOLD
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(10)
+	sb.set_content_margin_all(10)
+	pick_panel.add_theme_stylebox_override("panel", sb)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	pick_panel.add_child(vb)
+	pick_title = _label(17, Color("fff2c0"), 3)
+	pick_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(pick_title)
+	pick_sub = _label(10, Color("c8b890"), 2)
+	pick_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(pick_sub)
+	for i in 3:
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(320, 86)
+		btn.focus_mode = Control.FOCUS_NONE
+		var box := StyleBoxFlat.new()
+		box.bg_color = Color("f4ecd8")
+		box.border_color = CARD_INK
+		box.set_border_width_all(2)
+		box.set_corner_radius_all(8)
+		for st in ["normal", "hover", "pressed", "focus"]:
+			btn.add_theme_stylebox_override(st, box)
+		btn.pressed.connect(b.choose.bind(i))
+		var row := HBoxContainer.new()
+		row.set_anchors_preset(Control.PRESET_FULL_RECT)
+		row.offset_left = 10
+		row.offset_right = -8
+		row.offset_top = 5
+		row.offset_bottom = -5
+		row.add_theme_constant_override("separation", 10)
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		btn.add_child(row)
+		var icon := Panel.new()
+		icon.custom_minimum_size = Vector2(42, 42)
+		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var isb := StyleBoxFlat.new()
+		isb.set_corner_radius_all(6)
+		isb.border_color = CARD_INK
+		isb.set_border_width_all(2)
+		icon.add_theme_stylebox_override("panel", isb)
+		row.add_child(icon)
+		var glyph := _label(20, Color("fffaf0"), 3)
+		glyph.set_anchors_preset(Control.PRESET_FULL_RECT)
+		glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		icon.add_child(glyph)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.alignment = BoxContainer.ALIGNMENT_CENTER
+		col.add_theme_constant_override("separation", 1)
+		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(col)
+		var nm := _label(14, Color("3a2a1a"), 0)
+		var ds := _label(11, Color("5a4a36"), 0)
+		ds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var pr := _label(10, Color("8a5a1a"), 0)
+		pr.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		for l in [nm, ds, pr]:
+			col.add_child(l)
+		vb.add_child(btn)
+		cards.append({"btn": btn, "box": box, "icon": isb, "glyph": glyph, "name": nm, "desc": ds, "pair": pr, "glow": ""})
+	pick_panel.visible = false
+	add_child(pick_panel)
+
+
+static func _stars(n: int) -> String:
+	return "★".repeat(n) + "☆".repeat(TacticsData.MAX_LV - n)
+
+
+func show_pick(opts: Array[Dictionary]) -> void:
+	var T := b.tactics
+	pick_title.text = "공적 Lv %d — 책략 고르기" % b.lvl
+	pick_sub.text = "공격 %d/%d · 보조 %d/%d · 진화 %d  ·  공격 Lv5 + 짝 보조 = 진화" % [T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count()]
+	for i in cards.size():
+		var c: Dictionary = cards[i]
+		var btn: Button = c.btn
+		btn.visible = i < opts.size()
+		if i >= opts.size():
+			continue
+		var o: Dictionary = opts[i]
+		var k: String = o.k
+		var isb: StyleBoxFlat = c.icon
+		c.glow = "evo" if o.get("evo", false) else ("ready" if o.get("ready", false) else "")
+		if k == "bun":
+			isb.bg_color = Color("c8a874")
+			c.glyph.text = "饅"
+			c.name.text = "고기만두"
+			c.desc.text = "체력 30% 회복"
+			c.pair.text = "책략이 모두 가득 찼어요"
+			continue
+		isb.bg_color = T.color_of(k)
+		c.glyph.text = T.glyph_of(k)
+		if o.get("evo", false):
+			if k == "basic":
+				c.glyph.text = b.hero_data.basic_evo.glyph
+			c.name.text = "진화 · %s" % T.evo_name(k)
+			c.desc.text = T.evo_desc(k)
+			c.pair.text = "%s Lv5 + %s" % [T.name_of(k), String(TacticsData.DEFS[T.pair_of(k)].n)]
+			continue
+		var nl := T.level(k) + 1
+		var nm := T.name_of(k)
+		if k == "basic":
+			nm += "(%s 기본 공격)" % b.hero_data.display_name
+		c.name.text = "%s  %s%s" % [nm, _stars(nl), "  · 새 책략" if o.get("new", false) else ""]
+		c.desc.text = T.level_desc(k, nl) if T.is_act(k) else "%s (Lv%d)" % [T.level_desc(k, nl), nl]
+		c.pair.text = _pair_text(k) + ("  — 고르면 다음 레벨업에 진화!" if o.get("ready", false) else "")
+	_pulse_cards()
+	pick_panel.visible = true
+
+
+## 카드 아래 줄: 짝(가졌으면 ✓)과 진화 이름
+func _pair_text(k: String) -> String:
+	var T := b.tactics
+	if T.is_act(k):
+		var p := T.pair_of(k)
+		if p == "":
+			return ""
+		return "짝: %s%s → %s" % [String(TacticsData.DEFS[p].n), " ✓" if T.level(p) > 0 else "", T.evo_name(k)]
+	var parts: Array[String] = []
+	for a in T.pairs_for(k):
+		var an: String = b.hero_data.basic.display_name if a == "basic" else String(TacticsData.DEFS[a].n)
+		parts.append("%s%s → %s" % [an, " ✓" if T.level(a) > 0 else "", T.evo_name(a)])
+	return "짝: " + " · ".join(parts)
+
+
+func hide_pick() -> void:
+	pick_panel.visible = false
+
+
+## 진화 카드는 금빛으로 크게, '고르면 다음에 진화' 카드는 약하게 깜빡임
+func _pulse_cards() -> void:
+	var k := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 6.0)
+	for c in cards:
+		var box: StyleBoxFlat = c.box
+		match String(c.glow):
+			"evo":
+				box.bg_color = Color("fff4c8")
+				box.border_color = CARD_GOLD.lerp(Color("fff2b0"), k)
+				box.set_border_width_all(4)
+				box.shadow_color = Color(1.0, 0.8, 0.3, 0.35 + 0.4 * k)
+				box.shadow_size = 10
+			"ready":
+				box.bg_color = Color("f8efd8")
+				box.border_color = CARD_GOLD.lerp(CARD_INK, 0.6 * k)
+				box.set_border_width_all(3)
+				box.shadow_color = Color(1.0, 0.8, 0.3, 0.15 + 0.25 * k)
+				box.shadow_size = 6
+			_:
+				box.bg_color = Color("f4ecd8")
+				box.border_color = CARD_INK
+				box.set_border_width_all(2)
+				box.shadow_size = 0

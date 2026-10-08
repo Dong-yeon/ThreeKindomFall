@@ -32,9 +32,9 @@
 ## Godot (`godot/`, Godot 4.7.2 · GDScript)
 - 실행 파일: `C:\Tools\Godot-4.7.2\Godot_v4.7.2-stable_win64_console.exe`(콘솔판). 렌더러 Compatibility, 화면 360×640 기준 세로(`keep_width`라 긴 화면은 아래위가 더 보임).
 - 처음 받으면: `python godot/tools/bb_export.py`(B.B.Bits 캐릭터 시트 → `godot/assets/bb/`) → `Godot… --path godot --headless --import`. 그림이 없어도 돌아감(인물이 동그라미).
-- 구조: `data/`(장수 `HeroData`·기본 공격 `BasicAttack`·`heroes/*.tres`, 적·아군 수치 `units.gd`, 1장 지도 `stage_1.gd`), `scripts/`(`battle.gd` 판 진행·목표·생성·충돌, `hero.gd` 기본 공격·연격 수·무쌍, `enemy.gd`·`ally.gd`, `flow_field.gd` 길찾기, `ground.gd`·`fx_layer.gd`·`hud.gd` 그리기, `bot.gd` 테스트 봇), `scenes/battle.tscn`.
+- 구조: `data/`(장수 `HeroData`·기본 공격 `BasicAttack`·`heroes/*.tres`, 책략 `tactics_data.gd`, 적·아군 수치 `units.gd`, 1장 지도 `stage_1.gd`), `scripts/`(`battle.gd` 판 진행·목표·생성·충돌, `hero.gd` 기본 공격·연격 수·무쌍, `tactics.gd` 레벨업·책략·진화, `enemy.gd`·`ally.gd`, `flow_field.gd` 길찾기, `ground.gd`·`fx_layer.gd`·`hud.gd` 그리기, `bot.gd` 테스트 봇), `scenes/battle.tscn`.
 - 조작(PC): 마우스 끌기 = 터치 끌기, 방향키·WASD 이동, 스페이스·K 무쌍.
-- 자동 전투 테스트: `python godot/tools/run_bot_test.py`(headless로 일반·무적 두 판 → 클리어 여부·시간·처치·오류 표, 오류가 있거나 무적이 못 깨면 실패). 스크린샷: `Godot… --path godot --fixed-fps 60 -- --bot --shots=<폴더>`.
+- 자동 전투 테스트: `python godot/tools/run_bot_test.py`(headless로 일반·무적 두 판 → 클리어 여부·시간·처치·공적 Lv·채운 칸·진화·오류 표와 고른 기록, 오류가 있거나 무적이 못 깨면 실패). 스크린샷: `Godot… --path godot --fixed-fps 60 -- --bot --shots=<폴더>`.
 - 내보내기: `export_presets.cfg`에 Android(arm64, APK) · Web(스레드 끔) 프리셋. 결과는 `godot/build/`(커밋 안 함). 내보내기 템플릿은 에디터에서 따로 설치.
 
 ## 커밋

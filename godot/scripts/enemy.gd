@@ -25,6 +25,8 @@ var no_eng := false
 var engage: Unit = null
 var eng_t := 0.0
 var slow_t := 0.0
+## 회전 언월에 다시 맞을 때까지
+var orb_t := 0.0
 # 띄워짐
 var air := 0.0
 var air0 := 0.0
@@ -71,6 +73,7 @@ func is_lead() -> bool:
 func tick(dt: float) -> void:
 	var b := battle
 	var hero := b.hero
+	orb_t -= dt
 	if air > 0:
 		air -= dt
 		position += kv * dt

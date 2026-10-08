@@ -27,7 +27,7 @@ func setup(b: Battle, key: String, at: Vector2, m: String, anchor_id: String) ->
 	# 점령한 진영이 많을수록 단단해짐 · 출진 구성 배율(도원의 맹약)
 	var mul := (1.0 + 0.15 * b.cap_n) * b.ally_mul
 	r = def.r
-	max_hp = float(def.hp) * mul
+	max_hp = float(def.hp) * mul * b.tactics.ally_mul()
 	hp = max_hp
 	atk = float(def.atk) * mul
 	spd = def.spd
@@ -87,7 +87,7 @@ func tick(dt: float) -> void:
 		b.push_out(self)
 	elif tg != null and cd <= 0:
 		cd = def.cd
-		b.hurt_enemy(tg, atk)
+		b.hurt_enemy(tg, atk * b.tactics.ally_mul())
 		b.add_fx({"k": "spark", "pos": tg.position + Vector2(0, -3), "t": 0.15, "a": (tg.position - position).angle(), "c": Color("a8c8f0")})
 	# 붙은 황건에게 맞음
 	if hit_cd <= 0:

@@ -25,6 +25,7 @@ func _draw() -> void:
 	if V.intersects(K.grow(30)):
 		draw_rect(K.grow(-12), Color(0.85, 0.44, 0.37, 0.12))
 		_label("장각 본진" if b.keep_open else "장각 본진(닫힘)", Vector2(K.get_center().x, K.position.y - 14), Color("ffb0a0"))
+	_tactics_ground(V)
 	for dr in b.drops:
 		var p: Vector2 = dr.pos
 		draw_circle(p, 6, Color("f4ecd8"))
@@ -154,3 +155,30 @@ func _label(s: String, at: Vector2, col: Color) -> void:
 func _bar(at: Vector2, w: float, frac: float, col: Color) -> void:
 	draw_rect(Rect2(at.x - w / 2, at.y, w, 5), Color("3a3024"))
 	draw_rect(Rect2(at.x - w / 2, at.y, w * clampf(frac, 0, 1), 5), col)
+
+
+## 책략의 바닥 그림: 화계 불길(일렁임) · 화살비 떨어질 자리(좁아지는 고리)
+func _tactics_ground(V: Rect2) -> void:
+	var T := b.tactics
+	if T == null:
+		return
+	for f in T.fires:
+		var p: Vector2 = f.pos
+		var r: float = f.r
+		if not V.grow(r).has_point(p):
+			continue
+		var al := clampf(float(f.t) / 0.4, 0, 1)
+		draw_circle(p, r, Color(0.88, 0.4, 0.15, 0.28 * al))
+		for i in 5:
+			var a := b.t * 3.0 + i * 1.3
+			var q := p + Vector2(cos(a) * r * 0.5, sin(a * 1.3) * r * 0.35)
+			draw_circle(q, r * (0.22 + 0.06 * sin(b.t * 9 + i)), Color(1.0, 0.62, 0.2, 0.45 * al))
+		draw_arc(p, r, 0, TAU, 28, Color(0.9, 0.35, 0.1, 0.6 * al), 1.5)
+	for w in T.warns:
+		var p: Vector2 = w.pos
+		var r: float = w.r
+		if not V.grow(r).has_point(p):
+			continue
+		var k := 1.0 - clampf(float(w.t) / float(w.T), 0, 1)
+		draw_circle(p, r, Color(0.85, 0.35, 0.25, 0.12 + 0.12 * k))
+		draw_arc(p, r * (1.0 - 0.6 * k) + 4, 0, TAU, 28, Color(0.9, 0.4, 0.3, 0.7), 1.5)

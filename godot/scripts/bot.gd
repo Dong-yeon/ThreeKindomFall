@@ -1,5 +1,6 @@
 extends Node
 ## 테스트 봇(웹판 bots/bwField.js smart 대응): 지금 목표로 길을 따라 걷고, 적과 거리를 두며 싸우고, 무쌍이 차면 씀.
+## 레벨업 카드는 진화 > 고르면 진화 > 기본 공격 > 가진 공격 > 짝 맞는 보조 > … 차례로 고른다(웹판 smart: 진화 · 가진 것 먼저).
 ## 진행을 출력하고 판이 끝나면 결과 한 줄([result] …)을 남기고 종료(이김 0 · 짐 1 · 시간 초과 2).
 ## 판 도중 엔진·스크립트 오류는 Logger로 모아 [error] 줄과 errors= 수로 남긴다.
 ## 보통은 tools/run_bot_test.py로 돌린다(여러 모드를 돌려 표로 보여 줌).
@@ -40,6 +41,10 @@ var shot_at: Array[float] = [3.0, 40.0, 120.0, 240.0]
 var _log_t := 0.0
 var _errs := ErrorLog.new()
 var _done := false
+## 스크린샷 모드: 첫 레벨업 카드 · 첫 진화 카드에서 몇 프레임 기다렸다 찍고 고름
+var _pick_wait := 0
+var _shot_pick := false
+var _shot_evo := false
 
 
 func _ready() -> void:
@@ -64,6 +69,20 @@ func _ready() -> void:
 
 
 func _process(_dt: float) -> void:
+	if b.state == "pick":
+		if shot_dir != "":
+			var has_evo := b.pick_opts.any(func(o): return o.get("evo", false))
+			if (not _shot_pick or (has_evo and not _shot_evo)) and _pick_wait < 4:
+				_pick_wait += 1
+				return
+			if _pick_wait >= 4:
+				_shot("pick_evo" if has_evo and not _shot_evo else "pick_first")
+				if has_evo:
+					_shot_evo = true
+				_shot_pick = true
+			_pick_wait = 0
+		b.choose(_pick(b.pick_opts))
+		return
 	if b.state != "play":
 		return
 	var h := b.hero
@@ -116,6 +135,44 @@ func _process(_dt: float) -> void:
 		get_tree().quit(2)
 
 
+## 카드 점수: 진화 100 · 고르면 진화 60 · 기본 공격 40 · 가진 공격 30 · 가진 공격의 짝 보조 25 · 가진 보조 20 ·
+## 새 보조(가진 공격의 짝) 18 · 새 공격(짝 보조를 가짐) 17 · 새 공격 15 · 새 보조 10
+func _pick(opts: Array[Dictionary]) -> int:
+	var T := b.tactics
+	var best := 0
+	var bs := -1.0
+	for i in opts.size():
+		var o: Dictionary = opts[i]
+		var k: String = o.k
+		var sc := 1.0
+		if o.get("evo", false):
+			sc = 100
+		elif o.get("ready", false):
+			sc = 60
+		elif k == "bun":
+			sc = 1
+		elif k == "basic":
+			sc = 40
+		elif T.is_act(k):
+			if T.level(k) > 0:
+				sc = 30
+			else:
+				sc = 17 if T.level(T.pair_of(k)) > 0 else 15
+		else:
+			var paired := false
+			for a in T.pairs_for(k):
+				if T.level(a) > 0:
+					paired = true
+			if T.level(k) > 0:
+				sc = 25 if paired else 20
+			else:
+				sc = 18 if paired else 10
+		if sc > bs:
+			bs = sc
+			best = i
+	return best
+
+
 func _lead_near(p: Vector2) -> bool:
 	for e in b.enemies:
 		if e.is_lead() and not e.dead and e.position.distance_to(p) < 110:
@@ -125,8 +182,8 @@ func _lead_near(p: Vector2) -> bool:
 
 func _log(tag: String) -> void:
 	var h := b.hero
-	print("[bot] %s t=%4d %4.1fms (%d,%d) hp %3d/%d cap %d/3 kills %4d en %3d al %2d home %3d%% mg %3d cb %3d max %4d | %s" % [
-		tag, int(b.t), Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, int(h.position.x), int(h.position.y), ceili(h.hp), int(h.max_hp), b.cap_n, b.kills, b.enemies.size(), b.allies.size(),
+	print("[bot] %s t=%4d %4.1fms Lv%2d (%d,%d) hp %3d/%d cap %d/3 kills %4d en %3d al %2d home %3d%% mg %3d cb %3d max %4d | %s" % [
+		tag, int(b.t), Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, b.lvl, int(h.position.x), int(h.position.y), ceili(h.hp), int(h.max_hp), b.cap_n, b.kills, b.enemies.size(), b.allies.size(),
 		ceili(b.home_hp / b.home_max * 100), int(h.mg), h.cb_n, h.cb_max, b.field_target().n])
 
 
@@ -161,5 +218,16 @@ func _result(status: String) -> void:
 	for l in _errs.lines.slice(0, 20):
 		print("[error] ", l)
 	var h := b.hero
-	print("[result] status=%s time=%.1f kills=%d max_combo=%d cap=%d hero_hp=%d home=%d allies=%d errors=%d warnings=%d" % [
-		status, b.t, b.kills, h.cb_max, b.cap_n, ceili(h.hp), ceili(b.home_hp / b.home_max * 100), b.allies.size(), _errs.lines.size(), _errs.warnings])
+	var T := b.tactics
+	var evos: Array[String] = []
+	for k in T.evo:
+		evos.append(T.evo_name(k))
+	var slots: Array[String] = []
+	for k in T.act_order + T.pas_order:
+		slots.append("%s%s" % [T.name_of(k), "(진화)" if T.evolved(k) else " %d" % T.level(k)])
+	print("[slots] " + " · ".join(slots))
+	print("[evos] " + (", ".join(evos) if not evos.is_empty() else "-"))
+	print("[picks] " + " · ".join(T.history))
+	print("[result] status=%s time=%.1f kills=%d max_combo=%d cap=%d hero_hp=%d home=%d allies=%d level=%d act=%d/%d pas=%d/%d evos=%d picks=%d errors=%d warnings=%d" % [
+		status, b.t, b.kills, h.cb_max, b.cap_n, ceili(h.hp), ceili(b.home_hp / b.home_max * 100), b.allies.size(), b.lvl,
+		T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count(), T.history.size(), _errs.lines.size(), _errs.warnings])

@@ -28,6 +28,10 @@ extends Resource
 @export var basic: BasicAttack
 ## 특성: 장수급(진영장 · 정원지 · 장각)에게 더 주는 피해(0.5 = +50%)
 @export var lead_bonus := 0.0
+## 진화(D-172): 기본 공격 Lv5 + 짝 보조 → 이 모양으로 바뀜. 짝은 TacticsData.PAS 키
+@export var basic_evo: BasicAttack
+@export var basic_evo_pair := "mu"
+@export var basic_evo_desc := ""
 
 @export_group("무쌍")
 @export var musou_name := "무쌍 난무"

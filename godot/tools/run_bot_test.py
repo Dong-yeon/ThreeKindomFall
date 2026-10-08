@@ -1,4 +1,5 @@
 # 1장 자동 전투 테스트: Godot을 창 없이(headless) 띄워 봇(scripts/bot.gd)이 1장을 끝까지 진행하게 하고 결과를 표로 보여 준다.
+# 판마다 클리어 여부 · 시간 · 처치 · 공적 레벨 · 채운 책략 칸 · 진화 수 · 오류, 그리고 칸 · 진화 · 고른 기록(레벨업 카드)을 출력.
 # 실행: python godot/tools/run_bot_test.py [--seed 1] [--modes normal,god] [--max-time 900] [--godot <Godot 실행 파일>]
 #   normal = 봇이 실제로 싸움(손맛·난이도 확인) / god = 장수 무적(진영 → 관문 → 정원지 → 장각까지 목표 흐름이 이어지는지)
 # 판정: 오류가 하나라도 있거나 god가 클리어하지 못하면 실패(종료 코드 1). normal의 클리어 여부는 난이도 문제라 실패로 치지 않음.
@@ -53,10 +54,14 @@ def main():
             out, _ = p.communicate()
         text = out.decode('utf-8', 'replace')
         res = None
+        extra = {'slots': '-', 'evos': '-', 'picks': '-'}
         logged, printed = [], []  # 봇의 Logger가 모은 것(파일:줄 포함) / 엔진 출력에서 찾은 것(봇이 붙기 전 오류도 잡힘)
         for line in text.splitlines():
             if line.startswith('[result]'):
                 res = dict(kv.split('=', 1) for kv in line[len('[result]'):].split())
+            elif line.startswith(('[slots]', '[evos]', '[picks]')):
+                tag, _, rest = line.partition(' ')
+                extra[tag.strip('[]')] = rest.strip()
             elif line.startswith('[error]'):
                 logged.append(line[len('[error]'):].strip())
             elif ('SCRIPT ERROR' in line or line.startswith('ERROR:')) and not any(n in line for n in NOISE):
@@ -69,21 +74,25 @@ def main():
             res = {'status': 'crash', 'time': '0', 'kills': '-', 'max_combo': '-', 'cap': '-', 'hero_hp': '-', 'home': '-'}
             errs.append('결과 줄이 없음(멈춤 또는 강제 종료) — 마지막 출력: ' + ' / '.join(text.strip().splitlines()[-3:]))
             n_err += 1
-        rows.append((m, res, n_err, errs, text))
+        rows.append((m, res, n_err, errs, extra))
         if n_err or (m == 'god' and res['status'] != 'clear'):
             failed = True
     # 표
     print()
     print('1장 황건적의 난 — 자동 전투 (seed %d, 판 시간 상한 %s, 실제 %.0f초)' % (a.seed, fmt_t(a.max_time), time.time() - t0))
-    head = ['모드', '결과', '걸린 시간', '처치', '최대 연격', '점령', '장수 체력', '본진', '오류']
+    head = ['모드', '결과', '걸린 시간', '처치', '공적 Lv', '공격 칸', '보조 칸', '진화', '최대 연격', '점령', '장수 체력', '오류']
     body = []
     for m, r, n_err, _, _ in rows:
-        body.append([MODE_NAME.get(m, m), STATUS_NAME.get(r['status'], r['status']), fmt_t(r['time']), r['kills'], r['max_combo'],
-                     '%s/3' % r['cap'], r['hero_hp'], '%s%%' % r['home'], str(n_err)])
+        body.append([MODE_NAME.get(m, m), STATUS_NAME.get(r['status'], r['status']), fmt_t(r['time']), r['kills'], r.get('level', '-'),
+                     r.get('act', '-'), r.get('pas', '-'), r.get('evos', '-'), r['max_combo'], '%s/3' % r['cap'], r['hero_hp'], str(n_err)])
     w = [max(len(x) for x in col) for col in zip(head, *body)]
     for row in [head] + body:
         print('  '.join(c.ljust(w[i]) for i, c in enumerate(row)))
-    for m, r, n_err, errs, text in rows:
+    for m, r, n_err, errs, ex in rows:
+        print()
+        print('[%s] 칸: %s' % (MODE_NAME.get(m, m), ex['slots']))
+        print('  진화: %s' % ex['evos'])
+        print('  고른 기록(%s번): %s' % (r.get('picks', '-'), ex['picks']))
         if errs:
             print('\n[%s] 오류 %d건' % (MODE_NAME.get(m, m), n_err))
             for e in errs[:20]:

@@ -4,6 +4,9 @@ extends Resource
 ## 가장 가까운 적 쪽으로 날리고, 맞힌 수만큼 연격 수가 쌓인다. 처음 맞힐 때 멈칫 · 흔들림, 맞은 졸개는 밀림.
 ## 지금은 crescent(관우 · 반달 참격 관통)만 있다. 장비 일직선 창 · 유비 쌍검 부메랑은 모양을 더해 같은 틀로 만든다.
 
+## 책략 카드에 보이는 이름 · 글자(기본 공격도 공격 칸 1칸을 차지하고 레벨업으로 올림, D-172)
+@export var display_name := "반달 참격"
+@export var glyph := "월"
 ## 날아가는 것의 모양. crescent = 앞으로 휜 반달(가운데가 두껍고 끝이 뾰족함)
 @export_enum("crescent") var shape := "crescent"
 ## 다음 공격까지(초). 연격 단계마다 빨라짐(÷1.1 · ÷1.2)
@@ -29,3 +32,19 @@ extends Resource
 ## 처음 맞힐 때 멈칫(초) · 흔들림
 @export var hit_stop := 0.035
 @export var shake := 0.05
+## 색 [날, 테두리]. 투명이면 연격 단계 색(흰 → 초록 → 금)
+@export var tint := Color(0, 0, 0, 0)
+@export var tint2 := Color(0, 0, 0, 0)
+
+@export_group("레벨(Lv1~5)")
+## Lv2~5로 올릴 때 카드 설명
+@export var level_desc: PackedStringArray = []
+## 레벨별 피해 · 크기 · 재사용 배율, 더 날리는 수
+@export var level_mult: PackedFloat32Array = []
+@export var level_size: PackedFloat32Array = []
+@export var level_cd: PackedFloat32Array = []
+@export var level_extra: PackedInt32Array = []
+
+
+func at_level(arr, lv: int, fallback):
+	return arr[lv - 1] if lv >= 1 and lv <= arr.size() else fallback

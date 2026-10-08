@@ -26,12 +26,17 @@ const STICK_FULL := 50.0
 @onready var hud: Hud = $Hud
 
 var t := 0.0
-## play · end(이김) · dead(짐)
+## play · pick(레벨업 책략 고르기 — 판이 멈춤) · end(이김) · dead(짐)
 var state := "play"
 var end_why := ""
 var hit_stop := 0.0
 var shake := 0.0
 var kills := 0
+## 공적 레벨(판 안) · 경험 · 밀린 레벨업 수. 책략은 tactics(D-172)
+var lvl := 1
+var xp := 0.0
+var lvl_q := 0
+var tactics: Tactics
 var hero: Hero
 var enemies: Array[Enemy] = []
 var allies: Array[Ally] = []
@@ -87,6 +92,10 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--seed="):
 			seed(int(a.substr(7)))
+	tactics = Tactics.new()
+	tactics.name = "Tactics"
+	add_child(tactics)
+	tactics.setup(self)
 	hero = Hero.new()
 	hero.setup(self, hero_data, Stage1.START)
 	world.add_child(hero)
@@ -203,7 +212,7 @@ func _update(dt: float) -> void:
 func _field_tick(dt: float) -> void:
 	var p := hero
 	var d := hero_data
-	p.spd = 0.0 if p.stun > 0 else d.move_speed * (d.musou_move_mul if p.musou_t > 0 else 1.0)
+	p.spd = 0.0 if p.stun > 0 else d.move_speed * tactics.speed_mul() * (d.musou_move_mul if p.musou_t > 0 else 1.0)
 	# 공격: 무쌍 > 기본 공격(대표 무기가 날아감)
 	if p.musou_t > 0:
 		p.musou_tick(dt)
@@ -244,7 +253,40 @@ func _field_tick(dt: float) -> void:
 	for a in allies:
 		if not a.dead:
 			a.tick(dt)
+	tactics.tick(dt)
 	_pickups()
+	# 레벨업: 판을 멈추고 책략 3개 중 1개 고르기(밀린 만큼 한 번씩)
+	if lvl_q > 0 and state == "play":
+		lvl_q -= 1
+		_open_pick()
+
+
+func gain_xp(v: float) -> void:
+	xp += v
+	while xp >= TacticsData.xp_need(lvl):
+		xp -= TacticsData.xp_need(lvl)
+		lvl += 1
+		lvl_q += 1
+
+
+## 지금 고를 수 있는 책략(hud가 카드로 보여 줌)
+var pick_opts: Array[Dictionary] = []
+
+
+func _open_pick() -> void:
+	pick_opts = tactics.options(3)
+	state = "pick"
+	joy_on = false
+	hud.show_pick(pick_opts)
+
+
+func choose(i: int) -> void:
+	if state != "pick" or i < 0 or i >= pick_opts.size():
+		return
+	tactics.apply(pick_opts[i])
+	pick_opts.clear()
+	hud.hide_pick()
+	state = "play"
 
 
 ## 진영: 병력 채움 → 병력을 다 줄이면 진영장 등장 → 쓰러뜨리면 점령
@@ -635,6 +677,8 @@ func hurt_enemy(e: Enemy, d: float) -> void:
 
 ## 적이 쓰러지면: 진영 병력 · 진영장(점령) · 정원지(본진 문) · 장각(평정)
 func _on_kill(e: Enemy) -> void:
+	if not e.boss:
+		gain_xp(TacticsData.xp_of(e.k, e.elite))
 	if e.boss:
 		for o in enemies:
 			if not o.dead and o != e:
