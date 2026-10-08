@@ -54,12 +54,12 @@ def main():
             out, _ = p.communicate()
         text = out.decode('utf-8', 'replace')
         res = None
-        extra = {'slots': '-', 'evos': '-', 'picks': '-'}
+        extra = {'slots': '-', 'evos': '-', 'picks': '-', 'phases': '-', 'allies': '-', 'move': '-'}
         logged, printed = [], []  # 봇의 Logger가 모은 것(파일:줄 포함) / 엔진 출력에서 찾은 것(봇이 붙기 전 오류도 잡힘)
         for line in text.splitlines():
             if line.startswith('[result]'):
                 res = dict(kv.split('=', 1) for kv in line[len('[result]'):].split())
-            elif line.startswith(('[slots]', '[evos]', '[picks]')):
+            elif line.startswith(('[slots]', '[evos]', '[picks]', '[phases]', '[allies]', '[move]')):
                 tag, _, rest = line.partition(' ')
                 extra[tag.strip('[]')] = rest.strip()
             elif line.startswith('[error]'):
@@ -80,17 +80,20 @@ def main():
     # 표
     print()
     print('1장 황건적의 난 — 자동 전투 (seed %d, 판 시간 상한 %s, 실제 %.0f초)' % (a.seed, fmt_t(a.max_time), time.time() - t0))
-    head = ['모드', '결과', '걸린 시간', '처치', '공적 Lv', '공격 칸', '보조 칸', '진화', '최대 연격', '점령', '장수 체력', '오류']
+    head = ['모드', '결과', '걸린 시간', '처치', '공적 Lv', '공격 칸', '보조 칸', '진화', '이동(px)', '멈춤%', '최저 체력', '점령', '오류']
     body = []
     for m, r, n_err, _, _ in rows:
         body.append([MODE_NAME.get(m, m), STATUS_NAME.get(r['status'], r['status']), fmt_t(r['time']), r['kills'], r.get('level', '-'),
-                     r.get('act', '-'), r.get('pas', '-'), r.get('evos', '-'), r['max_combo'], '%s/3' % r['cap'], r['hero_hp'], str(n_err)])
+                     r.get('act', '-'), r.get('pas', '-'), r.get('evos', '-'), r.get('dist', '-'), r.get('still', '-'), r.get('min_hp', '-'), '%s/3' % r['cap'], str(n_err)])
     w = [max(len(x) for x in col) for col in zip(head, *body)]
     for row in [head] + body:
         print('  '.join(c.ljust(w[i]) for i, c in enumerate(row)))
     for m, r, n_err, errs, ex in rows:
         print()
         print('[%s] 칸: %s' % (MODE_NAME.get(m, m), ex['slots']))
+        print('  구간: %s' % ex['phases'])
+        print('  이동: %s' % ex['move'])
+        print('  아군(30초마다): %s' % ex['allies'])
         print('  진화: %s' % ex['evos'])
         print('  고른 기록(%s번): %s' % (r.get('picks', '-'), ex['picks']))
         if errs:

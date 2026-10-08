@@ -1,6 +1,8 @@
 class_name Ally
 extends Unit
-## 아군(웹판 alSpawn · alTick). guard = 본진·점령한 진영을 지킴 / join = 장수를 따라다니며 싸움.
+## 아군(웹판 alSpawn · alTick). guard = 본진·점령한 진영을 지킴(그대로) /
+## march = 진군 부대(D-180): 장수 둘레를 돌지 않고 다음 목표(Battle.march_goal)로 먼저 가서 싸움. 보충 없음, 받는 피해를 줄이지 않음.
+## 아군 강화는 '호령' 책략으로만(D-180 — 점령 수 · 도원의 맹약 배율은 뺌).
 
 var k := "sol"
 var def: Dictionary
@@ -24,12 +26,10 @@ func setup(b: Battle, key: String, at: Vector2, m: String, anchor_id: String) ->
 	last_pos = at
 	mode = m
 	anchor = anchor_id
-	# 점령한 진영이 많을수록 단단해짐 · 출진 구성 배율(도원의 맹약)
-	var mul := (1.0 + 0.15 * b.cap_n) * b.ally_mul
 	r = def.r
-	max_hp = float(def.hp) * mul * b.tactics.ally_mul()
+	max_hp = float(def.hp) * b.tactics.ally_mul()
 	hp = max_hp
-	atk = float(def.atk) * mul
+	atk = float(def.atk)
 	spd = def.spd
 	size = def.size
 	cd = randf_range(0, 0.6)
@@ -44,12 +44,12 @@ func tick(dt: float) -> void:
 	cd -= dt
 	hit_cd -= dt
 	scan -= dt
-	var join := mode == "join"
+	var march := mode == "march"
 	var anc: Dictionary = b.anchors.get(anchor, {})
 	if scan <= 0:
 		scan = 0.3
-		var rad: float = 210.0 if join else float(anc.get("r", 200.0))
-		var center: Vector2 = hero.position if join else anc.get("pos", position)
+		var rad: float = 160.0 if march else float(anc.get("r", 200.0))
+		var center: Vector2 = position if march else anc.get("pos", position)
 		var best: Enemy = null
 		var bd := INF
 		for e in b.enemies:
@@ -67,8 +67,9 @@ func tick(dt: float) -> void:
 	if tg != null:
 		g = tg.position
 		reach = r + tg.r + 5
-	elif join:
-		g = hero.position + Vector2(cos(slot) * 46, sin(slot) * 46 + 10)
+	elif march:
+		var G := b.march_goal(position)
+		g = G.pos + Vector2(cos(slot) * 34, sin(slot) * 26)
 	else:
 		var ap: Vector2 = anc.get("pos", position)
 		g = ap + Vector2(cos(slot) * 50, sin(slot) * 36)
@@ -76,13 +77,14 @@ func tick(dt: float) -> void:
 	last_pos = position
 	if d > reach:
 		var to := g
-		if tg == null and join and d > 120:
-			to = b.path_for(self, "p", hero.position)
+		if tg == null and march and d > 60:
+			var G := b.march_goal(position)
+			to = b.path_for(self, G.key, G.pos)
 		var m := to - position
 		var md := m.length()
 		if md == 0.0:
 			md = 1.0
-		var sp := spd * (2.2 if join and tg == null and d > 160 else 1.0)
+		var sp := spd * (1.25 if march and tg == null else 1.0)
 		position += m / md * minf(md, sp * dt)
 		b.push_out(self)
 	elif tg != null and cd <= 0:
@@ -93,7 +95,8 @@ func tick(dt: float) -> void:
 	if hit_cd <= 0:
 		var hit := b.touching_enemy(position, r + 3)
 		if hit != null:
-			hp -= hit.touch * 0.6
+			# 수비대는 웹판처럼 60%만, 진군 부대는 다 받음(D-180)
+			hp -= hit.touch * (1.0 if march else 0.6)
 			hit_cd = 0.6
 	if hp <= 0:
 		dead = true

@@ -10,6 +10,8 @@ const ENEMY := {
 	"ytbig": {"n": "황건 역사", "c": "e2b85a", "r": 15.0, "hp": 90.0, "spd": 34.0, "touch": 14.0, "ai": "chase", "spr": "ytbig"},
 	"cyz": {"n": "황건 장수 정원지", "c": "d89a3a", "r": 18.0, "hp": 420.0, "spd": 46.0, "touch": 16.0, "ai": "shooter", "spr": "cyz"},
 	"zj": {"n": "천공장군 장각", "c": "e2c060", "r": 30.0, "hp": 1500.0, "spd": 28.0, "touch": 18.0, "ai": "boss", "spr": "zj"},
+	# 막사(D-180): 움직이지 않고 밀리지 않는 '적'. 공격 · 아군이 그대로 노림. 체력은 장마다 Stage의 BARRACKS.hp × 진영 mul(여기 hp는 1)
+	"barracks": {"n": "황건 막사", "c": "c8a050", "r": 22.0, "hp": 1.0, "spd": 0.0, "touch": 0.0, "ai": "building", "spr": ""},
 }
 
 const ALLY := {

@@ -15,6 +15,9 @@ var elite := false
 var boss := false
 var ename := ""
 var camp_id := ""
+## 막사(D-180): 움직이지 않는 적. barracks_id = "진영id:번호"
+var building := false
+var barracks_id := ""
 var camp_lead := ""
 var has_post := false
 var post := Vector2.ZERO
@@ -57,8 +60,9 @@ func setup(b: Battle, key: String, at: Vector2, mul: float) -> void:
 	t = randf_range(0, 1.5)
 	eng_t = randf() * 0.3
 	tint = Color(def.c)
-	tex = Sprites.sheet(def.spr)
+	tex = Sprites.sheet(def.spr) if String(def.spr) != "" else null
 	_anim_off = r
+	building = ai == "building"
 
 
 func set_post(p: Vector2) -> void:
@@ -70,10 +74,18 @@ func is_lead() -> bool:
 	return elite or boss
 
 
+## 밀리거나 띄워지지 않음(장수급 · 막사)
+func immovable() -> bool:
+	return elite or boss or building
+
+
 func tick(dt: float) -> void:
 	var b := battle
 	var hero := b.hero
 	orb_t -= dt
+	if building:
+		flash = maxf(0.0, flash - dt)
+		return
 	if air > 0:
 		air -= dt
 		position += kv * dt
@@ -223,6 +235,9 @@ func _draw() -> void:
 	var b := battle
 	if b == null:
 		return
+	if building:
+		_draw_barracks()
+		return
 	var moved := anim_moved()
 	_moving = moved.length() > 0.2
 	if _moving:
@@ -243,3 +258,18 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, r + 6, 0, TAU, 32, Color(0.89, 0.72, 0.35, 0.6 + 0.3 * sin(b.t * 6)), 2.5)
 	if hp < max_hp and not boss:
 		draw_bar(0, -r - 7 - lift, r * 2, 3, hp / max_hp, Color("d9705e"))
+
+
+## 막사: 누런 천막 + 황건 깃발 + 체력 막대(맞으면 번쩍)
+func _draw_barracks() -> void:
+	var cl := Color("fff2c0") if flash > 0 else Color("d8b860")
+	draw_rect(Rect2(-24, 10, 48, 6), Color(0, 0, 0, 0.22))
+	var tri := PackedVector2Array([Vector2(0, -26), Vector2(26, 12), Vector2(-26, 12)])
+	draw_colored_polygon(tri, cl)
+	tri.append(tri[0])
+	draw_polyline(tri, Color("6a4a1a"), 2.5)
+	draw_line(Vector2(0, -26), Vector2(0, 12), Color(0.42, 0.29, 0.1, 0.6), 1.5)
+	draw_colored_polygon(PackedVector2Array([Vector2(0, -6), Vector2(8, 12), Vector2(-8, 12)]), Color("3a2a1a"))
+	draw_rect(Rect2(14, -34, 2, 24), Color("5a3a1a"))
+	draw_colored_polygon(PackedVector2Array([Vector2(16, -34), Vector2(30, -31), Vector2(16, -26)]), Color("e8c040"))
+	draw_bar(0, -40, 46, 4, hp / max_hp, Color("d9705e"))

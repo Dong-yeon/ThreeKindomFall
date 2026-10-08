@@ -529,7 +529,7 @@ func _blast(at: Vector2, r: float, dmg: float, push: float, col: Color) -> void:
 		if d > r + e.r:
 			continue
 		b.hurt_enemy(e, dmg)
-		if not e.dead and not e.is_lead() and d > 0.1:
+		if not e.dead and not e.immovable() and d > 0.1:
 			e.position += dv / d * push
 	b.add_fx({"k": "ring", "pos": at, "t": 0.35, "r": r, "c": col})
 	b.add_fx({"k": "burst", "pos": at, "t": 0.3, "r": r * 0.3, "c": col})

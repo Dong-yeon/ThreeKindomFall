@@ -41,6 +41,19 @@ var shot_at: Array[float] = [3.0, 40.0, 120.0, 240.0]
 var _log_t := 0.0
 var _errs := ErrorLog.new()
 var _done := false
+# 버티기 · 난이도 확인(D-180): 장수 이동 거리 · 멈춘 시간 · 최저 체력 · 구간(진영 · 정원지 · 장각)별 시간과 이동 · 30초마다 아군 수
+var _last_pos := Vector2.INF
+var _dist := 0.0
+var _still := 0.0
+var _min_hp := INF
+var _phase_t0 := 0.0
+var _phase_d0 := 0.0
+var _phase_s0 := 0.0
+var _phases: Array[String] = []
+var _capped := {}
+var _cyz_seen := false
+var _ally_t := 30.0
+var _ally_log: Array[String] = []
 ## 스크린샷 모드: 첫 레벨업 카드 · 첫 진화 카드에서 몇 프레임 기다렸다 찍고 고름
 var _pick_wait := 0
 var _shot_pick := false
@@ -85,6 +98,7 @@ func _process(_dt: float) -> void:
 		return
 	if b.state != "play":
 		return
+	_measure()
 	var h := b.hero
 	var T := b.field_target()
 	var goal: Vector2 = T.pos
@@ -203,8 +217,49 @@ func _shot(name: String) -> void:
 	print("[bot] shot ", name)
 
 
+## 매 프레임 측정. 구간이 끝나면(진영 점령 · 정원지 · 장각) 걸린 시간 · 이동 · 멈춘 비율을 한 줄로
+func _measure() -> void:
+	var h := b.hero
+	if _last_pos != Vector2.INF:
+		var d := h.position.distance_to(_last_pos)
+		_dist += d
+		if d < 0.5:
+			_still += get_process_delta_time() if b.hit_stop <= 0 else 0.0
+	_last_pos = h.position
+	_min_hp = minf(_min_hp, h.hp)
+	for c in b.camps:
+		if c.cap and not _capped.has(c.id):
+			_capped[c.id] = true
+			_phase_end(String(c.n))
+	if b.cyz_dead and not _cyz_seen:
+		_cyz_seen = true
+		_phase_end("정원지")
+	if b.t >= _ally_t:
+		var march := 0
+		for a in b.allies:
+			if not a.dead and a.mode != "guard":
+				march += 1
+		_ally_log.append("%s %d(진군 %d)" % [_fmt(_ally_t), b.allies.size(), march])
+		_ally_t += 30.0
+
+
+func _phase_end(name: String) -> void:
+	var dt := b.t - _phase_t0
+	var still := (_still - _phase_s0) / maxf(dt, 0.01) * 100.0
+	_phases.append("%s %s(+%s, 이동 %dpx, 멈춤 %d%%)" % [name, _fmt(b.t), _fmt(dt), int(_dist - _phase_d0), int(still)])
+	_phase_t0 = b.t
+	_phase_d0 = _dist
+	_phase_s0 = _still
+
+
+static func _fmt(t: float) -> String:
+	return "%d:%02d" % [int(t) / 60, int(t) % 60]
+
+
 func _on_finished(win: bool) -> void:
 	_done = true
+	if win:
+		_phase_end("장각")
 	_log("WIN" if win else "LOSE(%s)" % b.end_why)
 	await get_tree().create_timer(1.2).timeout
 	_shot("end")
@@ -225,9 +280,12 @@ func _result(status: String) -> void:
 	var slots: Array[String] = []
 	for k in T.act_order + T.pas_order:
 		slots.append("%s%s" % [T.name_of(k), "(진화)" if T.evolved(k) else " %d" % T.level(k)])
+	print("[phases] " + (" · ".join(_phases) if not _phases.is_empty() else "-"))
+	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))
+	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 최저 체력 %d/%d" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0), int(_min_hp), int(h.max_hp)])
 	print("[slots] " + " · ".join(slots))
 	print("[evos] " + (", ".join(evos) if not evos.is_empty() else "-"))
 	print("[picks] " + " · ".join(T.history))
-	print("[result] status=%s time=%.1f kills=%d max_combo=%d cap=%d hero_hp=%d home=%d allies=%d level=%d act=%d/%d pas=%d/%d evos=%d picks=%d errors=%d warnings=%d" % [
+	print("[result] status=%s time=%.1f kills=%d max_combo=%d cap=%d hero_hp=%d home=%d allies=%d level=%d act=%d/%d pas=%d/%d evos=%d picks=%d dist=%d still=%d min_hp=%d errors=%d warnings=%d" % [
 		status, b.t, b.kills, h.cb_max, b.cap_n, ceili(h.hp), ceili(b.home_hp / b.home_max * 100), b.allies.size(), b.lvl,
-		T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count(), T.history.size(), _errs.lines.size(), _errs.warnings])
+		T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count(), T.history.size(), int(_dist), int(_still / maxf(b.t, 1.0) * 100.0), int(_min_hp), _errs.lines.size(), _errs.warnings])

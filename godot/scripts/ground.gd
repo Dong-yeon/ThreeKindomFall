@@ -86,7 +86,8 @@ func _camps(V: Rect2) -> void:
 		for d in [Vector2(-70, -40), Vector2(60, -45), Vector2(-60, 30), Vector2(70, 25)]:
 			_tent(p + d, Color("e8e0d0") if cap else Color("d8b860"), Color("4a7ab8") if cap else Color("a8782a"))
 		_flag(p + Vector2(0, -10), Color("4a7ab8") if cap else Color("d8b040"), b.hero_data.flag_glyph if cap else "黃")
-		var what: String = c.ln if c.lead != null else "병력 %d" % maxi(0, int(c.need) - int(c.kills))
+		var total: int = c.bks.size()
+		var what: String = String(c.ln) if c.lead != null else ("막사 %d/%d" % [total - b.barracks_left(c), total])
 		var txt: String = ("%s — 점령" % c.n) if cap else ("%s · %s" % [c.n, what])
 		_label(txt, Vector2(p.x, R.position.y - 14), Color("cfe2f4") if cap else Color("ffd8a0"))
 

@@ -14,10 +14,11 @@ const STICK_FULL := 50.0
 @export var hero_data: HeroData
 
 @export_group("출진 구성")
-## 웹판 새 저장의 기본 유물 '도원의 맹약' 효과: 시작부터 장수를 따라다니는 창병 수 · 아군 공격·체력 배율.
+## 웹판 기본 유물 '도원의 맹약': 시작부터 진군 부대 수(보충 없음, D-180). 아군 강화는 '호령' 책략으로만.
 ## 장비(군막)를 옮기면 출진 구성에서 넘겨받는다.
-@export var start_join := 4
-@export var ally_mul := 1.2
+@export var start_march := 4
+## 진영을 점령할 때 한 번 나오는 진군 부대 수(보충 없음, D-180)
+const MARCH_ON_CAPTURE := 4
 
 @onready var world: Node2D = $World
 @onready var ground: Node2D = $Ground
@@ -101,16 +102,16 @@ func _ready() -> void:
 	world.add_child(hero)
 	for c in Stage1.CAMPS:
 		var d: Dictionary = c.duplicate()
-		d.merge({"cap": false, "kills": 0, "lead": null, "spawn_t": 0.0, "al_t": 0.0})
+		d.merge({"cap": false, "lead": null, "al_t": 0.0, "bks": []})
 		camps.append(d)
 	_build_obstacles()
 	_setup_allies()
 	_spawn_squads()
-	for i in start_join:
-		ally_spawn("sol", hero.position + Vector2(randf_range(-40, 40), randf_range(10, 40)), "join", "")
+	for i in start_march:
+		ally_spawn("sol", hero.position + Vector2(randf_range(-40, 40), randf_range(10, 40)), "march", "")
 	_place_camera()
 	hud.setup(self)
-	banner(Stage1.NAME, "황건 진영 3곳을 점령하세요 — 진영 안에는 걸어서")
+	banner(Stage1.NAME, "황건 진영 3곳의 막사를 부수고 진영장을 쓰러뜨리세요")
 	if "--bot" in OS.get_cmdline_user_args():
 		var bot: Node = load("res://scripts/bot.gd").new()
 		add_child(bot)
@@ -289,22 +290,25 @@ func choose(i: int) -> void:
 	state = "play"
 
 
-## 진영: 병력 채움 → 병력을 다 줄이면 진영장 등장 → 쓰러뜨리면 점령
+## 진영(D-180): 병력은 살아 있는 막사에서만 나옴(막사마다 상한 · 장수가 가까우면 빨리) → 막사를 다 부수면 진영장 → 쓰러뜨리면 점령
 func _camps_tick(dt: float) -> void:
+	var B: Dictionary = Stage1.BARRACKS
 	for c in camps:
 		if c.cap:
 			continue
-		c.spawn_t -= dt
-		var R := camp_rect(c)
-		if c.lead == null and c.spawn_t <= 0:
-			c.spawn_t = 0.55 if hero.position.distance_to(c.pos) < 320 else 1.6
-			if _count_camp(c.id) < 22 and enemies.size() < 240:
-				var at := _camp_spot(R)
-				var e := spawn("ytarch" if randf() < 0.2 else "ytb", at, float(c.mul) * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
-				e.camp_id = c.id
-				e.set_post(at)
-				e.aggro = 220
-		if c.lead == null and c.kills >= c.need:
+		var left := 0
+		for bk in c.bks:
+			if not bk.alive:
+				continue
+			left += 1
+			bk.spawn_t -= dt
+			if bk.spawn_t > 0:
+				continue
+			var bp: Vector2 = bk.pos
+			bk.spawn_t = float(B.gap_near) if hero.position.distance_to(bp) < float(B.near) else float(B.gap_far)
+			if _count_barracks(bk.id) < int(B.cap) and enemies.size() < 240:
+				_barracks_soldier(c, bk, float(c.mul) * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
+		if c.lead == null and left == 0:
 			var lk: String = c.lk
 			var at: Vector2 = c.pos + Vector2(0, -20)
 			var L := spawn(lk, at, float(c.mul) * float(c.lm))
@@ -316,24 +320,64 @@ func _camps_tick(dt: float) -> void:
 			L.touch = Units.ENEMY[lk].touch
 			L.r *= 1.4 if lk == "ytbig" else 1.6
 			c.lead = L
-			banner("%s 등장!" % c.ln, "쓰러뜨리면 진영 점령")
+			banner("%s 등장!" % c.ln, "막사를 다 부쉈어요 — 쓰러뜨리면 진영 점령")
 
 
-## 황건 부대가 본진으로(점령 안 된 진영에서 45초마다)
+## 막사 옆에서 병력 하나(벽 · 물이면 막사 앞)
+func _barracks_soldier(c: Dictionary, bk: Dictionary, mul: float) -> Enemy:
+	var bp: Vector2 = bk.pos
+	var at := bp + Vector2.from_angle(randf() * TAU) * randf_range(30, 50)
+	if hit_obs(at, 12):
+		at = bp + Vector2(randf_range(-20, 20), 34)
+	var e := spawn("ytarch" if randf() < 0.2 else "ytb", at, mul)
+	e.camp_id = c.id
+	e.barracks_id = bk.id
+	e.set_post(at)
+	e.aggro = 220
+	return e
+
+
+func _count_barracks(id: String) -> int:
+	var n := 0
+	for e in enemies:
+		if not e.dead and e.barracks_id == id and not e.building:
+			n += 1
+	return n
+
+
+func barracks_left(c: Dictionary) -> int:
+	var n := 0
+	for bk in c.bks:
+		if bk.alive:
+			n += 1
+	return n
+
+
+## 황건 부대가 본진으로(45초마다, 살아 있는 막사 하나에서)
 func _party_tick(dt: float) -> void:
 	party_t -= dt
-	var open := camps.filter(func(c): return not c.cap)
-	if party_t > 0 or open.is_empty():
+	if party_t > 0:
+		return
+	var src: Array = []
+	for c in camps:
+		if not c.cap:
+			for bk in c.bks:
+				if bk.alive:
+					src.append([c, bk])
+	if src.is_empty():
 		return
 	party_t = 45
-	var c: Dictionary = open.pick_random()
-	var R := camp_rect(c)
+	var pick: Array = src.pick_random()
+	var c: Dictionary = pick[0]
+	var bp: Vector2 = pick[1].pos
 	for i in 8:
-		var at := Vector2(R.get_center().x + randf_range(-30, 30), R.end.y + 30 + randf_range(0, 30))
+		var at := bp + Vector2(randf_range(-30, 30), 30 + randf_range(0, 20))
+		if hit_obs(at, 12):
+			at = bp + Vector2(0, 34)
 		var e := spawn("ytdash" if i < 2 else "ytb", at, c.mul)
 		e.goal_home = true
 		e.aggro = 200
-	banner("%s에서 부대가 본진으로!" % c.n, "본진 체력을 지켜요")
+	banner("%s 막사에서 부대가 본진으로!" % c.n, "본진 체력을 지켜요")
 
 
 ## 들판 증원: 장수 둘레가 비면 황건 무리가 몰려옴(쓸어버리는 맛)
@@ -395,7 +439,7 @@ func _separate() -> void:
 		else:
 			_grid[key] = [e]
 	for e in enemies:
-		if e.dead or e.boss or e.air > 0:
+		if e.dead or e.boss or e.building or e.air > 0:
 			continue
 		var cx := int(e.position.x / GRID)
 		var cy := int(e.position.y / GRID)
@@ -424,14 +468,14 @@ func touching_enemy(at: Vector2, extra: float) -> Enemy:
 			if l == null:
 				continue
 			for e in l:
-				if not e.dead and e.air <= 0 and e.position.distance_to(at) < e.r + extra:
+				if not e.dead and not e.building and e.air <= 0 and e.position.distance_to(at) < e.r + extra:
 					return e
 	return null
 
 
 # ─────────── 아군 ───────────
 
-## 본진: 유비 + 창병 6명(7초마다 보충). 점령한 진영: 창병 4명이 지키고 18초마다 2명씩 장수에게 합류(최대 10명)
+## 본진: 유비 + 창병 6명(7초마다 보충). 점령한 진영: 수비대 창병 4명(18초마다 보충) + 진군 부대 4명이 한 번(보충 없음, D-180)
 func _setup_allies() -> void:
 	anchors["home"] = {"pos": home_pos + Vector2(0, -50), "r": 230.0}
 	ally_spawn("liubei", home_pos + Vector2(0, -40), "guard", "home")
@@ -484,19 +528,12 @@ func _ally_timers(dt: float) -> void:
 		var aid: String = "camp_" + c.id
 		if _count_allies(aid) < 4:
 			ally_spawn("sol", gate + Vector2(randf_range(-20, 20), 0), "guard", aid)
-		var joined := 0
-		for a in allies:
-			if not a.dead and a.mode == "join":
-				joined += 1
-		if joined < 10:
-			for i in 2:
-				ally_spawn("sol", gate + Vector2(randf_range(-24, 24), randf_range(0, 14)), "join", "")
 
 
 ## 황건이 아군과 붙으면 아군과 싸움(장수보다 가까울 때)
 func _engage_tick(dt: float) -> void:
 	for e in enemies:
-		if e.dead or e.boss or e.no_eng:
+		if e.dead or e.boss or e.building or e.no_eng:
 			continue
 		e.eng_t -= dt
 		if e.eng_t > 0:
@@ -577,7 +614,7 @@ func _tick_blades(dt: float) -> void:
 			n += 1
 			if n <= 6:
 				add_fx({"k": "spark", "pos": e.position + Vector2(0, -4), "t": 0.18, "a": dir.angle(), "c": bl.c})
-			if not e.dead and not lead and bl.push > 0:
+			if not e.dead and not e.immovable() and bl.push > 0:
 				e.position += dir * float(bl.push)
 			if bl.pierce > 0:
 				bl.pierce -= 1
@@ -611,7 +648,7 @@ func swing(at: Vector2, a: float, arc: float, rad: float, dmg: float, col: Array
 			continue
 		if arc < 6 and absf(angle_difference(a, dv.angle())) > arc / 2:
 			continue
-		var lead := e.is_lead()
+		var lead := e.immovable()
 		hurt_enemy(e, dmg)
 		n += 1
 		if sparks < 6:
@@ -641,8 +678,8 @@ func blast(at: Vector2, rad: float, dmg: float) -> int:
 		var d := dv.length()
 		if d > rad + e.r:
 			continue
-		var lead := e.is_lead()
-		hurt_enemy(e, dmg * (0.6 if lead else 1.0))
+		var lead := e.immovable()
+		hurt_enemy(e, dmg * (0.6 if e.is_lead() else 1.0))
 		n += 1
 		if not e.dead and not lead and d > 0.1:
 			e.air = 0.5
@@ -653,7 +690,7 @@ func blast(at: Vector2, rad: float, dmg: float) -> int:
 
 func push_away(at: Vector2, rad: float, amount: float) -> void:
 	for e in enemies:
-		if e.dead or e.is_lead():
+		if e.dead or e.immovable():
 			continue
 		var dv := e.position - at
 		var d := dv.length()
@@ -666,7 +703,7 @@ func hurt_enemy(e: Enemy, d: float) -> void:
 		return
 	e.hp -= d
 	e.flash = 0.1
-	if e.is_lead():
+	if e.is_lead() or e.building:
 		add_fx({"k": "num", "pos": e.position + Vector2(randf_range(-6, 6), -e.r), "t": 0.7, "v": str(roundi(d)), "c": Color("fff2c0")})
 	if e.hp <= 0:
 		e.dead = true
@@ -689,10 +726,18 @@ func _on_kill(e: Enemy) -> void:
 		hit_stop = 0.15
 		shake = 0.5
 		return
-	if e.camp_id != "":
+	if e.building:
 		var c := camp_by_id(e.camp_id)
-		if not c.cap and c.lead == null:
-			c.kills += 1
+		for bk in c.bks:
+			if bk.id == e.barracks_id:
+				bk.alive = false
+		var total: int = c.bks.size()
+		var done := total - barracks_left(c)
+		add_fx({"k": "ring", "pos": e.position, "t": 0.5, "r": 60.0, "c": Color("ffb050")})
+		shake = maxf(shake, 0.15)
+		if done < total:
+			banner("막사를 부쉈어요 (%d/%d)" % [done, total], "%s — 남은 막사 %d" % [c.n, total - done])
+		return
 	if e.camp_lead != "":
 		var c := camp_by_id(e.camp_lead)
 		c.cap = true
@@ -706,6 +751,8 @@ func _on_kill(e: Enemy) -> void:
 		var R := camp_rect(c)
 		anchors["camp_" + c.id] = {"pos": Vector2(R.get_center().x, R.end.y + 40), "r": 260.0}
 		c.al_t = 0.0
+		for i in MARCH_ON_CAPTURE:
+			ally_spawn("sol", Vector2(R.get_center().x + randf_range(-24, 24), R.end.y + 30 + randf_range(0, 14)), "march", "")
 		add_fx({"k": "ring", "pos": c.pos, "t": 0.6, "r": 150.0, "c": Color("4a7ab8")})
 		if cap_n >= 3:
 			open_door("gate")
@@ -724,7 +771,7 @@ func _on_kill(e: Enemy) -> void:
 				g.aggro = 260
 			banner("%s 점령! 관문이 열렸어요" % c.n, "관문 너머의 정원지를 쓰러뜨려요")
 		else:
-			banner("%s 점령! (%d/3)" % [c.n, cap_n], "아군 창병이 진영을 지키고, 부대가 %s에게 합류해요" % hero_data.display_name)
+			banner("%s 점령! (%d/3)" % [c.n, cap_n], "수비대가 진영을 지키고, 진군 부대 %d명이 다음 진영으로 먼저 가요" % MARCH_ON_CAPTURE)
 		return
 	if e.k == "cyz" and e.elite:
 		cyz_dead = true
@@ -893,25 +940,19 @@ func _spawn_squads() -> void:
 			var e := spawn(k, at, s[3])
 			e.set_post(at)
 			e.aggro = 230
+	var B: Dictionary = Stage1.BARRACKS
 	for c in camps:
-		for i in 10:
-			var at := _camp_spot(camp_rect(c))
-			var e := spawn("ytarch" if i % 4 == 3 else "ytb", at, c.mul)
-			e.camp_id = c.id
-			e.set_post(at)
-			e.aggro = 220
-
-
-func _camp_spot(R: Rect2) -> Vector2:
-	return Vector2(randf_range(R.position.x + 30, R.end.x - 30), randf_range(R.position.y + 30, R.end.y - 40))
-
-
-func _count_camp(id: String) -> int:
-	var n := 0
-	for e in enemies:
-		if not e.dead and e.camp_id == id:
-			n += 1
-	return n
+		var i := 0
+		for bp in c.barracks:
+			var bk := {"id": "%s:%d" % [c.id, i], "pos": bp, "alive": true, "spawn_t": randf_range(0.5, 2.0)}
+			c.bks.append(bk)
+			var hut := spawn("barracks", bp, float(B.hp) * float(c.mul))
+			hut.camp_id = c.id
+			hut.barracks_id = bk.id
+			hut.r = float(B.r)
+			for j in int(B.start):
+				_barracks_soldier(c, bk, float(c.mul))
+			i += 1
 
 
 ## 화면 바로 바깥 둘레의 빈 곳. 장수에게 걸어올 수 없는 곳(닫힌 장각 본진 안 · 닫힌 관문 너머)은 뺀다
@@ -1093,13 +1134,44 @@ func field_target() -> Dictionary:
 			bd = d
 			best = c
 	if not best.is_empty():
-		var what: String = ("%s 격파" % best.ln) if best.lead != null else ("병력 %d 남음" % maxi(0, int(best.need) - int(best.kills)))
-		return {"pos": best.pos, "n": "%s 점령 — %s (%d/3)" % [best.n, what, cap_n]}
+		var total: int = best.bks.size()
+		var done := total - barracks_left(best)
+		if best.lead != null:
+			var lp: Vector2 = best.lead.position if Unit.alive(best.lead) else best.pos
+			return {"pos": lp, "n": "%s 격파 · 막사 %d/%d" % [best.ln, done, total]}
+		var bp: Vector2 = best.pos
+		var bd2 := INF
+		for bk in best.bks:
+			if bk.alive and hero.position.distance_to(bk.pos) < bd2:
+				bd2 = hero.position.distance_to(bk.pos)
+				bp = bk.pos
+		return {"pos": bp, "n": "%s · 막사 %d/%d 부수기" % [best.n, done, total]}
 	if not cyz_dead:
 		var zp: Vector2 = cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos
 		return {"pos": zp, "n": "관문 너머 황건 장수 정원지 격파"}
 	var bp: Vector2 = boss.position if Unit.alive(boss) else keep_rect().get_center()
 	return {"pos": bp, "n": "장각 본진 — 천공장군 장각 격파"}
+
+
+## 진군 부대(D-180)가 갈 곳과 길찾기 키
+func march_goal(from: Vector2) -> Dictionary:
+	for c in camps:
+		if c.cap:
+			continue
+		if c.lead != null:
+			return {"key": "m_lead_" + c.id, "pos": c.lead.position if Unit.alive(c.lead) else c.pos}
+		var best := {}
+		var bd := INF
+		for bk in c.bks:
+			if bk.alive and from.distance_to(bk.pos) < bd:
+				bd = from.distance_to(bk.pos)
+				best = bk
+		if not best.is_empty():
+			return {"key": "m_" + String(best.id), "pos": best.pos}
+		return {"key": "m_camp_" + c.id, "pos": c.pos}
+	if not cyz_dead:
+		return {"key": "m_cyz", "pos": cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos}
+	return {"key": "m_boss", "pos": boss.position if Unit.alive(boss) else keep_rect().get_center()}
 
 
 # ─────────── 화면 ───────────
