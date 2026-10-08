@@ -49,6 +49,14 @@ var blades: Array[Dictionary] = []
 var fx: Array[Dictionary] = []
 ## 주울 것(고기만두) {pos}
 var drops: Array[Dictionary] = []
+## 경험 구슬(D-183) {pos, v, pull} · 떨어진/주운 경험(봇 측정)
+var orbs: Array[Dictionary] = []
+var xp_dropped := 0.0
+var xp_picked := 0.0
+## 구슬이 빨려 오기 시작하는 거리(웹판 줍는 범위) · 자석이 떨어질 확률(처치 하나당) · 구슬 수 상한(넘으면 값을 합침)
+const ORB_MAG := 64.0
+const MAGNET_CHANCE := 0.004
+const ORB_CAP := 400
 ## 막는 것 {rect, k: wall|water, tag: camp|keep|gate, door: ""|keep|gate}
 var obs: Array[Dictionary] = []
 ## obs의 사각형만(충돌 검사용 — 매 프레임 수백 번 읽어서 따로 둠)
@@ -787,7 +795,7 @@ func hurt_enemy(e: Enemy, d: float) -> void:
 ## 적이 쓰러지면: 진영 병력 · 진영장(점령) · 정원지(본진 문) · 장각(평정)
 func _on_kill(e: Enemy) -> void:
 	if not e.boss:
-		gain_xp(TacticsData.xp_of(e.k, e.elite))
+		drop_orb(e.position, TacticsData.xp_of(e.k, e.elite))
 	if e.boss:
 		for o in enemies:
 			if not o.dead and o != e:
@@ -852,7 +860,7 @@ func _on_kill(e: Enemy) -> void:
 		open_door("keep")
 		var K := keep_rect()
 		for dx in [-24, 24]:
-			drops.append({"pos": Vector2(K.get_center().x + dx, K.end.y + 40)})
+			drops.append({"k": "bun", "pos": Vector2(K.get_center().x + dx, K.end.y + 40)})
 		var B: Dictionary = Stage1.KEEP
 		boss = spawn(B.boss, K.get_center() + Vector2(0, -40), B.bm)
 		boss.boss = true
@@ -862,8 +870,11 @@ func _on_kill(e: Enemy) -> void:
 		return
 	if e.elite:
 		return
-	if randf() < 0.006:
-		drops.append({"pos": e.position})
+	var r := randf()
+	if r < 0.006:
+		drops.append({"k": "bun", "pos": e.position})
+	elif r < 0.006 + MAGNET_CHANCE:
+		drops.append({"k": "magnet", "pos": e.position})
 
 
 func later(delay: float, fn: Callable) -> void:
@@ -956,16 +967,61 @@ func _sweep() -> void:
 
 
 func _pickups() -> void:
+	_tick_orbs()
 	if drops.is_empty():
 		return
 	var keep: Array[Dictionary] = []
 	for dr in drops:
-		if hero.position.distance_to(dr.pos) < hero.r + 14:
+		if hero.position.distance_to(dr.pos) >= hero.r + 14:
+			keep.append(dr)
+		elif dr.get("k", "bun") == "magnet":
+			# 자석: 화면 둘레(200px 여유)의 구슬을 모두 끌어옴
+			var V := view.grow(200)
+			var n := 0
+			for o in orbs:
+				if V.has_point(o.pos):
+					o.pull = true
+					n += 1
+			banner("자석!", "구슬 %d개를 끌어와요" % n)
+			Sound.play("accept", 0.4)
+			add_fx({"k": "ring", "pos": hero.position, "t": 0.5, "r": 120.0, "c": Color("6ac0e0")})
+		else:
 			hero.heal(hero.max_hp * 0.3)
 			Sound.play("heal", 0.35)
-		else:
-			keep.append(dr)
 	drops = keep
+
+
+## 경험 구슬(D-183): 처치한 자리에 떨어짐. 너무 많으면 아무 구슬에 값을 더함(웹판과 같음)
+func drop_orb(at: Vector2, v: float) -> void:
+	xp_dropped += v
+	if orbs.size() >= ORB_CAP:
+		orbs[randi() % orbs.size()].v += v
+		return
+	orbs.append({"pos": at + Vector2(randf_range(-4, 4), randf_range(-4, 4)), "v": v, "pull": false})
+
+
+## 가까이(ORB_MAG) 가면 빨려 오고, 닿으면 경험
+func _tick_orbs() -> void:
+	if orbs.is_empty():
+		return
+	var dt := get_process_delta_time()
+	var hp := hero.position
+	var keep: Array[Dictionary] = []
+	var k := minf(1.0, dt * 11.0)
+	for o in orbs:
+		var p: Vector2 = o.pos
+		var d := p.distance_to(hp)
+		if o.pull or d < ORB_MAG:
+			o.pull = true
+			p += (hp - p) * k
+			o.pos = p
+			d = p.distance_to(hp)
+		if d < hero.r + 8:
+			xp_picked += float(o.v)
+			gain_xp(o.v)
+		else:
+			keep.append(o)
+	orbs = keep
 
 
 func finish(win: bool, why: String) -> void:

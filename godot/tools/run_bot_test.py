@@ -80,11 +80,11 @@ def main():
     # 표
     print()
     print('1장 황건적의 난 — 자동 전투 (seed %d, 판 시간 상한 %s, 실제 %.0f초)' % (a.seed, fmt_t(a.max_time), time.time() - t0))
-    head = ['모드', '결과', '걸린 시간', '처치', '공적 Lv', '진화', '이동(px)', '멈춤%', '둘레 적', '분당 피격', '최저 체력', '점령', '오류']
+    head = ['모드', '결과', '걸린 시간', '처치', '공적 Lv', '진화', '이동(px)', '멈춤%', '둘레 적', '분당 피격', '최저 체력', '구슬%', '점령', '오류']
     body = []
     for m, r, n_err, _, _ in rows:
         body.append([MODE_NAME.get(m, m), STATUS_NAME.get(r['status'], r['status']), fmt_t(r['time']), r['kills'], r.get('level', '-'),
-                     r.get('evos', '-'), r.get('dist', '-'), r.get('still', '-'), r.get('near', '-'), r.get('hits_pm', '-'), r.get('min_hp', '-'), '%s/3' % r['cap'], str(n_err)])
+                     r.get('evos', '-'), r.get('dist', '-'), r.get('still', '-'), r.get('near', '-'), r.get('hits_pm', '-'), r.get('min_hp', '-'), r.get('orbs', '-'), '%s/3' % r['cap'], str(n_err)])
     w = [max(len(x) for x in col) for col in zip(head, *body)]
     for row in [head] + body:
         print('  '.join(c.ljust(w[i]) for i, c in enumerate(row)))

@@ -28,9 +28,30 @@ func _draw() -> void:
 	_tactics_ground(V)
 	for dr in b.drops:
 		var p: Vector2 = dr.pos
+		if dr.get("k", "bun") == "magnet":
+			# 자석: 빨강 말굽 + 은빛 끝
+			var bob := sin(b.t * 5) * 2
+			draw_arc(p + Vector2(0, bob), 7, PI, TAU, 12, Color("d03a2a"), 4)
+			draw_line(p + Vector2(-7, bob), p + Vector2(-7, bob + 6), Color("d03a2a"), 4)
+			draw_line(p + Vector2(7, bob), p + Vector2(7, bob + 6), Color("d03a2a"), 4)
+			draw_rect(Rect2(p + Vector2(-9, bob + 5), Vector2(4, 3)), Color("e8e8f0"))
+			draw_rect(Rect2(p + Vector2(5, bob + 5), Vector2(4, 3)), Color("e8e8f0"))
+			continue
 		draw_circle(p, 6, Color("f4ecd8"))
 		draw_circle(p, 6, Color("8a6a3a"), false, 1.5)
 		draw_line(p + Vector2(-3, -1), p + Vector2(3, -1), Color("c8a874"), 1.0)
+	# 경험 구슬: 값이 클수록 크고 색이 바뀜(1 파랑 · 2~4 초록 · 10 이상 금)
+	for o in b.orbs:
+		var p: Vector2 = o.pos
+		if not V.has_point(p):
+			continue
+		var v: float = o.v
+		var s := 3.0 if v < 2 else (4.0 if v < 10 else 6.0)
+		var c := Color("6ac0e0") if v < 2 else (Color("7ad870") if v < 10 else Color("f0c040"))
+		var dia := PackedVector2Array([p + Vector2(0, -s - 1), p + Vector2(s, 0), p + Vector2(0, s), p + Vector2(-s, 0)])
+		draw_colored_polygon(dia, c)
+		dia.append(dia[0])
+		draw_polyline(dia, Color(0.11, 0.09, 0.07, 0.7), 1.0)
 
 
 func _river(V: Rect2) -> void:
