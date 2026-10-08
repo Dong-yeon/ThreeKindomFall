@@ -1,0 +1,24 @@
+const {chromium}=require('playwright');
+const OUT=require('path').resolve(__dirname,'../out')+'/'; require('fs').mkdirSync(OUT,{recursive:true});
+(async()=>{const b=await chromium.launch();const ctx=await b.newContext({viewport:{width:360,height:780},deviceScaleFactor:2,hasTouch:true});const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push('PE '+(e.stack||'').split('\n').slice(1,5).join(' ')));p.on('console',m=>{if(m.type()==='error'&&!m.text().includes('ERR_TUNNEL'))errs.push(m.text().replace(/file:[^)]*proto-bookworld.html/g,'').slice(0,900))});
+const shot=async(n)=>{await p.waitForTimeout(300); await p.screenshot({path:OUT+'x_'+n+'.png'});};
+await p.goto(require('url').pathToFileURL(require('path').resolve(__dirname,'../dist/index.html')).href);await p.waitForTimeout(1400);
+await shot('00intro'); for(let i=0;i<4;i++){ if(await p.isVisible('#talk')) { await p.click('#talk'); await p.waitForTimeout(150);} }
+await shot('01camp'); await p.evaluate(()=>{window.__BW.wSV().merit=600;});
+const walk=async(pts,stopId)=>p.evaluate(([pts,stopId])=>{const B=window.__BW,K=B.keys,WS=B.WS; let n=0, stuck=0; for(const [tx,ty] of pts){ let lx=WS.x,ly=WS.y; for(let i=0;i<1500;i++){ const dx=tx-WS.x,dy=ty-WS.y,d=Math.hypot(dx,dy); if(d<8) break; if(stopId&&WS.near&&WS.near.id===stopId&&tx===pts[pts.length-1][0]) break; K.arrowleft=dx<-4; K.arrowright=dx>4; K.arrowup=dy<-4; K.arrowdown=dy>4; B.worldUpdate(1/30); n++; if(i%30===29){ if(Math.hypot(WS.x-lx,WS.y-ly)<2){stuck++; break;} lx=WS.x; ly=WS.y; } } } for(const k in K)K[k]=false; return {x:Math.round(WS.x),y:Math.round(WS.y),near:WS.near&&WS.near.id,n,stuck};},[pts,stopId]);
+const R={};
+R.smith=await walk([[1560,520],[1530,498]],'smith'); await p.click('#wp [data-w]'); await shot('02smith'); await p.click('#equp'); await p.waitForTimeout(200);
+await p.click('[data-slot="1"]'); await p.click('[data-armor="iron"]'); await p.waitForTimeout(400); await shot('03try_iron'); await p.click('#eqbuy'); await p.waitForTimeout(200); await shot('04iron_on'); await p.click('#out');
+R.stable=await walk([[1700,520],[1750,498]],'stable'); await p.click('#wp [data-w]'); await p.click('[data-hk="black"]'); await p.waitForTimeout(400); await shot('05try_black'); await p.click('#eqon'); await p.waitForTimeout(150); await p.click('#out');
+R.tent=await walk([[1640,450],[1640,432]],'tent'); await p.click('#wp [data-w]'); await shot('06tent'); await p.click('#out');
+R.gate=await walk([[1640,560],[1640,660],[1560,705]]); await shot('07outside');
+R.f1=await walk([[1440,790]],'f1'); await shot('08f1');
+R.blocked=await walk([[1330,850],[1215,915],[1160,930]]); await shot('09fogedge');
+R.backf1=await walk([[1330,850],[1440,790]],'f1');
+await p.click('#wp [data-w]'); await shot('10sortie'); await p.click('#go'); await p.waitForTimeout(700);
+R.battle=await p.evaluate(()=>{const A=window.__BW.A; return {hero:A.hero, max:A.p.max, atk:+A.p.atk.toFixed(2), red:A.armRed, hspd:A.hspd, hspr:A.hspr, horse:A.horse&&A.horse.max, foot:A.footSpd};}); await shot('11battle');
+await p.evaluate(()=>{const B=window.__BW; for(let i=0;i<60;i++) B.update(1/30); B.A.kills=250; B.A.capN=3; B.muEnd(true);}); await p.waitForTimeout(1200); await p.click('#back'); await p.waitForTimeout(600); await shot('12back');
+R.ferry=await walk([[1330,850],[1215,915],[1162,925],[1160,965],[1150,1000]]); await shot('13crossed');
+R.luoyang=await walk([[1135,1040],[1070,1080],[1015,1050]],'luoyang'); await shot('14luoyang');
+R.s2=await walk([[1235,1030],[1320,1035]],'s2'); await shot('15s2');
+console.log(JSON.stringify(R,null,0)); console.log('ERR',JSON.stringify([...new Set(errs)].slice(0,4).map(e=>e.slice(0,400)))); await b.close();})();

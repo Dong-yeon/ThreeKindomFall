@@ -1,0 +1,22 @@
+# B.B.Bits Three Kingdoms 구매 에셋: 게임에 포함한 배포만 허용, 파일 단독 공유·업로드 금지. 절대 커밋하지 않는다
+assets/three-kingdom/
+# 위 에셋으로 만든 결과물도 커밋하지 않는다
+prototype/web/src/c3b_bb_data.js
+prototype/web/dist/
+
+# Ninja Adventure 원본 압축(CC0, 90MB) — 필요할 때만 풀어 둠
+assets/ninja-adventure/
+
+# 봇 스크린샷·임시 결과
+prototype/web/out/
+
+# 도구
+node_modules/
+__pycache__/
+*.log
+
+# Godot 4
+.godot/
+/android/
+export_presets.cfg
+*.translation
