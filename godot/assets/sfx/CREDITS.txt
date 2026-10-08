@@ -1,0 +1,2 @@
+Ninja Adventure Asset Pack (pixel-boy, AAA) — CC0 1.0. https://pixel-boy.itch.io/ninja-adventure-asset-pack
+웹 프로토타입이 원본에서 골라 MP3로 줄인 것(prototype/web/tools/build_assets.py).

@@ -54,6 +54,9 @@ var _capped := {}
 var _cyz_seen := false
 var _ally_t := 30.0
 var _ally_log: Array[String] = []
+## 둘레 120px 안 적 수(프레임 평균) · 표본 시간
+var _near_sum := 0.0
+var _near_t := 0.0
 ## 스크린샷 모드: 첫 레벨업 카드 · 첫 진화 카드에서 몇 프레임 기다렸다 찍고 고름
 var _pick_wait := 0
 var _shot_pick := false
@@ -227,6 +230,13 @@ func _measure() -> void:
 			_still += get_process_delta_time() if b.hit_stop <= 0 else 0.0
 	_last_pos = h.position
 	_min_hp = minf(_min_hp, h.hp)
+	var dt := get_process_delta_time()
+	var near := 0
+	for e in b.enemies:
+		if not e.dead and not e.building and e.position.distance_to(h.position) < 120:
+			near += 1
+	_near_sum += near * dt
+	_near_t += dt
 	for c in b.camps:
 		if c.cap and not _capped.has(c.id):
 			_capped[c.id] = true
@@ -282,10 +292,11 @@ func _result(status: String) -> void:
 		slots.append("%s%s" % [T.name_of(k), "(진화)" if T.evolved(k) else " %d" % T.level(k)])
 	print("[phases] " + (" · ".join(_phases) if not _phases.is_empty() else "-"))
 	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))
-	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 최저 체력 %d/%d" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0), int(_min_hp), int(h.max_hp)])
+	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 둘레 120px 적 평균 %.1f · 분당 피격 %.1f · 최저 체력 %d/%d" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0),
+		_near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(_min_hp), int(h.max_hp)])
 	print("[slots] " + " · ".join(slots))
 	print("[evos] " + (", ".join(evos) if not evos.is_empty() else "-"))
 	print("[picks] " + " · ".join(T.history))
-	print("[result] status=%s time=%.1f kills=%d max_combo=%d cap=%d hero_hp=%d home=%d allies=%d level=%d act=%d/%d pas=%d/%d evos=%d picks=%d dist=%d still=%d min_hp=%d errors=%d warnings=%d" % [
+	print("[result] status=%s time=%.1f kills=%d max_combo=%d cap=%d hero_hp=%d home=%d allies=%d level=%d act=%d/%d pas=%d/%d evos=%d picks=%d dist=%d still=%d min_hp=%d near=%.1f hits_pm=%.1f errors=%d warnings=%d" % [
 		status, b.t, b.kills, h.cb_max, b.cap_n, ceili(h.hp), ceili(b.home_hp / b.home_max * 100), b.allies.size(), b.lvl,
-		T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count(), T.history.size(), int(_dist), int(_still / maxf(b.t, 1.0) * 100.0), int(_min_hp), _errs.lines.size(), _errs.warnings])
+		T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count(), T.history.size(), int(_dist), int(_still / maxf(b.t, 1.0) * 100.0), int(_min_hp), _near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), _errs.lines.size(), _errs.warnings])

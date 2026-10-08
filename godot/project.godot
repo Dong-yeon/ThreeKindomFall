@@ -16,6 +16,10 @@ run/main_scene="res://scenes/battle.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
+[autoload]
+
+Sound="*res://scripts/sound.gd"
+
 [display]
 
 window/size/viewport_width=360

@@ -111,6 +111,7 @@ func _ready() -> void:
 		ally_spawn("sol", hero.position + Vector2(randf_range(-40, 40), randf_range(10, 40)), "march", "")
 	_place_camera()
 	hud.setup(self)
+	Sound.music("fight", 0.3)
 	banner(Stage1.NAME, "황건 진영 3곳의 막사를 부수고 진영장을 쓰러뜨리세요")
 	if "--bot" in OS.get_cmdline_user_args():
 		var bot: Node = load("res://scripts/bot.gd").new()
@@ -238,6 +239,7 @@ func _field_tick(dt: float) -> void:
 	if home_hp <= home_max * 0.4 and not alert_home:
 		alert_home = true
 		banner("아군 본진이 밀려요!", "수비대가 버티기 어려워요 — 돌아가 도와요")
+		Sound.play("alert", 0.5)
 	if home_hp > home_max * 0.7:
 		alert_home = false
 	if home_hp <= 0:
@@ -276,6 +278,7 @@ var pick_opts: Array[Dictionary] = []
 
 func _open_pick() -> void:
 	pick_opts = tactics.options(3)
+	Sound.play("accept", 0.35)
 	state = "pick"
 	joy_on = false
 	hud.show_pick(pick_opts)
@@ -321,6 +324,7 @@ func _camps_tick(dt: float) -> void:
 			L.r *= 1.4 if lk == "ytbig" else 1.6
 			c.lead = L
 			banner("%s 등장!" % c.ln, "막사를 다 부쉈어요 — 쓰러뜨리면 진영 점령")
+			Sound.play("alert", 0.35)
 
 
 ## 막사 옆에서 병력 하나(벽 · 물이면 막사 앞)
@@ -378,6 +382,7 @@ func _party_tick(dt: float) -> void:
 		e.goal_home = true
 		e.aggro = 200
 	banner("%s 막사에서 부대가 본진으로!" % c.n, "본진 체력을 지켜요")
+	Sound.play("alert", 0.3)
 
 
 ## 들판 증원: 장수 둘레가 비면 황건 무리가 몰려옴(쓸어버리는 맛)
@@ -625,6 +630,7 @@ func _tick_blades(dt: float) -> void:
 			if bl.hits == 0:
 				hit_stop = maxf(hit_stop, bl.hs)
 				shake = maxf(shake, bl.shake)
+				Sound.play("hit", 0.18)
 			bl.hits += n
 		if bl.pierce == 0:
 			continue
@@ -709,6 +715,7 @@ func hurt_enemy(e: Enemy, d: float) -> void:
 		e.dead = true
 		kills += 1
 		add_fx({"k": "burst", "pos": e.position, "t": 0.3, "r": e.r * 0.6, "c": Color("f6e2a0")})
+		Sound.play("slam" if e.building else "kill", 0.45 if e.building else 0.12)
 		_on_kill(e)
 
 
@@ -754,6 +761,7 @@ func _on_kill(e: Enemy) -> void:
 		for i in MARCH_ON_CAPTURE:
 			ally_spawn("sol", Vector2(R.get_center().x + randf_range(-24, 24), R.end.y + 30 + randf_range(0, 14)), "march", "")
 		add_fx({"k": "ring", "pos": c.pos, "t": 0.6, "r": 150.0, "c": Color("4a7ab8")})
+		Sound.play("win", 0.35)
 		if cap_n >= 3:
 			open_door("gate")
 			cyz_on = true
@@ -785,6 +793,7 @@ func _on_kill(e: Enemy) -> void:
 		boss.boss = true
 		boss.touch = 22
 		banner("정원지 격파! 장각 본진의 문이 열렸어요", "문 앞 고기만두로 기운을 차리고 장각에게")
+		Sound.play("alert", 0.5)
 		return
 	if e.elite:
 		return
@@ -888,6 +897,7 @@ func _pickups() -> void:
 	for dr in drops:
 		if hero.position.distance_to(dr.pos) < hero.r + 14:
 			hero.heal(hero.max_hp * 0.3)
+			Sound.play("heal", 0.35)
 		else:
 			keep.append(dr)
 	drops = keep
@@ -899,6 +909,8 @@ func finish(win: bool, why: String) -> void:
 	state = "end" if win else "dead"
 	end_why = why
 	joy_on = false
+	Sound.music("")
+	Sound.play("win" if win else "lose", 0.45)
 	get_tree().create_timer(0.7).timeout.connect(hud.show_end)
 	finished.emit(win)
 

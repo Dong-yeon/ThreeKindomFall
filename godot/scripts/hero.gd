@@ -18,6 +18,8 @@ var stun := 0.0
 var face := Vector2(0, -1)
 var vel := Vector2.ZERO
 var still := 0.0
+## 맞은 횟수(봇 측정: 분당 피격)
+var hits_taken := 0
 # 기본 공격 · 연격 수
 var cb_t := 0.3
 var cb_idle := 9.0
@@ -113,6 +115,7 @@ func attack_tick(dt: float) -> void:
 	var n: int = A.count + int(A.at_level(A.level_extra, lv, 0))
 	for i in n:
 		battle.launch_blade(position, a + (i - (n - 1) / 2.0) * A.spread, A, dmg, size, col)
+	Sound.play("shoot", 0.22)
 	cb_t = A.cooldown * float(A.at_level(A.level_cd, lv, 1.0)) / (1.0 + 0.1 * (st - 1))
 
 
@@ -129,6 +132,7 @@ func musou_go() -> void:
 	musou_k = 0.0
 	battle.shake = 0.2
 	battle.banner(data.musou_name + "!", "")
+	Sound.play("win", 0.3)
 
 
 ## 무쌍: 무적으로 돌며 베기 → 끝에 큰 폭발
@@ -143,6 +147,7 @@ func musou_tick(dt: float) -> void:
 		cb_add(n, 0)
 		battle.push_away(position, 130, 8)
 		battle.shake = maxf(battle.shake, 0.08)
+		Sound.play("slam", 0.12)
 	if musou_t <= 0:
 		var n := battle.blast(position, data.musou_blast_radius, power() * data.musou_blast_mult)
 		cb_add(n, 0)
@@ -150,6 +155,7 @@ func musou_tick(dt: float) -> void:
 		battle.add_fx({"k": "ring", "pos": position, "t": 0.35, "r": 140.0, "c": Color("fff2b0")})
 		battle.shake = 0.4
 		battle.hit_stop = 0.08
+		Sound.play("slam", 0.5)
 
 
 ## 맞음: 무쌍 중엔 무적, 맞으면 무쌍 게이지가 차고 연격 수는 절반.
@@ -165,6 +171,8 @@ func hurt(d: float) -> void:
 		cb_mile = _mile_of(cb_n)
 	hp -= d
 	inv = 0.6
+	hits_taken += 1
+	Sound.play("hurt", 0.35)
 	battle.shake = 0.22
 	battle.add_fx({"k": "num", "pos": position + Vector2(0, -20), "t": 0.7, "v": "-%d" % roundi(d), "c": Color("ff9a8a")})
 	if hp <= 0:

@@ -220,6 +220,7 @@ func apply(o: Dictionary) -> void:
 		evo[k] = true
 		tag = "진화 " + evo_name(k)
 		b.banner("진화 — %s!" % evo_name(k), evo_desc(k))
+		Sound.play("win", 0.4)
 		b.add_fx({"k": "ring", "pos": b.hero.position, "t": 0.6, "r": 90.0, "c": Color("7ae8c0")})
 	else:
 		if not lv.has(k):
@@ -402,6 +403,7 @@ func _bolt(atk: float) -> void:
 		var e: Enemy = tg.pick_random()
 		var at := e.position
 		b.add_fx({"k": "sky", "pos": at, "t": 0.25})
+		Sound.play("hit", 0.2)
 		_hit_area(at, r, dmg)
 		var prev := at
 		for c in chain:
@@ -534,3 +536,4 @@ func _blast(at: Vector2, r: float, dmg: float, push: float, col: Color) -> void:
 	b.add_fx({"k": "ring", "pos": at, "t": 0.35, "r": r, "c": col})
 	b.add_fx({"k": "burst", "pos": at, "t": 0.3, "r": r * 0.3, "c": col})
 	b.shake = maxf(b.shake, 0.08)
+	Sound.play("slam", 0.2)
