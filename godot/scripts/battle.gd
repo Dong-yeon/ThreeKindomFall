@@ -70,6 +70,11 @@ var cyz: Enemy = null
 var boss: Enemy = null
 var party_t := 60.0
 var rein_t := 4.0
+## 포위 웨이브(D-182): 다음까지 남은 시간 · 몇 번째
+var wave_t := 35.0
+var wave_n := 0
+## 웨이브 병력 체력 배율(웹판 에워싸는 무리 = 0.6)
+var WAVE_HP := 0.6
 var turret_t := 0.0
 var home_t := 8.0
 var lb_t := 0.0
@@ -93,6 +98,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--seed="):
 			seed(int(a.substr(7)))
+		elif a.begins_with("--wave-hp="):
+			WAVE_HP = float(a.substr(10))
 	tactics = Tactics.new()
 	tactics.name = "Tactics"
 	add_child(tactics)
@@ -199,6 +206,9 @@ func _update(dt: float) -> void:
 	for e in enemies:
 		if not e.dead:
 			e.tick(dt)
+	# 장수가 쓰러졌으면(적에게 닿음) 이 프레임의 나머지(날아가던 참격 등)를 멈춤 — 안 그러면 진영장을 잡아 점령 회복이 들어갔음
+	if state != "play":
+		return
 	_run_later()
 	_tick_blades(dt)
 	_tick_shots(dt)
@@ -249,6 +259,7 @@ func _field_tick(dt: float) -> void:
 	_camps_tick(dt)
 	_party_tick(dt)
 	_rein_tick(dt)
+	_wave_tick(dt)
 	_cyz_tick(dt)
 	_separate()
 	_ally_timers(dt)
@@ -385,13 +396,14 @@ func _party_tick(dt: float) -> void:
 	Sound.play("alert", 0.3)
 
 
-## 들판 증원: 장수 둘레가 비면 황건 무리가 몰려옴(쓸어버리는 맛)
+## 들판 증원: 장수 둘레가 비면 황건 무리가 몰려옴(쓸어버리는 맛).
+## 진영 담 안에 있어도 끄지 않고, 그 진영 남쪽 문 앞에 모아 문으로 몰려 들어오게(D-182 — 웹판은 담 안이면 껐음)
 func _rein_tick(dt: float) -> void:
 	rein_t -= dt
 	if rein_t > 0:
 		return
 	rein_t = 3
-	if inside_walls(hero.position) or boss != null or enemies.size() >= 260:
+	if boss != null or enemies.size() >= 260:
 		return
 	var near := 0
 	for e in enemies:
@@ -399,7 +411,9 @@ func _rein_tick(dt: float) -> void:
 			near += 1
 	if near >= 40:
 		return
-	var o := ring_pos()
+	var o := _gate_front(hero.position)
+	if o == Vector2.INF:
+		o = ring_pos()
 	if o == Vector2.INF:
 		return
 	var n := 12 + randi() % 7
@@ -415,6 +429,57 @@ func _rein_tick(dt: float) -> void:
 			k = "ytdash"
 		var at := Vector2(clampf(o.x + randf_range(-40, 40), 30, W - 30), clampf(o.y + randf_range(-40, 40), 30, H - 30))
 		spawn(k, at, m)
+
+
+## 장수가 진영(또는 장각 본진) 담 안이면 그 남쪽 문 앞 70px, 아니면 Vector2.INF
+func _gate_front(p: Vector2) -> Vector2:
+	var rects: Array[Rect2] = []
+	for c in camps:
+		rects.append(camp_rect(c))
+	rects.append(keep_rect())
+	for R in rects:
+		if R.grow(-4).has_point(p):
+			return Vector2(R.get_center().x + randf_range(-20, 20), R.end.y + 70)
+	return Vector2.INF
+
+
+## 포위 웨이브(D-182): 30~40초마다 장수 둘레 300px 원 위 사방에서 조여 옴(웹판 '에워싸는 무리'와 같은 수 · 체력 60%).
+## 수 16 + 분당 5(최대 48) · 빠르기 +35%까지(10분) · 웨이브를 거듭할수록 돌격병 · 역사가 섞임.
+## 벽 안 · 장수에게 걸어올 수 없는 자리는 뺌. 장각과 싸울 때는 쉼.
+func _wave_tick(dt: float) -> void:
+	wave_t -= dt
+	if wave_t > 0:
+		return
+	wave_t = randf_range(30, 40)
+	if boss != null or enemies.size() >= 300:
+		return
+	wave_n += 1
+	if flow.ver != obs_ver:
+		flow.build(obs, W, H, obs_ver)
+	var d: PackedInt32Array = flow.field("p", hero.position, t, 0.2).d
+	var n := mini(48, 16 + int(t / 60.0 * 5.0))
+	var R := 300.0
+	var m := mul_y(hero.position.y) * WAVE_HP
+	var sp := 1.0 + minf(t, 600.0) / 600.0 * 0.35
+	var off := randf() * TAU
+	var made := 0
+	for i in n:
+		var at := hero.position + Vector2.from_angle(off + float(i) / n * TAU) * R
+		at = Vector2(clampf(at.x, 24, W - 24), clampf(at.y, 24, H - 24))
+		if hit_obs(at, 14) or d[flow.cell_of(at)] < 0:
+			continue
+		var k := "ytb"
+		if wave_n >= 2 and i % 6 == 3:
+			k = "ytdash"
+		elif wave_n >= 3 and i % 8 == 7:
+			k = "ytbig"
+		var e := spawn(k, at, m)
+		e.spd0 *= sp
+		e.spd = e.spd0
+		made += 1
+	if made > 0:
+		banner("황건 무리가 에워싸요!", "사방에서 %d명이 조여 와요" % made)
+		Sound.play("alert", 0.45)
 
 
 ## 관문이 열린 뒤: 정원지 쪽으로 6초마다 황건 무리

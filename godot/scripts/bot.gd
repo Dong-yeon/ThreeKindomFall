@@ -149,7 +149,7 @@ func _process(_dt: float) -> void:
 		_done = true
 		_log("TIMEOUT")
 		_result("timeout")
-		get_tree().quit(2)
+		_quit(2)
 
 
 ## 카드 점수: 진화 100 · 고르면 진화 60 · 기본 공격 40 · 가진 공격 30 · 가진 공격의 짝 보조 25 · 가진 보조 20 ·
@@ -274,7 +274,15 @@ func _on_finished(win: bool) -> void:
 	await get_tree().create_timer(1.2).timeout
 	_shot("end")
 	_result("clear" if win else "lose_" + b.end_why)
-	get_tree().quit(0 if win else 1)
+	_quit(0 if win else 1)
+
+
+## 소리를 멈추고 두 프레임 뒤에 끔(재생 중인 소리가 남으면 종료 경고)
+func _quit(code: int) -> void:
+	Sound.stop_all()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	get_tree().quit(code)
 
 
 ## 마지막 한 줄: 클리어 여부 · 시간 · 처치 · 오류(run_bot_test.py가 읽음)

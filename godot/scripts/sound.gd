@@ -17,11 +17,16 @@ var _pools := {}
 var _last := {}
 var _music: AudioStreamPlayer
 var _music_key := ""
+## 높이 흔들기는 따로 된 난수로(전역 난수를 쓰면 소리가 났는지에 따라 판이 달라져 --seed로 재현이 안 됨)
+var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
 	_music = AudioStreamPlayer.new()
 	add_child(_music)
+	# 창 없이(봇 테스트) 돌 땐 소리를 내지 않음 — 가짜 소리 장치라 재생한 소리가 안 풀려 종료 때 경고가 남
+	if DisplayServer.get_name() == "headless":
+		muted = true
 
 
 func _stream(key: String) -> AudioStream:
@@ -59,7 +64,7 @@ func play(key: String, vol := 0.4, pitch_jitter := 0.06) -> void:
 		pool.append(free)
 	_last[key] = now
 	free.volume_db = linear_to_db(clampf(vol * MASTER, 0.001, 1.0))
-	free.pitch_scale = 1.0 + randf_range(-pitch_jitter, pitch_jitter)
+	free.pitch_scale = 1.0 + _rng.randf_range(-pitch_jitter, pitch_jitter)
 	free.play()
 
 
@@ -88,3 +93,15 @@ func music(key: String, vol := 0.3) -> void:
 	_music.stream = st
 	_music.volume_db = linear_to_db(vol * MASTER)
 	_music.play()
+
+
+## 모두 멈추고 놓음. 끄기 전에 부르고 두어 프레임 기다리면 종료 때 "resources still in use" 경고가 안 남
+func stop_all() -> void:
+	for k in _pools:
+		for p in _pools[k]:
+			p.stop()
+			p.stream = null
+	_pools.clear()
+	_music.stop()
+	_music.stream = null
+	_streams.clear()
