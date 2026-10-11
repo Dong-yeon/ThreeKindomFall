@@ -5,6 +5,13 @@ extends Unit
 var k := ""
 var def: Dictionary
 var ai := "chase"
+## ai를 숫자로(매 프레임 문자열 match가 정수 비교보다 10배쯤 느려서, D-191). 없으면 -1
+const AI_CODE := {"chase": 0, "dash": 1, "shooter": 2, "boss": 3}
+const AI_CHASE := 0
+const AI_DASH := 1
+const AI_SHOOTER := 2
+const AI_BOSS := 3
+var _ai := AI_CHASE
 var spd := 60.0
 var spd0 := 60.0
 var touch := 9.0
@@ -59,6 +66,7 @@ func setup(b: Battle, key: String, at: Vector2, mul: float) -> void:
 	spd0 = spd
 	touch = float(def.touch) * (0.9 + 0.1 * mul)
 	ai = def.ai
+	_ai = AI_CODE.get(ai, -1)
 	t = randf_range(0, 1.5)
 	eng_t = randf() * 0.3
 	tint = Color(def.c)
@@ -97,15 +105,19 @@ func tick(dt: float) -> void:
 		if air <= 0:
 			b.add_fx({"k": "puff", "pos": position + Vector2(0, 6), "t": 0.2})
 		return
+	# 매 프레임 적마다 도는 곳이라 위치 · 장수 위치는 한 번만 읽고, Battle 함수(path_for · push_out)는 빠른 길을 여기서 먼저 봄
+	# (D-191 — 함수 부르기 · 속성 읽기가 비쌈. 검사 차례 · 계산은 그대로라 결과는 같음)
+	var p := position
+	var hp := hero.position
 	# 노리는 곳
-	var aim := hero.position
+	var aim := hp
 	var key := "p"
 	var at_hero := true
-	if Unit.alive(engage) and engage.position.distance_to(position) < 100:
+	if engage != null and Unit.alive(engage) and engage.position.distance_to(p) < 100:
 		aim = engage.position
 		key = ""
 		at_hero = false
-	elif (has_post or goal_home) and hero.position.distance_to(position) > aggro:
+	elif (has_post or goal_home) and hp.distance_to(p) > aggro:
 		at_hero = false
 		if goal_home:
 			aim = b.home_pos
@@ -113,8 +125,15 @@ func tick(dt: float) -> void:
 		else:
 			aim = post
 			key = ""
-	var pm := aim if ai == "boss" else b.path_for(self, key, aim)
-	var dv := pm - position
+	# 길찾기: Battle.path_for와 같은 차례 — 곧장 갈 때 · 지난 경로가 아직 살아 있을 때는 부르지 않음
+	var pm := aim
+	if _ai != AI_BOSS and key != "" and p.distance_to(aim) >= 40:
+		if pth_t > b.t and pth_k == key:
+			if has_pth:
+				pm = pth
+		else:
+			pm = b.path_for(self, key, aim)
+	var dv := pm - p
 	var d := dv.length()
 	if d == 0.0:
 		d = 1.0
@@ -123,51 +142,70 @@ func tick(dt: float) -> void:
 	slow_t = maxf(0.0, slow_t - dt)
 	spd = spd0 * (0.55 if slow_t > 0 else 1.0)
 	var idle := false
-	match ai:
-		"chase":
-			# 자리를 지키는 중 제자리에 왔으면 섬(웹판은 제자리에서 떨렸음)
-			if not at_hero and key == "" and not Unit.alive(engage) and aim.distance_to(position) < 4.0:
-				idle = true
-				stuck = 0.0
-			else:
-				var v := dv / d
-				if stuck > 0.25 and slide_t <= 0:
-					slide_t = 0.9
-				if slide_t > 0:
-					slide_t -= dt
-					var s := slide if slide != 0.0 else 1.0
-					v = Vector2(-v.y * s, v.x * s)
-				last_pos = position
-				position += v * spd * dt
-		"dash":
-			if st == 0:
-				position.x += sin(t * 2) * 20 * dt
-				if t > 1.6:
-					st = 1
-					t = 0
-					tdir = dv / d
-			elif st == 1:
-				if t > 0.4:
-					st = 2
-					t = 0
-			else:
-				position += tdir * 300 * dt * (0.55 if slow_t > 0 else 1.0)
-				if t > 0.35:
-					st = 0
-					t = 0
-		"shooter":
-			var want := 1.0 if d > 150 else (-1.0 if d < 110 else 0.0)
-			position += dv / d * spd * want * dt
-			if t > (1.8 if elite else 3.0):
+	if _ai == AI_CHASE:
+		# 자리를 지키는 중 제자리에 왔으면 섬(웹판은 제자리에서 떨렸음)
+		if not at_hero and key == "" and (engage == null or not Unit.alive(engage)) and aim.distance_to(p) < 4.0:
+			idle = true
+			stuck = 0.0
+		else:
+			var v := dv / d
+			if stuck > 0.25 and slide_t <= 0:
+				slide_t = 0.9
+			if slide_t > 0:
+				slide_t -= dt
+				var s := slide if slide != 0.0 else 1.0
+				v = Vector2(-v.y * s, v.x * s)
+			last_pos = p
+			p += v * spd * dt
+			position = p
+	elif _ai == AI_DASH:
+		if st == 0:
+			position.x += sin(t * 2) * 20 * dt
+			if t > 1.6:
+				st = 1
 				t = 0
-				if b.in_view(position, -10) and at_hero:
-					b.shoot(position, dv / d * 170, 6, 5, Color("d8b040"))
-		"boss":
-			_boss_tick(dt, dv, d)
-	if ai != "boss":
-		b.push_out(self)
-	if ai == "chase" and not idle:
-		var mv := position.distance_to(last_pos)
+				tdir = dv / d
+		elif st == 1:
+			if t > 0.4:
+				st = 2
+				t = 0
+		else:
+			position += tdir * 300 * dt * (0.55 if slow_t > 0 else 1.0)
+			if t > 0.35:
+				st = 0
+				t = 0
+		p = position
+	elif _ai == AI_SHOOTER:
+		var want := 1.0 if d > 150 else (-1.0 if d < 110 else 0.0)
+		position += dv / d * spd * want * dt
+		if t > (1.8 if elite else 3.0):
+			t = 0
+			if b.in_view(position, -10) and at_hero:
+				b.shoot(position, dv / d * 170, 6, 5, Color("d8b040"))
+		p = position
+	elif _ai == AI_BOSS:
+		_boss_tick(dt, dv, d)
+		p = position
+	if _ai != AI_BOSS:
+		# 벽 · 물 밀어내기: Battle.push_out과 같음 — 벽 · 물 띠에 걸칠 때만 부르고, 아니면 지도 안 가두기만
+		var bands := b.obs_bands
+		var near := false
+		var i := 0
+		while i < bands.size():
+			if p.y + r >= bands[i] and p.y - r <= bands[i + 1]:
+				near = true
+				break
+			i += 2
+		if near:
+			b.push_out(self)
+			p = position
+		else:
+			var q := p.clamp(Vector2(r + 4, r + 4), Vector2(Battle.W - r - 4, Battle.H - r - 4))
+			if q != p:
+				position = q
+				p = q
+	if _ai == AI_CHASE and not idle:
+		var mv := p.distance_to(last_pos)
 		if mv < spd * dt * 0.35:
 			stuck += dt
 			if slide == 0.0:
@@ -179,8 +217,8 @@ func tick(dt: float) -> void:
 			stuck = maxf(0.0, stuck - dt * 0.5)
 			if stuck < 0.05:
 				slide = 0.0
-	# 닿으면 장수가 다침. 장수급에게 맞으면 밀려남
-	if position.distance_to(hero.position) < r + hero.r:
+	# 닿으면 장수가 다침. 장수급에게 맞으면 밀려남(장수는 이 적의 차례 안에서 여기 전엔 움직이지 않음)
+	if p.distance_to(hp) < r + hero.r:
 		var iv0 := hero.inv
 		hero.hurt(touch)
 		if is_lead() and hero.inv > iv0:
