@@ -164,7 +164,7 @@ func hurt(d: float) -> void:
 		return
 	if musou_t > 0:
 		return
-	d *= (1.0 - data.damage_reduction) * battle.tactics.hurt_mul()
+	d *= Units.HURT_MUL * (1.0 - data.damage_reduction) * battle.tactics.hurt_mul()
 	mg = minf(100.0, mg + d * 0.35 * battle.tactics.gauge_mul())
 	if cb_n > 0:
 		cb_n = cb_n / 2

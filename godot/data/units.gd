@@ -3,6 +3,9 @@ class_name Units
 ## spr = assets/bb/<키>.png, c = 그림이 없을 때 동그라미 색.
 ## ai: chase(쫓아옴) · shooter(거리 두고 쏨) · dash(멈칫 → 돌진) · boss(장각: 탄막·소환·돌진)
 
+## 적이 장수에게 주는 피해 배율(닿기 · 탄 모두, D-188 — 더 어렵게)
+const HURT_MUL := 1.5
+
 const ENEMY := {
 	"ytb": {"n": "황건 졸개", "c": "d8b040", "r": 10.0, "hp": 26.0, "spd": 96.0, "touch": 9.0, "ai": "chase", "spr": "ytb"},
 	"ytarch": {"n": "황건 궁수", "c": "c89a30", "r": 11.0, "hp": 30.0, "spd": 52.0, "touch": 8.0, "ai": "shooter", "spr": "ytarch"},
