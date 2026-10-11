@@ -449,8 +449,8 @@ func _rein_tick(dt: float) -> void:
 			spawn(k, at, m).xp_mul = REIN_XP
 
 
-## 포위 웨이브(D-182): 30~40초마다 장수 둘레 300px 원 위 사방에서 조여 옴(웹판 '에워싸는 무리'와 같은 수 · 체력 60%).
-## 수 16 + 분당 5(최대 48) · 빠르기 +35%까지(10분) · 웨이브를 거듭할수록 돌격병 · 역사가 섞임.
+## 포위 웨이브(D-182): 30~40초마다 장수 둘레 300px 원 위 사방에서 조여 옴(체력은 웹판 '에워싸는 무리'처럼 60%).
+## 수 32 + 분당 10(최대 96, D-191 — 처음엔 웹판과 같은 16 + 5 · 48) · 빠르기 +35%까지(10분) · 웨이브를 거듭할수록 돌격병 · 역사가 섞임.
 ## 벽 안 · 장수에게 걸어올 수 없는 자리는 뺌. 장각과 싸울 때는 쉼.
 func _wave_tick(dt: float) -> void:
 	wave_t -= dt
@@ -463,7 +463,7 @@ func _wave_tick(dt: float) -> void:
 	if flow.ver != obs_ver:
 		flow.build(obs, W, H, obs_ver)
 	var d: PackedInt32Array = flow.field("p", hero.position, t, 0.2).d
-	var n := mini(48, 16 + int(t / 60.0 * 5.0))
+	var n := mini(96, 32 + int(t / 60.0 * 10.0))
 	var R := 300.0
 	var m := mul_y(hero.position.y) * WAVE_HP
 	var sp := 1.0 + minf(t, 600.0) / 600.0 * 0.35
