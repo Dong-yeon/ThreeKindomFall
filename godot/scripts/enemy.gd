@@ -229,10 +229,7 @@ func _boss_tick(dt: float, dv: Vector2, d: float) -> void:
 			b.banner("장각이 누런 바람을 타고 달려들어요!", "")
 
 
-func _process(_dt: float) -> void:
-	queue_redraw()
-
-
+## 다시 그리기는 Battle._redraw_units가 화면 근처에 있을 때만 부름
 func _draw() -> void:
 	var b := battle
 	if b == null:

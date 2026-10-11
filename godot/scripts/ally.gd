@@ -104,10 +104,7 @@ func tick(dt: float) -> void:
 		b.ally_down(self)
 
 
-func _process(_dt: float) -> void:
-	queue_redraw()
-
-
+## 다시 그리기는 Battle._redraw_units가 화면 근처에 있을 때만 부름
 func _draw() -> void:
 	var b := battle
 	if b == null:

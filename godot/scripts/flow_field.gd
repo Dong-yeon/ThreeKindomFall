@@ -9,8 +9,12 @@ const CELL := 20.0
 var gw := 0
 var gh := 0
 var blk := PackedByteArray()
+## BFS 시작값: 트인 칸 -1 · 막힌 칸 -2(BFS가 칸마다 blk를 따로 읽지 않게)
+var _d0 := PackedInt32Array()
+## 줄마다 막힌 칸이 있는 줄 수의 누적(_rows[y + 1] - _rows[y0] > 0 이면 y0~y 줄 어딘가 막힘)
+var _rows := PackedInt32Array()
 var ver := -1
-## 키 → {"src": 목표 칸, "d": 칸 거리(-1 = 못 감), "at": 계산한 때}
+## 키 → {"src": 목표 칸, "d": 칸 거리(음수 = 못 감), "at": 계산한 때}
 var fields := {}
 
 
@@ -31,6 +35,16 @@ func build(obs: Array, w: float, h: float, version: int) -> void:
 		for y in range(y0, y1 + 1):
 			for x in range(x0, x1 + 1):
 				blk[y * gw + x] = 1
+	_d0.resize(gw * gh)
+	_rows.resize(gh + 1)
+	_rows[0] = 0
+	for y in gh:
+		var any := 0
+		for x in gw:
+			var c := y * gw + x
+			_d0[c] = -2 if blk[c] == 1 else -1
+			any |= blk[c]
+		_rows[y + 1] = _rows[y] + any
 	ver = version
 	fields.clear()
 
@@ -42,6 +56,7 @@ func cell_of(p: Vector2) -> int:
 
 
 ## 목표 칸에서 퍼져 나가는 칸 거리. 같은 칸이면 그대로 쓰고, 'p'(장수)는 0.2초에 한 번만 다시 계산.
+## 막힌 칸은 -2로 시작해 '아직 안 간 트인 칸(-1)'만 보면 됨(D-189 — 퍼지는 차례 · 거리는 같음, 못 가는 칸은 전처럼 음수).
 func field(key: String, target: Vector2, now: float, throttle := 0.0) -> Dictionary:
 	var src := cell_of(target)
 	var f: Dictionary = fields.get(key, {})
@@ -51,9 +66,7 @@ func field(key: String, target: Vector2, now: float, throttle := 0.0) -> Diction
 		if throttle > 0.0 and now - float(f.at) < throttle:
 			return f
 	var n := gw * gh
-	var d := PackedInt32Array()
-	d.resize(n)
-	d.fill(-1)
+	var d := _d0.duplicate()
 	var q := PackedInt32Array()
 	q.resize(n)
 	var head := 0
@@ -66,19 +79,19 @@ func field(key: String, target: Vector2, now: float, throttle := 0.0) -> Diction
 		head += 1
 		var x := c % gw
 		var dc := d[c] + 1
-		if x > 0 and d[c - 1] < 0 and blk[c - 1] == 0:
+		if x > 0 and d[c - 1] == -1:
 			d[c - 1] = dc
 			q[tail] = c - 1
 			tail += 1
-		if x < gw - 1 and d[c + 1] < 0 and blk[c + 1] == 0:
+		if x < gw - 1 and d[c + 1] == -1:
 			d[c + 1] = dc
 			q[tail] = c + 1
 			tail += 1
-		if c >= gw and d[c - gw] < 0 and blk[c - gw] == 0:
+		if c >= gw and d[c - gw] == -1:
 			d[c - gw] = dc
 			q[tail] = c - gw
 			tail += 1
-		if c < n - gw and d[c + gw] < 0 and blk[c + gw] == 0:
+		if c < n - gw and d[c + gw] == -1:
 			d[c + gw] = dc
 			q[tail] = c + gw
 			tail += 1
@@ -88,7 +101,12 @@ func field(key: String, target: Vector2, now: float, throttle := 0.0) -> Diction
 
 
 ## 두 점 사이가 막힌 칸 없이 트였는지(반 칸 간격 표본). 출발 칸은 안 봄(벽에 붙어 막힌 칸에 서 있어도 됨).
+## 지나는 줄(위아래 한 줄 여유)에 막힌 칸이 하나도 없으면 표본을 보지 않고 트임(D-189 — 답은 같음)
 func clear(a: Vector2, b: Vector2) -> bool:
+	var r0 := clampi(floori(minf(a.y, b.y) / CELL) - 1, 0, gh)
+	var r1 := clampi(floori(maxf(a.y, b.y) / CELL) + 2, 0, gh)
+	if r1 <= r0 or _rows[r1] == _rows[r0]:
+		return true
 	var start := cell_of(a)
 	var n := ceili(a.distance_to(b) / (CELL * 0.5))
 	for i in range(1, n):

@@ -10,6 +10,8 @@ const H := Stage1.H
 const GRID := 30.0
 const STICK_DEAD := 8.0
 const STICK_FULL := 50.0
+## 화면 밖 이만큼까지는 인물을 다시 그림(장각 그림 높이 ~90px · 띄워짐 · 화면 흔들림을 덮음)
+const DRAW_PAD := 120.0
 
 @export var hero_data: HeroData
 
@@ -61,6 +63,8 @@ const ORB_CAP := 400
 var obs: Array[Dictionary] = []
 ## obs의 사각형만(충돌 검사용 — 매 프레임 수백 번 읽어서 따로 둠)
 var obs_rects: Array[Rect2] = []
+## obs_rects의 세로 범위를 겹치는 것끼리 합친 띠 [위, 아래, 위, 아래, …](push_out이 띠 근처에서만 사각형을 봄)
+var obs_bands := PackedFloat64Array()
 var obs_ver := 1
 var flow := FlowField.new()
 ## 아군이 지키는 곳: id → {pos, r}
@@ -104,7 +108,21 @@ var joy_o := Vector2.ZERO
 var joy_p := Vector2.ZERO
 
 var _later: Array[Dictionary] = []
-var _grid := {}
+## _separate가 만든 30px 칸(touching_enemy도 씀): 칸마다 첫 적 번호(_cell_head) → 같은 칸 다음 적 번호(_cell_next).
+## 번호는 그때의 enemies(_cell_units) 차례. 칸 (cx, cy)의 자리 = (cx + _cell_ox) * _cell_gh + cy + _cell_oy(둘레 한 칸 여유).
+var _cell_units: Array[Enemy] = []
+var _cell_head := PackedInt32Array()
+var _cell_next := PackedInt32Array()
+var _cell_gw := 0
+var _cell_gh := 0
+var _cell_ox := 0
+var _cell_oy := 0
+## _separate가 적마다 읽어 둔 칸 · 위치 · 반지름 · 밀림(0 쓰러짐 · 1 칸에만 · 2 밀림)
+var _sep_cx := PackedInt32Array()
+var _sep_cy := PackedInt32Array()
+var _sep_pos := PackedVector2Array()
+var _sep_r := PackedFloat64Array()
+var _sep_mv := PackedByteArray()
 
 
 func _ready() -> void:
@@ -191,9 +209,22 @@ func _process(delta: float) -> void:
 	if state == "play":
 		_update(dt)
 	_place_camera()
+	_redraw_units()
 	ground.queue_redraw()
 	fx_layer.queue_redraw()
 	hud.refresh()
+
+
+## 화면(+ DRAW_PAD) 근처 인물만 다시 그림. 전엔 인물마다 _process에서 매 프레임 다시 그려서
+## 지도(840×3000) 대부분 화면 밖인 적까지 그렸음(D-189). 화면 밖에 남은 지난 그림은 보이지 않음.
+func _redraw_units() -> void:
+	var V := view.grow(DRAW_PAD)
+	for e in enemies:
+		if V.has_point(e.position):
+			e.queue_redraw()
+	for a in allies:
+		if V.has_point(a.position):
+			a.queue_redraw()
 
 
 func _update(dt: float) -> void:
@@ -503,49 +534,99 @@ func _cyz_tick(dt: float) -> void:
 		spawn(k, Vector2(randf_range(80, W - 80), randf_range(470, 520)), 1.3 * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
 
 
-## 겹치지 않게(30px 칸으로 나눠 이웃끼리만 밀어냄)
+## 겹치지 않게(30px 칸으로 나눠 이웃끼리만 밀어냄). 적은 enemies 차례로, 이웃은 칸 차례 · 칸 안 enemies 차례로 봄.
+## 칸을 Dictionary 대신 번호 배열로 두고, 위치 · 반지름을 배열로 읽어 다 민 뒤 한 번만 씀(D-189 — 미는 차례 · 계산은 같아 결과도 같음).
 func _separate() -> void:
-	_grid.clear()
-	for e in enemies:
+	var list := enemies
+	var n := list.size()
+	_cell_units = list
+	_cell_next.resize(n)
+	_sep_cx.resize(n)
+	_sep_cy.resize(n)
+	_sep_pos.resize(n)
+	_sep_r.resize(n)
+	_sep_mv.resize(n)
+	var x0 := 1 << 30
+	var y0 := 1 << 30
+	var x1 := -x0
+	var y1 := -y0
+	for i in n:
+		var e := list[i]
 		if e.dead:
+			_sep_mv[i] = 0
 			continue
-		var key := int(e.position.x / GRID) * 4096 + int(e.position.y / GRID)
-		if _grid.has(key):
-			_grid[key].append(e)
-		else:
-			_grid[key] = [e]
-	for e in enemies:
-		if e.dead or e.boss or e.building or e.air > 0:
+		var p := e.position
+		var cx := int(p.x / GRID)
+		var cy := int(p.y / GRID)
+		_sep_cx[i] = cx
+		_sep_cy[i] = cy
+		_sep_pos[i] = p
+		_sep_r[i] = e.r
+		_sep_mv[i] = 1 if e.boss or e.building or e.air > 0 else 2
+		x0 = mini(x0, cx)
+		x1 = maxi(x1, cx)
+		y0 = mini(y0, cy)
+		y1 = maxi(y1, cy)
+	if x1 < x0:
+		_cell_gw = 0
+		_cell_gh = 0
+		_cell_head.resize(0)
+		return
+	_cell_ox = 1 - x0
+	_cell_oy = 1 - y0
+	_cell_gw = x1 - x0 + 3
+	_cell_gh = y1 - y0 + 3
+	var gh := _cell_gh
+	_cell_head.resize(_cell_gw * gh)
+	_cell_head.fill(-1)
+	# 뒤에서부터 앞에 끼워 넣어 칸 안은 enemies 차례가 됨
+	for i in range(n - 1, -1, -1):
+		if _sep_mv[i] == 0:
 			continue
-		var cx := int(e.position.x / GRID)
-		var cy := int(e.position.y / GRID)
-		for i in range(-1, 2):
-			for j in range(-1, 2):
-				var l = _grid.get((cx + i) * 4096 + cy + j)
-				if l == null:
-					continue
-				for o in l:
-					if o == e:
-						continue
-					var dv: Vector2 = e.position - o.position
-					var dd := dv.length()
-					var m: float = (e.r + o.r) * 0.85
-					if dd > 0.01 and dd < m:
-						e.position += dv * ((m - dd) * 0.25 / dd)
+		var c := (_sep_cx[i] + _cell_ox) * gh + _sep_cy[i] + _cell_oy
+		_cell_next[i] = _cell_head[c]
+		_cell_head[c] = i
+	for i in n:
+		if _sep_mv[i] != 2:
+			continue
+		var pe := _sep_pos[i]
+		var p0 := pe
+		var re := _sep_r[i]
+		var c0 := (_sep_cx[i] + _cell_ox) * gh + _sep_cy[i] + _cell_oy
+		for di in range(-1, 2):
+			for dj in range(-1, 2):
+				var k := _cell_head[c0 + di * gh + dj]
+				while k >= 0:
+					if k != i:
+						var dv := pe - _sep_pos[k]
+						var dd := dv.length()
+						var m := (re + _sep_r[k]) * 0.85
+						if dd > 0.01 and dd < m:
+							pe += dv * ((m - dd) * 0.25 / dd)
+					k = _cell_next[k]
+		if pe != p0:
+			_sep_pos[i] = pe
+			list[i].position = pe
 
 
 ## 아군에게 붙은 적(맞히는 쪽). _separate가 만든 칸을 씀.
 func touching_enemy(at: Vector2, extra: float) -> Enemy:
-	var cx := int(at.x / GRID)
-	var cy := int(at.y / GRID)
+	var cx := int(at.x / GRID) + _cell_ox
+	var cy := int(at.y / GRID) + _cell_oy
 	for i in range(-1, 2):
+		var gx := cx + i
+		if gx < 0 or gx >= _cell_gw:
+			continue
 		for j in range(-1, 2):
-			var l = _grid.get((cx + i) * 4096 + cy + j)
-			if l == null:
+			var gy := cy + j
+			if gy < 0 or gy >= _cell_gh:
 				continue
-			for e in l:
+			var k := _cell_head[gx * _cell_gh + gy]
+			while k >= 0:
+				var e := _cell_units[k]
 				if not e.dead and not e.building and e.air <= 0 and e.position.distance_to(at) < e.r + extra:
 					return e
+				k = _cell_next[k]
 	return null
 
 
@@ -942,7 +1023,6 @@ func _sweep() -> void:
 				keep.append(e)
 			elif e.is_lead():
 				e.visible = false
-				e.set_process(false)
 			else:
 				e.queue_free()
 		enemies = keep
@@ -1167,11 +1247,40 @@ func _obs_changed() -> void:
 	obs_rects.clear()
 	for o in obs:
 		obs_rects.append(o.rect)
+	# 사각형들의 세로 범위를 겹치는 것끼리 합친 띠
+	var ys: Array = []
+	for rc in obs_rects:
+		ys.append([rc.position.y, rc.end.y])
+	ys.sort_custom(func(a, c): return a[0] < c[0])
+	obs_bands.clear()
+	for y in ys:
+		var n := obs_bands.size()
+		if n > 0 and float(y[0]) <= obs_bands[n - 1]:
+			obs_bands[n - 1] = maxf(obs_bands[n - 1], y[1])
+		else:
+			obs_bands.append(y[0])
+			obs_bands.append(y[1])
 	obs_ver += 1
 
 
-## 벽·물에서 밀어내고 지도 밖으로 못 나가게
+## 벽·물에서 밀어내고 지도 밖으로 못 나가게.
+## 벽 · 물 띠(obs_bands)에 걸칠 때만 사각형을 하나씩 봄 — 안 걸치면 사각형마다 건너뛰어 그대로였음(D-189, 결과는 같음)
 func push_out(u: Unit) -> void:
+	var r := u.r
+	var p := u.position
+	var i := 0
+	while i < obs_bands.size():
+		if p.y + r >= obs_bands[i] and p.y - r <= obs_bands[i + 1]:
+			_push_out_rects(u)
+			p = u.position
+			break
+		i += 2
+	var q := p.clamp(Vector2(r + 4, r + 4), Vector2(W - r - 4, H - r - 4))
+	if q != p:
+		u.position = q
+
+
+func _push_out_rects(u: Unit) -> void:
 	for rc in obs_rects:
 		var p := u.position
 		if p.x + u.r < rc.position.x or p.x - u.r > rc.end.x or p.y + u.r < rc.position.y or p.y - u.r > rc.end.y:
@@ -1194,7 +1303,6 @@ func push_out(u: Unit) -> void:
 					u.position.y = rc.position.y - u.r
 				else:
 					u.position.y = rc.end.y + u.r
-	u.position = u.position.clamp(Vector2(u.r + 4, u.r + 4), Vector2(W - u.r - 4, H - u.r - 4))
 
 
 ## 벽(물 말고)만 탄을 막음
