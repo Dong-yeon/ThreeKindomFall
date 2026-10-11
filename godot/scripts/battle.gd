@@ -228,7 +228,7 @@ func _redraw_units() -> void:
 	var V := view.grow(DRAW_PAD)
 	for e in enemies:
 		if V.has_point(e.position):
-			e.queue_redraw()
+			e.refresh_look()
 	for a in allies:
 		if V.has_point(a.position):
 			a.queue_redraw()

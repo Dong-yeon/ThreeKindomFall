@@ -51,6 +51,14 @@ var slide_t := 0.0
 var tdir := Vector2.ZERO
 var _moving := false
 var _anim_off := 0.0
+## 이름 첫 글자(그림이 없을 때 동그라미 위에) · 마지막으로 그린 상태(그릴 것이 바뀌었는지 보려고, D-192)
+var _glyph := ""
+var _dk_face := ""
+var _dk_step := -1
+var _dk_lift := -1.0
+var _dk_warn := false
+var _dk_flash := false
+var _dk_hp := -1.0
 
 
 func setup(b: Battle, key: String, at: Vector2, mul: float) -> void:
@@ -72,6 +80,7 @@ func setup(b: Battle, key: String, at: Vector2, mul: float) -> void:
 	tint = Color(def.c)
 	tex = Sprites.sheet(def.spr) if String(def.spr) != "" else null
 	_anim_off = r
+	_glyph = String(def.n).left(1)
 	building = ai == "building"
 
 
@@ -267,18 +276,52 @@ func _boss_tick(dt: float, dv: Vector2, d: float) -> void:
 			b.banner("장각이 누런 바람을 타고 달려들어요!", "")
 
 
-## 다시 그리기는 Battle._redraw_units가 화면 근처에 있을 때만 부름
+## 화면 근처에서 매 프레임(Battle._redraw_units): 걷는 방향을 고치고, 그릴 것이 지난번에 그린 것과 다를 때만 다시 그림(D-192).
+## 위치는 노드 위치라 다시 그리지 않아도 따라가고, 그림이 바뀌는 건 걷는 방향 · 걸음(초당 6칸) · 번쩍임 · 띄워짐 ·
+## 경고 · 체력뿐 — 전엔 매 프레임 다시 그렸음. 장수급 · 장각은 둘레 빛이 매 프레임 일렁여서 늘 그림.
+## (Unit.anim_moved · Sprites.dir_of · walk_step과 같은 계산을 함수 부르기 없이 함)
+func refresh_look() -> void:
+	if building:
+		if (flash > 0) != _dk_flash or hp / max_hp != _dk_hp:
+			queue_redraw()
+		return
+	var p := position
+	if _anim_last == Vector2.INF:
+		_anim_last = p
+	var moved := p - _anim_last
+	_anim_last = p
+	_moving = moved.length() > 0.2
+	if _moving:
+		if absf(moved.x) > absf(moved.y):
+			face_dir = "right" if moved.x > 0 else "left"
+		else:
+			face_dir = "up" if moved.y < 0 else "down"
+	if boss or elite:
+		queue_redraw()
+		return
+	var step := int(floor((battle.t + _anim_off) * 6)) % 4 if _moving else 0
+	var lift := 0.0
+	if air > 0 and air0 > 0:
+		lift = sin(minf(1.0, (air0 - air) / air0) * PI) * 22
+	var warn := (_ai == AI_DASH and st == 1) or (_ai == AI_SHOOTER and t > 1.4)
+	if face_dir != _dk_face or step != _dk_step or lift != _dk_lift or warn != _dk_warn \
+			or (flash > 0) != _dk_flash or hp / max_hp != _dk_hp:
+		queue_redraw()
+
+
+## 다시 그리기는 refresh_look(화면 근처 · 바뀌었을 때)이 부름. 그린 상태를 적어 둠
 func _draw() -> void:
 	var b := battle
 	if b == null:
 		return
+	# 처음 그릴 때 걷기 기준 위치를 잡음(전엔 여기서 anim_moved가 했음)
+	if _anim_last == Vector2.INF:
+		_anim_last = position
+	_dk_flash = flash > 0
+	_dk_hp = hp / max_hp
 	if building:
 		_draw_barracks()
 		return
-	var moved := anim_moved()
-	_moving = moved.length() > 0.2
-	if _moving:
-		face_dir = Sprites.dir_of(moved)
 	var lift := 0.0
 	if air > 0 and air0 > 0:
 		lift = sin(minf(1.0, (air0 - air) / air0) * PI) * 22
@@ -286,15 +329,20 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO, r + 10 + sin(b.t * 4) * 3, Color(0.89, 0.72, 0.35, 0.25))
 		if st == 4 or t > 1.6:
 			draw_oval(Vector2.ZERO, r * 1.35, r * 1.2, Color("d9705e"), false, 2)
-	var warn := (ai == "dash" and st == 1) or (ai == "shooter" and t > 1.4)
+	var warn := (_ai == AI_DASH and st == 1) or (_ai == AI_SHOOTER and t > 1.4)
 	if warn:
 		draw_arc(Vector2.ZERO, r + 4, 0, TAU, 24, Color("d9705e"), 1.5)
 	var size := r * (2.6 if boss else 2.5)
-	draw_body(face_dir, Sprites.walk_step(_moving, b.t + _anim_off, 6), size, 1.0, lift, String(def.n).left(1))
+	var step := Sprites.walk_step(_moving, b.t + _anim_off, 6)
+	draw_body(face_dir, step, size, 1.0, lift, _glyph)
 	if elite:
 		draw_arc(Vector2.ZERO, r + 6, 0, TAU, 32, Color(0.89, 0.72, 0.35, 0.6 + 0.3 * sin(b.t * 6)), 2.5)
 	if hp < max_hp and not boss:
 		draw_bar(0, -r - 7 - lift, r * 2, 3, hp / max_hp, Color("d9705e"))
+	_dk_face = face_dir
+	_dk_step = step
+	_dk_lift = lift
+	_dk_warn = warn
 
 
 ## 막사: 누런 천막 + 황건 깃발 + 체력 막대(맞으면 번쩍)
