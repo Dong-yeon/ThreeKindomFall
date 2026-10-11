@@ -78,6 +78,10 @@ var cyz: Enemy = null
 var boss: Enemy = null
 var party_t := 60.0
 var rein_t := 4.0
+## 들판 증원(D-186): 몇 초마다 · 장수를 쫓는 무리 상한 · 지금까지 낸 수(종류 섞기)
+const REIN_GAP := 1.5
+const REIN_CAP := 60
+var rein_i := 0
 ## 포위 웨이브(D-182): 다음까지 남은 시간 · 몇 번째
 var wave_t := 35.0
 var wave_n := 0
@@ -404,36 +408,44 @@ func _party_tick(dt: float) -> void:
 	Sound.play("alert", 0.3)
 
 
-## 들판 증원: 장수 둘레가 비면 황건 무리가 몰려옴(쓸어버리는 맛).
+## 들판 증원(D-186): 끊이지 않고 여러 방향에서 동시에 몰려옴(막사를 부수는 동안에도).
+## REIN_GAP초마다 화면 바로 바깥 둘레를 방향 수만큼 고르게 나눈 곳(조금씩 흔듦)에서 나눠 나옴.
+## 초당 5명 → 분당 +1.5(최대 14), 방향 3 → 2분 4 → 4분 5.
+## 쉬는 건 장수를 쫓는 무리(자리 · 본진 목표가 없는 적)가 둘레 520px 안에 REIN_CAP 이상 · 적이 너무 많음 · 장각과 싸울 때뿐
+## (전엔 3초마다 한 덩어리가 한 방향에서 왔고, 막사 옆에 서 있는 병력까지 '둘레 420px 안 40명'으로 세어 막사 앞에서 쉬었음).
 func _rein_tick(dt: float) -> void:
 	rein_t -= dt
 	if rein_t > 0:
 		return
-	rein_t = 3
-	if boss != null or enemies.size() >= 260:
+	rein_t = REIN_GAP
+	if boss != null or enemies.size() >= 300:
 		return
-	var near := 0
+	var chase := 0
 	for e in enemies:
-		if not e.dead and e.position.distance_to(hero.position) < 420:
-			near += 1
-	if near >= 40:
+		if not e.dead and not e.has_post and not e.goal_home and not e.building and e.position.distance_to(hero.position) < 520:
+			chase += 1
+	if chase >= REIN_CAP:
 		return
-	var o := ring_pos()
-	if o == Vector2.INF:
-		return
-	var n := 12 + randi() % 7
+	var n := roundi(minf(14.0, 5.0 + t / 60.0 * 1.5) * REIN_GAP)
+	var dirs := mini(5, 3 + int(t / 120.0))
 	var m := mul_y(hero.position.y)
 	var py := hero.position.y
-	for i in n:
-		var k := "ytb"
-		if py < 1300 and i % 6 == 5:
-			k = "ytbig"
-		elif py < 2300 and i % 5 == 4:
-			k = "ytarch"
-		elif i == 0 and randf() < 0.5:
-			k = "ytdash"
-		var at := Vector2(clampf(o.x + randf_range(-40, 40), 30, W - 30), clampf(o.y + randf_range(-40, 40), 30, H - 30))
-		spawn(k, at, m)
+	var off := randf() * TAU
+	for d in dirs:
+		var o := ring_pos(off + d * TAU / dirs + randf_range(-0.3, 0.3))
+		if o == Vector2.INF:
+			continue
+		for j in n / dirs + (1 if d < n % dirs else 0):
+			rein_i += 1
+			var k := "ytb"
+			if py < 1300 and rein_i % 6 == 5:
+				k = "ytbig"
+			elif py < 2300 and rein_i % 5 == 4:
+				k = "ytarch"
+			elif rein_i % 30 == 0:
+				k = "ytdash"
+			var at := Vector2(clampf(o.x + randf_range(-30, 30), 30, W - 30), clampf(o.y + randf_range(-30, 30), 30, H - 30))
+			spawn(k, at, m)
 
 
 ## 포위 웨이브(D-182): 30~40초마다 장수 둘레 300px 원 위 사방에서 조여 옴(웹판 '에워싸는 무리'와 같은 수 · 체력 60%).
@@ -1073,17 +1085,16 @@ func _spawn_squads() -> void:
 			i += 1
 
 
-## 화면 바로 바깥 둘레의 빈 곳. 장수에게 걸어올 수 없는 곳(닫힌 장각 본진 안 · 닫힌 관문 너머)은 뺀다
+## 화면 바로 바깥 둘레에서 a 방향의 빈 곳(안 되면 조금씩 돌려 봄). 장수에게 걸어올 수 없는 곳(닫힌 장각 본진 안 · 닫힌 관문 너머)은 뺀다
 ## — 웹판은 거기에도 생겨 벽에 줄지어 붙어 있었음. 못 찾으면 Vector2.INF.
-func ring_pos() -> Vector2:
+func ring_pos(a: float) -> Vector2:
 	var p := hero.position
 	if flow.ver != obs_ver:
 		flow.build(obs, W, H, obs_ver)
 	var d: PackedInt32Array = flow.field("p", p, t, 0.2).d
-	for i in 12:
-		var a := randf() * TAU
+	for da in [0.0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]:
 		var rr := view.size.length() / 2 + randf_range(20, 70)
-		var at := Vector2(clampf(p.x + cos(a) * rr, 24, W - 24), clampf(p.y + sin(a) * rr, 24, H - 24))
+		var at := Vector2(clampf(p.x + cos(a + da) * rr, 24, W - 24), clampf(p.y + sin(a + da) * rr, 24, H - 24))
 		if not hit_obs(at, 16) and at.distance_to(p) > 200 and d[flow.cell_of(at)] >= 0:
 			return at
 	return Vector2.INF
