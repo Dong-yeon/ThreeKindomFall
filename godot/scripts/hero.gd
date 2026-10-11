@@ -135,11 +135,17 @@ func musou_go() -> void:
 	Sound.play("win", 0.3)
 
 
-## 무쌍: 무적으로 돌며 베기 → 끝에 큰 폭발
+## 무쌍 중 무적인가(시작부터 musou_inv초, D-193)
+func musou_guard() -> bool:
+	return musou_t > 0 and data.musou_time - musou_t < data.musou_inv
+
+
+## 무쌍: 돌며 베기(처음 musou_inv초는 무적) → 끝에 큰 폭발
 func musou_tick(dt: float) -> void:
 	musou_t -= dt
 	musou_k -= dt
-	inv = maxf(inv, 0.15)
+	if musou_guard():
+		inv = maxf(inv, 0.15)
 	if musou_k <= 0 and musou_t > 0.3:
 		musou_k = data.musou_tick
 		orb_a += 1.3
@@ -158,11 +164,11 @@ func musou_tick(dt: float) -> void:
 		Sound.play("slam", 0.5)
 
 
-## 맞음: 무쌍 중엔 무적, 맞으면 무쌍 게이지가 차고 연격 수는 절반.
+## 맞음: 무쌍 무적 중엔 안 맞음, 맞으면 무쌍 게이지가 차고 연격 수는 절반.
 func hurt(d: float) -> void:
 	if inv > 0 or battle.state != "play":
 		return
-	if musou_t > 0:
+	if musou_guard():
 		return
 	d *= Units.HURT_MUL * (1.0 - data.damage_reduction) * battle.tactics.hurt_mul()
 	mg = minf(100.0, mg + d * 0.35 * battle.tactics.gauge_mul())
@@ -200,7 +206,9 @@ func _process(_dt: float) -> void:
 
 func _draw() -> void:
 	if musou_t > 0:
-		draw_circle(Vector2.ZERO, 30, Color(1.0, 0.82, 0.35, 0.25 + 0.15 * sin(battle.t * 30)))
+		# 금빛은 무적인 동안 짙고, 무적이 끝나면 흐려짐(D-193)
+		var ga := 1.0 if musou_guard() else 0.35
+		draw_circle(Vector2.ZERO, 30, Color(1.0, 0.82, 0.35, (0.25 + 0.15 * sin(battle.t * 30)) * ga))
 	var blink := inv > 0 and musou_t <= 0 and int(floor(inv * 20)) % 2 == 1
 	face_dir = Sprites.dir_of(face)
 	draw_body(face_dir, Sprites.walk_step(still == 0.0, battle.t, 10), data.sprite_size, 0.35 if blink else 1.0, 0.0, data.display_name.left(1))
