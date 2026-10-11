@@ -411,7 +411,7 @@ func _party_tick(dt: float) -> void:
 
 ## 들판 증원(D-186): 끊이지 않고 여러 방향에서 동시에 몰려옴(막사를 부수는 동안에도).
 ## REIN_GAP초마다 화면 바로 바깥 둘레를 방향 수만큼 고르게 나눈 곳(조금씩 흔듦)에서 나눠 나옴.
-## 초당 5명 → 분당 +1.5(최대 14), 방향 3 → 2분 4 → 4분 5.
+## 초당 7.5명 → 분당 +2.25(최대 21, D-189 — 처음엔 5 · 1.5 · 14), 방향 3 → 2분 4 → 4분 5.
 ## 쉬는 건 장수를 쫓는 무리(자리 · 본진 목표가 없는 적)가 둘레 520px 안에 REIN_CAP 이상 · 적이 너무 많음 · 장각과 싸울 때뿐
 ## (전엔 3초마다 한 덩어리가 한 방향에서 왔고, 막사 옆에 서 있는 병력까지 '둘레 420px 안 40명'으로 세어 막사 앞에서 쉬었음).
 func _rein_tick(dt: float) -> void:
@@ -427,7 +427,7 @@ func _rein_tick(dt: float) -> void:
 			chase += 1
 	if chase >= REIN_CAP:
 		return
-	var n := roundi(minf(14.0, 5.0 + t / 60.0 * 1.5) * REIN_GAP)
+	var n := roundi(minf(21.0, 7.5 + t / 60.0 * 2.25) * REIN_GAP)
 	var dirs := mini(5, 3 + int(t / 120.0))
 	var m := mul_y(hero.position.y)
 	var py := hero.position.y
