@@ -2,6 +2,9 @@ class_name Enemy
 extends Unit
 ## 적(웹판 spawn · aimOf · enemyTick). 노리는 곳: 붙어 싸우는 아군 > 자리(post)·목표(본진)를 지키다 장수가 aggro 안에 오면 장수.
 
+## 장각이 다음 공격을 쓰는 간격(초). 0.1초 전부터 빨간 테두리로 예고(D-192 — 처음 1.7)
+const BOSS_GAP := 1.2
+
 var k := ""
 var def: Dictionary
 var ai := "chase"
@@ -204,7 +207,7 @@ func _boss_tick(dt: float, dv: Vector2, d: float) -> void:
 	else:
 		var want := 1.0 if d > 230 else (-0.6 if d < 150 else 0.0)
 		position += dv / d * spd * 1.6 * want * dt
-	if st != 4 and t > 1.7:
+	if st != 4 and t > BOSS_GAP:
 		t = 0
 		phase = (phase + 1) % 4
 		var kind := phase if hp < max_hp * 0.5 else phase % 3
@@ -249,7 +252,7 @@ func _draw() -> void:
 		lift = sin(minf(1.0, (air0 - air) / air0) * PI) * 22
 	if boss:
 		draw_circle(Vector2.ZERO, r + 10 + sin(b.t * 4) * 3, Color(0.89, 0.72, 0.35, 0.25))
-		if st == 4 or t > 1.6:
+		if st == 4 or t > BOSS_GAP - 0.1:
 			draw_oval(Vector2.ZERO, r * 1.35, r * 1.2, Color("d9705e"), false, 2)
 	var warn := (ai == "dash" and st == 1) or (ai == "shooter" and t > 1.4)
 	if warn:
