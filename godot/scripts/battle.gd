@@ -405,7 +405,6 @@ func _party_tick(dt: float) -> void:
 
 
 ## 들판 증원: 장수 둘레가 비면 황건 무리가 몰려옴(쓸어버리는 맛).
-## 진영 담 안에 있어도 끄지 않고, 그 진영 남쪽 문 앞에 모아 문으로 몰려 들어오게(D-182 — 웹판은 담 안이면 껐음)
 func _rein_tick(dt: float) -> void:
 	rein_t -= dt
 	if rein_t > 0:
@@ -419,9 +418,7 @@ func _rein_tick(dt: float) -> void:
 			near += 1
 	if near >= 40:
 		return
-	var o := _gate_front(hero.position)
-	if o == Vector2.INF:
-		o = ring_pos()
+	var o := ring_pos()
 	if o == Vector2.INF:
 		return
 	var n := 12 + randi() % 7
@@ -437,18 +434,6 @@ func _rein_tick(dt: float) -> void:
 			k = "ytdash"
 		var at := Vector2(clampf(o.x + randf_range(-40, 40), 30, W - 30), clampf(o.y + randf_range(-40, 40), 30, H - 30))
 		spawn(k, at, m)
-
-
-## 장수가 진영(또는 장각 본진) 담 안이면 그 남쪽 문 앞 70px, 아니면 Vector2.INF
-func _gate_front(p: Vector2) -> Vector2:
-	var rects: Array[Rect2] = []
-	for c in camps:
-		rects.append(camp_rect(c))
-	rects.append(keep_rect())
-	for R in rects:
-		if R.grow(-4).has_point(p):
-			return Vector2(R.get_center().x + randf_range(-20, 20), R.end.y + 70)
-	return Vector2.INF
 
 
 ## 포위 웨이브(D-182): 30~40초마다 장수 둘레 300px 원 위 사방에서 조여 옴(웹판 '에워싸는 무리'와 같은 수 · 체력 60%).
@@ -1142,8 +1127,7 @@ func _fence(R: Rect2, gate_w: float, tag: String, door: String) -> Array[Diction
 
 func _build_obstacles() -> void:
 	obs.clear()
-	for c in camps:
-		obs.append_array(_fence(camp_rect(c), Stage1.CAMP_GATE_W, "camp", ""))
+	# 진영엔 울타리가 없음(D-185 — 담 뒤로 숨어 적을 피하기 쉬웠음). 담은 장각 본진 · 관문만
 	obs.append_array(_fence(keep_rect(), Stage1.CAMP_GATE_W, "keep", "keep"))
 	var R: Dictionary = Stage1.RIVER
 	var x0 := 0.0
@@ -1218,9 +1202,6 @@ func hit_obs(p: Vector2, rad: float) -> bool:
 
 
 func inside_walls(p: Vector2) -> bool:
-	for c in camps:
-		if camp_rect(c).grow(-4).has_point(p):
-			return true
 	return keep_rect().grow(-4).has_point(p)
 
 

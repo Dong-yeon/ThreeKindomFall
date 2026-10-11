@@ -22,7 +22,7 @@ const CAMPS := [
 ]
 ## 막사: 체력(× 진영 mul) · 크기 · 막사 하나에 살아 있는 병력 상한 · 보충 간격(장수가 near 안이면 빠르게) · 처음 병력 · 부쉈을 때 경험
 const BARRACKS := {"hp": 1500.0, "r": 22.0, "cap": 8, "gap_near": 1.1, "gap_far": 2.4, "near": 380.0, "start": 4, "xp": 10}
-## 진영·본진 울타리의 남쪽 문 폭.
+## 장각 본진 울타리의 남쪽 문 폭(진영엔 울타리가 없음, D-185).
 const CAMP_GATE_W := 70.0
 const GATE := {"y": 720.0, "x0": 375.0, "x1": 465.0}
 const CYZ := {"pos": Vector2(420, 590), "m": 7.0, "guards": 18}

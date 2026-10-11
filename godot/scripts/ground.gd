@@ -1,5 +1,5 @@
 extends Node2D
-## 바닥 · 강 · 다리 · 본진 · 진영 · 울타리 · 관문 · 주울 것. 바닥은 일단 단색(B.B.Bits 타일셋을 사면 바꿈, D-169).
+## 바닥 · 강 · 다리 · 본진 · 진영 · 장각 본진 담 · 관문 · 주울 것. 바닥은 일단 단색(B.B.Bits 타일셋을 사면 바꿈, D-169).
 
 const GRASS := Color("5b7a3e")
 const INK := Color(0.11, 0.09, 0.07, 0.85)
@@ -17,10 +17,7 @@ func _draw() -> void:
 		var rc: Rect2 = o.rect
 		if o.k == "water" or not V.intersects(rc):
 			continue
-		if o.tag == "camp":
-			_palisade(rc)
-		else:
-			_stone(rc, o.door != "")
+		_stone(rc, o.door != "")
 	var K := b.keep_rect()
 	if V.intersects(K.grow(30)):
 		draw_rect(K.grow(-12), Color(0.85, 0.44, 0.37, 0.12))
@@ -127,28 +124,6 @@ func _flag(p: Vector2, col: Color, glyph: String) -> void:
 	var wv := sin(b.t * 4 + p.x) * 2
 	draw_colored_polygon(PackedVector2Array([p + Vector2(1.5, -34), p + Vector2(24, -31 + wv), p + Vector2(24, -15 + wv), p + Vector2(1.5, -18)]), col)
 	draw_string(ThemeDB.fallback_font, p + Vector2(2, -21 + wv * 0.5), glyph, HORIZONTAL_ALIGNMENT_CENTER, 20, 10, Color("fffaf0"))
-
-
-func _palisade(o: Rect2) -> void:
-	if o.size.x >= o.size.y:
-		var cy := o.get_center().y
-		draw_rect(Rect2(o.position.x, cy - 2, o.size.x, 4), Color("5a3a1a"))
-		var x := o.position.x + 4
-		while x <= o.end.x - 2:
-			_post(x, cy)
-			x += 9
-	else:
-		var cx := o.get_center().x
-		draw_rect(Rect2(cx - 2, o.position.y, 4, o.size.y), Color("5a3a1a"))
-		var y := o.position.y + 4
-		while y <= o.end.y:
-			_post(cx, y)
-			y += 9
-
-
-func _post(x: float, y: float) -> void:
-	draw_rect(Rect2(x - 3, y - 12, 6, 16), Color("6a4a2a"))
-	draw_rect(Rect2(x - 3, y - 12, 6, 3), Color("a8784a"))
 
 
 func _stone(o: Rect2, door: bool) -> void:
