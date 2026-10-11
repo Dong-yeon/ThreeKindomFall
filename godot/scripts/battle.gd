@@ -78,9 +78,10 @@ var cyz: Enemy = null
 var boss: Enemy = null
 var party_t := 60.0
 var rein_t := 4.0
-## 들판 증원(D-186): 몇 초마다 · 장수를 쫓는 무리 상한 · 지금까지 낸 수(종류 섞기)
+## 들판 증원(D-186): 몇 초마다 · 장수를 쫓는 무리 상한 · 떨어뜨리는 경험 배율(D-187 — 많이 오되 레벨은 천천히) · 지금까지 낸 수(종류 섞기)
 const REIN_GAP := 1.5
 const REIN_CAP := 60
+const REIN_XP := 0.25
 var rein_i := 0
 ## 포위 웨이브(D-182): 다음까지 남은 시간 · 몇 번째
 var wave_t := 35.0
@@ -445,7 +446,7 @@ func _rein_tick(dt: float) -> void:
 			elif rein_i % 30 == 0:
 				k = "ytdash"
 			var at := Vector2(clampf(o.x + randf_range(-30, 30), 30, W - 30), clampf(o.y + randf_range(-30, 30), 30, H - 30))
-			spawn(k, at, m)
+			spawn(k, at, m).xp_mul = REIN_XP
 
 
 ## 포위 웨이브(D-182): 30~40초마다 장수 둘레 300px 원 위 사방에서 조여 옴(웹판 '에워싸는 무리'와 같은 수 · 체력 60%).
@@ -792,7 +793,7 @@ func hurt_enemy(e: Enemy, d: float) -> void:
 ## 적이 쓰러지면: 진영 병력 · 진영장(점령) · 정원지(본진 문) · 장각(평정)
 func _on_kill(e: Enemy) -> void:
 	if not e.boss:
-		drop_orb(e.position, TacticsData.xp_of(e.k, e.elite))
+		drop_orb(e.position, TacticsData.xp_of(e.k, e.elite) * e.xp_mul)
 	if e.boss:
 		for o in enemies:
 			if not o.dead and o != e:

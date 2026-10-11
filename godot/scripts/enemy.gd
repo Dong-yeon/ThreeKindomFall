@@ -15,6 +15,8 @@ var elite := false
 var boss := false
 var ename := ""
 var camp_id := ""
+## 떨어뜨리는 경험 배율(들판 증원은 Battle.REIN_XP, D-187)
+var xp_mul := 1.0
 ## 막사(D-180): 움직이지 않는 적. barracks_id = "진영id:번호"
 var building := false
 var barracks_id := ""
