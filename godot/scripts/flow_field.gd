@@ -13,9 +13,29 @@ var blk := PackedByteArray()
 var _d0 := PackedInt32Array()
 ## 줄마다 막힌 칸이 있는 줄 수의 누적(_rows[y + 1] - _rows[y0] > 0 이면 y0~y 줄 어딘가 막힘)
 var _rows := PackedInt32Array()
+## 트인 칸이 이어진 덩어리 번호(막힌 칸 -2). reach()가 BFS를 넓히지 않고 '갈 수 있나'를 답함
+var _comp := PackedInt32Array()
 var ver := -1
-## 키 → {"src": 목표 칸, "d": 칸 거리(음수 = 못 감), "at": 계산한 때}
+## 키 → Field
 var fields := {}
+## 곧 새로 만들 흐름장을 미리 넓혀 두는 자리(키 하나 · 목표 칸 하나, prefetch)
+var _pre_key := ""
+var _pre: Field = null
+
+
+## 흐름장 하나(목표 칸 src에서 퍼지는 칸 거리). 만들 때 BFS를 다 돌지 않고, 물어본 칸이 정해질 때까지만 ·
+## 남는 프레임에 조금씩(work) 넓힌다(D-190). 넓히는 차례(앞에서 꺼내 왼 · 오 · 위 · 아래)가 늘 같아서
+## 언제 몇 칸씩 넓히든 칸 값은 한 번에 다 채운 것과 같다 — 칸 값은 dist()로 읽는다.
+class Field extends RefCounted:
+	var src := 0
+	## 만든 때('p'처럼 throttle이 있으면 이때부터 잼)
+	var at := 0.0
+	## 칸 거리: 0 이상 = 정해짐 · -1 = 아직 안 닿음(다 넓혔으면 못 감) · -2 = 막힌 칸
+	var d := PackedInt32Array()
+	## BFS 줄(head부터 꺼낼 차례, tail까지 들어 있음)
+	var q := PackedInt32Array()
+	var head := 0
+	var tail := 0
 
 
 func build(obs: Array, w: float, h: float, version: int) -> void:
@@ -45,8 +65,44 @@ func build(obs: Array, w: float, h: float, version: int) -> void:
 			_d0[c] = -2 if blk[c] == 1 else -1
 			any |= blk[c]
 		_rows[y + 1] = _rows[y] + any
+	# 트인 칸을 이어진 덩어리로 나눔(지도가 바뀔 때만 — 시작 · 문 열림)
+	var n := gw * gh
+	var comp := _d0.duplicate()
+	var q := PackedInt32Array()
+	q.resize(n)
+	var label := 0
+	for s in n:
+		if comp[s] != -1:
+			continue
+		comp[s] = label
+		q[0] = s
+		var head := 0
+		var tail := 1
+		while head < tail:
+			var c := q[head]
+			head += 1
+			var x := c % gw
+			if x > 0 and comp[c - 1] == -1:
+				comp[c - 1] = label
+				q[tail] = c - 1
+				tail += 1
+			if x < gw - 1 and comp[c + 1] == -1:
+				comp[c + 1] = label
+				q[tail] = c + 1
+				tail += 1
+			if c >= gw and comp[c - gw] == -1:
+				comp[c - gw] = label
+				q[tail] = c - gw
+				tail += 1
+			if c < n - gw and comp[c + gw] == -1:
+				comp[c + gw] = label
+				q[tail] = c + gw
+				tail += 1
+		label += 1
+	_comp = comp
 	ver = version
 	fields.clear()
+	_pre = null
 
 
 func cell_of(p: Vector2) -> int:
@@ -55,28 +111,105 @@ func cell_of(p: Vector2) -> int:
 	return cy * gw + cx
 
 
-## 목표 칸에서 퍼져 나가는 칸 거리. 같은 칸이면 그대로 쓰고, 'p'(장수)는 0.2초에 한 번만 다시 계산.
-## 막힌 칸은 -2로 시작해 '아직 안 간 트인 칸(-1)'만 보면 됨(D-189 — 퍼지는 차례 · 거리는 같음, 못 가는 칸은 전처럼 음수).
-func field(key: String, target: Vector2, now: float, throttle := 0.0) -> Dictionary:
+## 목표 칸에서 퍼져 나가는 칸 거리. 같은 칸이면 그대로 쓰고, 'p'(장수)는 0.2초에 한 번만 새로 만듦.
+## 새로 만들 땐 시작 칸만 넣어 둠(D-190 — 전엔 여기서 BFS를 다 돌아 장수 흐름장 한 번에 3~10ms 튀었음).
+## 막힌 칸은 -2로 시작해 '아직 안 간 트인 칸(-1)'만 보면 됨(D-189).
+func field(key: String, target: Vector2, now: float, throttle := 0.0) -> Field:
 	var src := cell_of(target)
-	var f: Dictionary = fields.get(key, {})
-	if not f.is_empty():
+	var f: Field = fields.get(key)
+	if f != null:
 		if f.src == src:
 			return f
-		if throttle > 0.0 and now - float(f.at) < throttle:
+		if throttle > 0.0 and now - f.at < throttle:
 			return f
-	var n := gw * gh
+	if _pre != null and _pre_key == key and _pre.src == src:
+		f = _pre
+		_pre = null
+	else:
+		f = _new_field(src)
+	f.at = now
+	fields[key] = f
+	return f
+
+
+## key 흐름장이 다음에 target 칸으로 새로 만들어질 것 같으면 그 칸 흐름장을 미리 만들어 work가 넓혀 둠(D-190).
+## 같은 칸에서 시작한 BFS는 값이 늘 같아서 field()가 이어받아도 처음부터 넓힌 것과 같음
+func prefetch(key: String, target: Vector2) -> void:
+	var src := cell_of(target)
+	var f: Field = fields.get(key)
+	if f != null and f.src == src:
+		return
+	if _pre != null and _pre_key == key and _pre.src == src:
+		return
+	_pre = _new_field(src)
+	_pre_key = key
+
+
+func _new_field(src: int) -> Field:
 	var d := _d0.duplicate()
-	var q := PackedInt32Array()
-	q.resize(n)
-	var head := 0
-	var tail := 0
 	d[src] = 0
-	q[tail] = src
-	tail += 1
-	while head < tail:
+	var q := PackedInt32Array()
+	q.resize(gw * gh)
+	q[0] = src
+	var f := Field.new()
+	f.src = src
+	f.d = d
+	f.q = q
+	f.tail = 1
+	return f
+
+
+## 칸 c에 갈 수 있는지(= dist(f, c) >= 0). BFS를 넓히지 않고 덩어리 번호로 답함:
+## 시작 칸이 트였으면 같은 덩어리, 막혔으면(벽에 붙어 선 장수) 둘레 트인 칸 넷 중 하나와 같은 덩어리 — BFS가 닿는 칸과 같음
+func reach(f: Field, c: int) -> bool:
+	var s := f.src
+	if c == s:
+		return true
+	var lc := _comp[c]
+	if lc < 0:
+		return false
+	if _comp[s] >= 0:
+		return _comp[s] == lc
+	var x := s % gw
+	return (x > 0 and _comp[s - 1] == lc) or (x < gw - 1 and _comp[s + 1] == lc) \
+		or (s >= gw and _comp[s - gw] == lc) or (s < gw * gh - gw and _comp[s + gw] == lc)
+
+
+## 칸 c의 거리(음수 = 못 감). 아직 안 닿았으면 정해질 때까지 넓힘(못 가는 칸이면 끝까지 — 갈 수 있나만 보려면 reach)
+func dist(f: Field, c: int) -> int:
+	if f.d[c] == -1 and f.head < f.tail:
+		_grow(f, c, gw * gh)
+	return f.d[c]
+
+
+## 덜 넓힌 흐름장들을 모두 합쳐 cells칸까지 넓혀 둠(Battle이 프레임마다 — 물어볼 때 한꺼번에 넓히는 일을 줄임).
+## 쓰고 있는 흐름장 먼저, 남으면 미리 만든 것(prefetch)
+func work(cells: int) -> void:
+	for k in fields:
+		var f: Field = fields[k]
+		if f.head < f.tail:
+			cells -= _grow(f, -1, cells)
+			if cells <= 0:
+				return
+	if _pre != null and _pre.head < _pre.tail:
+		_grow(_pre, -1, cells)
+
+
+## f를 BFS 차례대로 넓힘: stop 칸이 정해지거나(stop >= 0) most칸을 꺼냈거나 다 넓히면 멈춤. 꺼낸 칸 수를 돌려줌
+func _grow(f: Field, stop: int, most: int) -> int:
+	# 배열을 잠시 넘겨받아 참조를 하나로 둠(f에도 걸려 있으면 쓸 때 통째로 복사됨)
+	var d := f.d
+	var q := f.q
+	f.d = PackedInt32Array()
+	f.q = PackedInt32Array()
+	var n := gw * gh
+	var head := f.head
+	var tail := f.tail
+	var done := 0
+	while head < tail and done < most:
 		var c := q[head]
 		head += 1
+		done += 1
 		var x := c % gw
 		var dc := d[c] + 1
 		if x > 0 and d[c - 1] == -1:
@@ -95,9 +228,13 @@ func field(key: String, target: Vector2, now: float, throttle := 0.0) -> Diction
 			d[c + gw] = dc
 			q[tail] = c + gw
 			tail += 1
-	f = {"src": src, "d": d, "at": now}
-	fields[key] = f
-	return f
+		if stop >= 0 and d[stop] != -1:
+			break
+	f.d = d
+	f.q = q
+	f.head = head
+	f.tail = tail
+	return done
 
 
 ## 두 점 사이가 막힌 칸 없이 트였는지(반 칸 간격 표본). 출발 칸은 안 봄(벽에 붙어 막힌 칸에 서 있어도 됨).
@@ -122,9 +259,24 @@ func clear(a: Vector2, b: Vector2) -> bool:
 ## 경유점까지 곧게 갈 수 있는 가장 먼 칸을 고름 — 멀리 잡으면 모서리에서 벽 너머를 가리켜 벽에 붙어 버림.
 ## 벽에 붙어 '막힌 칸'(벽을 4px 넓혀 막으므로 벽 옆 칸도 막힘)에 서 있으면 둘레 8칸 중 가장 가까운 칸에서 이어 감
 ## — 웹판은 여기서 곧장 가려다 벽 앞에서 오락가락했음.
-func descend(from: Vector2, f: Dictionary) -> Variant:
-	var d: PackedInt32Array = f.d
+## 덜 넓힌 흐름장(D-190): 서 있는 칸(갈 수 없는 칸이면 둘레 8칸 중 갈 수 있는 칸)만 먼저 정해 두면 됨.
+## 거리 k인 칸이 정해졌으면 k-1 이하 칸은 모두 정해져 있어서(BFS는 가까운 칸부터 정함) 내려가는 이웃은 늘
+## 정해진 값을 읽고, 아직 안 닿은 이웃(-1)은 k 이상이라 어차피 고르지 않음. 못 가는 칸은 넓히지 않고 음수로 둠.
+func descend(from: Vector2, f: Field) -> Variant:
 	var c := cell_of(from)
+	if reach(f, c):
+		dist(f, c)
+	else:
+		var cx0 := c % gw
+		var cy0 := c / gw
+		for oy in range(-1, 2):
+			for ox in range(-1, 2):
+				var x := cx0 + ox
+				var y := cy0 + oy
+				if x >= 0 and y >= 0 and x < gw and y < gh and reach(f, y * gw + x):
+					dist(f, y * gw + x)
+	# 넓히기(dist)를 다 마친 뒤에 잡음 — 넓히는 중엔 f.d가 바뀜
+	var d: PackedInt32Array = f.d
 	if d[c] < 0:
 		var cx := c % gw
 		var cy := c / gw

@@ -12,6 +12,9 @@ const STICK_DEAD := 8.0
 const STICK_FULL := 50.0
 ## 화면 밖 이만큼까지는 인물을 다시 그림(장각 그림 높이 ~90px · 띄워짐 · 화면 흔들림을 덮음)
 const DRAW_PAD := 120.0
+## 흐름장을 프레임마다 미리 넓혀 두는 칸 수(D-190, 이 PC에서 약 0.4ms). 지도는 42×150 = 6300칸.
+## 1200 · 2500은 넓히는 프레임 자체가 1~2ms씩 늘고, 0이면 물어볼 때 한꺼번에 넓히는 일이 잦았음
+const FLOW_WORK := 600
 
 @export var hero_data: HeroData
 
@@ -208,6 +211,10 @@ func _process(delta: float) -> void:
 	var dt := minf(delta, 0.033)  # 웹판과 같은 상한(프레임이 끊겨도 한 번에 0.033초까지만)
 	if state == "play":
 		_update(dt)
+	# 장수가 들어선 칸의 흐름장을 미리 넓혀 둠 — 'p'는 0.2초마다만 새로 만들어서 대개 몇 프레임 뒤에 이어받음
+	if flow.ver == obs_ver:
+		flow.prefetch("p", hero.position)
+	flow.work(FLOW_WORK)
 	_place_camera()
 	_redraw_units()
 	ground.queue_redraw()
@@ -493,7 +500,7 @@ func _wave_tick(dt: float) -> void:
 	wave_n += 1
 	if flow.ver != obs_ver:
 		flow.build(obs, W, H, obs_ver)
-	var d: PackedInt32Array = flow.field("p", hero.position, t, 0.2).d
+	var f := flow.field("p", hero.position, t, 0.2)
 	var n := mini(48, 16 + int(t / 60.0 * 5.0))
 	var R := 300.0
 	var m := mul_y(hero.position.y) * WAVE_HP
@@ -503,7 +510,7 @@ func _wave_tick(dt: float) -> void:
 	for i in n:
 		var at := hero.position + Vector2.from_angle(off + float(i) / n * TAU) * R
 		at = Vector2(clampf(at.x, 24, W - 24), clampf(at.y, 24, H - 24))
-		if hit_obs(at, 14) or d[flow.cell_of(at)] < 0:
+		if hit_obs(at, 14) or not flow.reach(f, flow.cell_of(at)):
 			continue
 		var k := "ytb"
 		if wave_n >= 2 and i % 6 == 3:
@@ -1172,11 +1179,11 @@ func ring_pos(a: float) -> Vector2:
 	var p := hero.position
 	if flow.ver != obs_ver:
 		flow.build(obs, W, H, obs_ver)
-	var d: PackedInt32Array = flow.field("p", p, t, 0.2).d
+	var f := flow.field("p", p, t, 0.2)
 	for da in [0.0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]:
 		var rr := view.size.length() / 2 + randf_range(20, 70)
 		var at := Vector2(clampf(p.x + cos(a + da) * rr, 24, W - 24), clampf(p.y + sin(a + da) * rr, 24, H - 24))
-		if not hit_obs(at, 16) and at.distance_to(p) > 200 and d[flow.cell_of(at)] >= 0:
+		if not hit_obs(at, 16) and at.distance_to(p) > 200 and flow.reach(f, flow.cell_of(at)):
 			return at
 	return Vector2.INF
 
