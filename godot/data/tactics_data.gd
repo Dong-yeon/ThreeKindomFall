@@ -70,6 +70,8 @@ static func xp_of(k: String, elite: bool) -> int:
 	match k:
 		"barracks":
 			return int(Stage1.BARRACKS.xp)
+		"tower":
+			return int(Stage1.TOWER.xp)
 		"ytbig":
 			return 4
 		"ytarch", "ytdash":

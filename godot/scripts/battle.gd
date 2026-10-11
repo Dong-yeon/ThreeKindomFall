@@ -153,7 +153,7 @@ func _ready() -> void:
 	_place_camera()
 	hud.setup(self)
 	Sound.music("fight", 0.3)
-	banner(Stage1.NAME, "황건 진영 3곳의 막사를 부수고 진영장을 쓰러뜨리세요")
+	banner(Stage1.NAME, "황건 진영 3곳: 수비탑을 부숴야 막사를 부술 수 있어요")
 	if "--bot" in OS.get_cmdline_user_args():
 		var bot: Node = load("res://scripts/bot.gd").new()
 		add_child(bot)
@@ -355,7 +355,8 @@ func choose(i: int) -> void:
 	state = "play"
 
 
-## 진영(D-180): 병력은 살아 있는 막사에서만 나옴(막사마다 상한 · 장수가 가까우면 빨리) → 막사를 다 부수면 진영장 → 쓰러뜨리면 점령
+## 진영(D-180 · D-193): 병력은 살아 있는 막사에서만 나옴(막사마다 상한 · 장수가 가까우면 빨리) →
+## 건물(막사 1 + 수비탑 2)을 다 부수면 진영장 → 쓰러뜨리면 점령
 func _camps_tick(dt: float) -> void:
 	var B: Dictionary = Stage1.BARRACKS
 	for c in camps:
@@ -366,6 +367,8 @@ func _camps_tick(dt: float) -> void:
 			if not bk.alive:
 				continue
 			left += 1
+			if bk.kind != "barracks":
+				continue
 			bk.spawn_t -= dt
 			if bk.spawn_t > 0:
 				continue
@@ -385,7 +388,7 @@ func _camps_tick(dt: float) -> void:
 			L.touch = Units.ENEMY[lk].touch
 			L.r *= 1.4 if lk == "ytbig" else 1.6
 			c.lead = L
-			banner("%s 등장!" % c.ln, "막사를 다 부쉈어요 — 쓰러뜨리면 진영 점령")
+			banner("%s 등장!" % c.ln, "막사와 수비탑을 다 부쉈어요 — 쓰러뜨리면 진영 점령")
 			Sound.play("alert", 0.35)
 
 
@@ -411,10 +414,20 @@ func _count_barracks(id: String) -> int:
 	return n
 
 
-func barracks_left(c: Dictionary) -> int:
+## 진영에 남은 건물(막사 · 수비탑) 수
+func buildings_left(c: Dictionary) -> int:
 	var n := 0
 	for bk in c.bks:
 		if bk.alive:
+			n += 1
+	return n
+
+
+## 진영에 남은 수비탑 수(남아 있으면 막사는 보호 중, D-193)
+func towers_left(c: Dictionary) -> int:
+	var n := 0
+	for bk in c.bks:
+		if bk.alive and bk.kind == "tower":
 			n += 1
 	return n
 
@@ -428,7 +441,7 @@ func _party_tick(dt: float) -> void:
 	for c in camps:
 		if not c.cap:
 			for bk in c.bks:
-				if bk.alive:
+				if bk.alive and bk.kind == "barracks":
 					src.append([c, bk])
 	if src.is_empty():
 		return
@@ -721,7 +734,7 @@ func nearest_enemy(from: Vector2, max_d: float) -> Enemy:
 	var best: Enemy = null
 	var bd := max_d
 	for e in enemies:
-		if e.dead:
+		if e.dead or e.shield:
 			continue
 		var d := e.position.distance_to(from)
 		if d < bd:
@@ -761,7 +774,7 @@ func _tick_blades(dt: float) -> void:
 		while i < enemies.size():
 			var e := enemies[i]
 			i += 1
-			if e.dead or bl.hit.has(e.get_instance_id()):
+			if e.dead or e.shield or bl.hit.has(e.get_instance_id()):
 				continue
 			var d := e.position - p
 			var ly := d.dot(side)
@@ -805,7 +818,7 @@ func swing(at: Vector2, a: float, arc: float, rad: float, dmg: float, col: Array
 	while i < enemies.size():
 		var e := enemies[i]
 		i += 1
-		if e.dead:
+		if e.dead or e.shield:
 			continue
 		var dv := e.position - at
 		var d := dv.length()
@@ -837,7 +850,7 @@ func blast(at: Vector2, rad: float, dmg: float) -> int:
 	while i < enemies.size():
 		var e := enemies[i]
 		i += 1
-		if e.dead:
+		if e.dead or e.shield:
 			continue
 		var dv := e.position - at
 		var d := dv.length()
@@ -864,7 +877,8 @@ func push_away(at: Vector2, rad: float, amount: float) -> void:
 
 
 func hurt_enemy(e: Enemy, d: float) -> void:
-	if e.dead:
+	# 수비탑이 남은 진영의 막사는 피해를 받지 않음(D-193)
+	if e.dead or e.shield:
 		return
 	e.hp -= d
 	e.flash = 0.1
@@ -898,11 +912,18 @@ func _on_kill(e: Enemy) -> void:
 			if bk.id == e.barracks_id:
 				bk.alive = false
 		var total: int = c.bks.size()
-		var done := total - barracks_left(c)
+		var done := total - buildings_left(c)
 		add_fx({"k": "ring", "pos": e.position, "t": 0.5, "r": 60.0, "c": Color("ffb050")})
 		shake = maxf(shake, 0.15)
-		if done < total:
-			banner("막사를 부쉈어요 (%d/%d)" % [done, total], "%s — 남은 막사 %d" % [c.n, total - done])
+		if e.k == "tower" and towers_left(c) == 0:
+			# 마지막 탑: 막사 보호가 풀림(D-193)
+			for bk in c.bks:
+				if bk.kind == "barracks" and bk.alive:
+					bk.unit.shield = false
+			banner("수비탑을 다 부쉈어요 (%d/%d)" % [done, total], "%s — 이제 막사를 부술 수 있어요" % c.n)
+		elif done < total:
+			var what := "수비탑을" if e.k == "tower" else "막사를"
+			banner("%s 부쉈어요 (%d/%d)" % [what, done, total], "%s — 남은 막사 · 수비탑 %d" % [c.n, total - done])
 		return
 	if e.camp_lead != "":
 		var c := camp_by_id(e.camp_lead)
@@ -1158,18 +1179,31 @@ func _spawn_squads() -> void:
 			var e := spawn(k, at, s[3])
 			e.set_post(at)
 			e.aggro = 230
+	# 진영 건물(D-193): 막사(병력이 나옴) · 수비탑(장수를 쏨). c.bks = 둘 다, kind로 가름
 	var B: Dictionary = Stage1.BARRACKS
+	var T: Dictionary = Stage1.TOWER
 	for c in camps:
 		var i := 0
 		for bp in c.barracks:
-			var bk := {"id": "%s:%d" % [c.id, i], "pos": bp, "alive": true, "spawn_t": randf_range(0.5, 2.0)}
+			var bk := {"id": "%s:%d" % [c.id, i], "kind": "barracks", "pos": bp, "alive": true, "spawn_t": randf_range(0.5, 2.0)}
 			c.bks.append(bk)
 			var hut := spawn("barracks", bp, float(B.hp) * float(c.mul))
 			hut.camp_id = c.id
 			hut.barracks_id = bk.id
 			hut.r = float(B.r)
+			# 수비탑을 다 부술 때까지 보호(D-193)
+			hut.shield = not c.towers.is_empty()
+			bk["unit"] = hut
 			for j in int(B.start):
 				_barracks_soldier(c, bk, float(c.mul))
+			i += 1
+		for tp in c.towers:
+			var bk := {"id": "%s:%d" % [c.id, i], "kind": "tower", "pos": tp, "alive": true}
+			c.bks.append(bk)
+			var tw := spawn("tower", tp, float(T.hp) * float(c.mul))
+			tw.camp_id = c.id
+			tw.barracks_id = bk.id
+			tw.r = float(T.r)
 			i += 1
 
 
@@ -1376,17 +1410,19 @@ func field_target() -> Dictionary:
 			best = c
 	if not best.is_empty():
 		var total: int = best.bks.size()
-		var done := total - barracks_left(best)
+		var done := total - buildings_left(best)
 		if best.lead != null:
 			var lp: Vector2 = best.lead.position if Unit.alive(best.lead) else best.pos
-			return {"pos": lp, "n": "%s 격파 · 막사 %d/%d" % [best.ln, done, total]}
+			return {"pos": lp, "n": "%s 격파 · 막사·탑 %d/%d" % [best.ln, done, total]}
+		# 수비탑이 남았으면 가까운 탑부터(막사는 보호 중, D-193)
+		var tw := towers_left(best) > 0
 		var bp: Vector2 = best.pos
 		var bd2 := INF
 		for bk in best.bks:
-			if bk.alive and hero.position.distance_to(bk.pos) < bd2:
+			if bk.alive and (not tw or bk.kind == "tower") and hero.position.distance_to(bk.pos) < bd2:
 				bd2 = hero.position.distance_to(bk.pos)
 				bp = bk.pos
-		return {"pos": bp, "n": "%s · 막사 %d/%d 부수기" % [best.n, done, total]}
+		return {"pos": bp, "n": "%s · %s 부수기 %d/%d" % [best.n, "수비탑" if tw else "막사", done, total]}
 	if not cyz_dead:
 		var zp: Vector2 = cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos
 		return {"pos": zp, "n": "관문 너머 황건 장수 정원지 격파"}
@@ -1403,8 +1439,9 @@ func march_goal(from: Vector2) -> Dictionary:
 			return {"key": "m_lead_" + c.id, "pos": c.lead.position if Unit.alive(c.lead) else c.pos}
 		var best := {}
 		var bd := INF
+		var tw := towers_left(c) > 0
 		for bk in c.bks:
-			if bk.alive and from.distance_to(bk.pos) < bd:
+			if bk.alive and (not tw or bk.kind == "tower") and from.distance_to(bk.pos) < bd:
 				bd = from.distance_to(bk.pos)
 				best = bk
 		if not best.is_empty():

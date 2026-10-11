@@ -6,11 +6,12 @@ var k := ""
 var def: Dictionary
 var ai := "chase"
 ## ai를 숫자로(매 프레임 문자열 match가 정수 비교보다 10배쯤 느려서, D-191). 없으면 -1
-const AI_CODE := {"chase": 0, "dash": 1, "shooter": 2, "boss": 3}
+const AI_CODE := {"chase": 0, "dash": 1, "shooter": 2, "boss": 3, "tower": 4}
 const AI_CHASE := 0
 const AI_DASH := 1
 const AI_SHOOTER := 2
 const AI_BOSS := 3
+const AI_TOWER := 4
 var _ai := AI_CHASE
 var spd := 60.0
 var spd0 := 60.0
@@ -27,6 +28,8 @@ var xp_mul := 1.0
 ## 막사(D-180): 움직이지 않는 적. barracks_id = "진영id:번호"
 var building := false
 var barracks_id := ""
+## 막사 보호(D-193): 진영 수비탑이 하나라도 남아 있으면 피해를 받지 않고 아무도 겨누지 않음
+var shield := false
 var camp_lead := ""
 var has_post := false
 var post := Vector2.ZERO
@@ -59,6 +62,9 @@ var _dk_lift := -1.0
 var _dk_warn := false
 var _dk_flash := false
 var _dk_hp := -1.0
+var _dk_shield := false
+## 수비탑이 장수를 노리는 중(사거리 안 · 화면 안, D-193)
+var _aiming := false
 
 
 func setup(b: Battle, key: String, at: Vector2, mul: float) -> void:
@@ -81,7 +87,7 @@ func setup(b: Battle, key: String, at: Vector2, mul: float) -> void:
 	tex = Sprites.sheet(def.spr) if String(def.spr) != "" else null
 	_anim_off = r
 	_glyph = String(def.n).left(1)
-	building = ai == "building"
+	building = ai == "building" or ai == "tower"
 
 
 func set_post(p: Vector2) -> void:
@@ -104,6 +110,8 @@ func tick(dt: float) -> void:
 	orb_t -= dt
 	if building:
 		flash = maxf(0.0, flash - dt)
+		if _ai == AI_TOWER:
+			_tower_tick(dt)
 		return
 	if air > 0:
 		air -= dt
@@ -239,6 +247,24 @@ func tick(dt: float) -> void:
 			b.add_fx({"k": "ring", "pos": hero.position, "t": 0.25, "r": 20.0, "c": Color("d9705e")})
 
 
+## 수비탑(D-193): 장수가 사거리 안이고 탑이 화면에 보이면 gap초마다 화살 한 발(피할 수 있는 탄 — 장수만 맞음).
+## 그렇지 않으면 쏠 준비만 해 두어, 들어오면 경고(warn초 — 빨간 고리) 뒤 첫 발
+func _tower_tick(dt: float) -> void:
+	var b := battle
+	var T: Dictionary = Stage1.TOWER
+	var gap: float = T.gap
+	var hp_pos := b.hero.position
+	_aiming = position.distance_to(hp_pos) <= float(T.range) and b.in_view(position, -10)
+	if not _aiming:
+		t = minf(t + dt, gap - float(T.warn))
+		return
+	t += dt
+	if t >= gap:
+		t = 0.0
+		var at := position + Vector2(0, -34)
+		b.shoot(at, (hp_pos - at).normalized() * float(T.spd), float(T.dmg), 5, Color("e07040"))
+
+
 ## 장각: 거리를 두며 탄막 · 세 갈래 연사 · 무리 부르기 · 누런 바람 돌진(체력 절반 아래에선 넷 다)
 func _boss_tick(dt: float, dv: Vector2, d: float) -> void:
 	var b := battle
@@ -282,7 +308,8 @@ func _boss_tick(dt: float, dv: Vector2, d: float) -> void:
 ## (Unit.anim_moved · Sprites.dir_of · walk_step과 같은 계산을 함수 부르기 없이 함)
 func refresh_look() -> void:
 	if building:
-		if (flash > 0) != _dk_flash or hp / max_hp != _dk_hp:
+		# 수비탑은 사거리 원 · 경고 고리가 있어 늘 그림(진영마다 2개뿐)
+		if _ai == AI_TOWER or (flash > 0) != _dk_flash or hp / max_hp != _dk_hp or shield != _dk_shield:
 			queue_redraw()
 		return
 	var p := position
@@ -319,8 +346,12 @@ func _draw() -> void:
 		_anim_last = position
 	_dk_flash = flash > 0
 	_dk_hp = hp / max_hp
+	_dk_shield = shield
 	if building:
-		_draw_barracks()
+		if _ai == AI_TOWER:
+			_draw_tower()
+		else:
+			_draw_barracks()
 		return
 	var lift := 0.0
 	if air > 0 and air0 > 0:
@@ -345,6 +376,31 @@ func _draw() -> void:
 	_dk_warn = warn
 
 
+## 수비탑: 나무 망루 + 황건 깃발 + 체력 막대(맞으면 번쩍). 노리는 중엔 사거리 원, 쏘기 직전엔 망대에 빨간 고리
+func _draw_tower() -> void:
+	var T: Dictionary = Stage1.TOWER
+	var wood := Color("fff2c0") if flash > 0 else Color("a8743a")
+	var dark := Color("5a3a1a")
+	if _aiming:
+		draw_arc(Vector2.ZERO, float(T.range), 0, TAU, 72, Color(0.85, 0.35, 0.25, 0.3), 1.5)
+	draw_rect(Rect2(-18, 10, 36, 6), Color(0, 0, 0, 0.22))
+	draw_line(Vector2(-13, 12), Vector2(-9, -26), dark, 3)
+	draw_line(Vector2(13, 12), Vector2(9, -26), dark, 3)
+	draw_line(Vector2(-11, 2), Vector2(10, -16), dark, 2)
+	draw_line(Vector2(11, 2), Vector2(-10, -16), dark, 2)
+	draw_rect(Rect2(-15, -36, 30, 11), wood)
+	draw_rect(Rect2(-15, -36, 30, 11), dark, false, 1.5)
+	var roof := PackedVector2Array([Vector2(-18, -36), Vector2(18, -36), Vector2(0, -50)])
+	draw_colored_polygon(roof, Color("d8b040"))
+	roof.append(roof[0])
+	draw_polyline(roof, dark, 1.5)
+	draw_rect(Rect2(-1, -62, 2, 13), dark)
+	draw_colored_polygon(PackedVector2Array([Vector2(1, -62), Vector2(12, -59), Vector2(1, -55)]), Color("e8c040"))
+	if _aiming and t > float(T.gap) - float(T.warn):
+		draw_arc(Vector2(0, -31), 13, 0, TAU, 24, Color("d9705e"), 2)
+	draw_bar(0, -70, 40, 4, hp / max_hp, Color("d9705e"))
+
+
 ## 막사: 누런 천막 + 황건 깃발 + 체력 막대(맞으면 번쩍)
 func _draw_barracks() -> void:
 	var cl := Color("fff2c0") if flash > 0 else Color("d8b860")
@@ -358,3 +414,7 @@ func _draw_barracks() -> void:
 	draw_rect(Rect2(14, -34, 2, 24), Color("5a3a1a"))
 	draw_colored_polygon(PackedVector2Array([Vector2(16, -34), Vector2(30, -31), Vector2(16, -26)]), Color("e8c040"))
 	draw_bar(0, -40, 46, 4, hp / max_hp, Color("d9705e"))
+	if shield:
+		# 수비탑이 남아 있는 동안: 푸른 보호막(D-193)
+		draw_circle(Vector2(0, -6), 36, Color(0.55, 0.75, 0.95, 0.16))
+		draw_arc(Vector2(0, -6), 36, 0, TAU, 40, Color(0.6, 0.8, 1.0, 0.7), 2)

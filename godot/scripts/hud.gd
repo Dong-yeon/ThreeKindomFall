@@ -310,12 +310,18 @@ func _draw_minimap(c: Control, sz: Vector2) -> void:
 	for cp in b.camps:
 		var CR := b.camp_rect(cp)
 		c.draw_rect(Rect2(P.call(CR.position), CR.size * s), Color("6a9ad8") if cp.cap else Color("e2b040"))
-		# 남은 막사(D-180)
+		# 남은 막사(D-180, 주황 네모) · 수비탑(D-193, 빨간 세모)
 		for bk in cp.bks:
 			if bk.alive:
 				var q: Vector2 = P.call(bk.pos)
-				c.draw_rect(Rect2(q - Vector2(2, 2), Vector2(4, 4)), Color("ff8a3a"))
-				c.draw_rect(Rect2(q - Vector2(2, 2), Vector2(4, 4)), INK, false, 1.0)
+				if bk.kind == "tower":
+					var tri := PackedVector2Array([q + Vector2(0, -3), q + Vector2(3, 2), q + Vector2(-3, 2)])
+					c.draw_colored_polygon(tri, Color("e04a3a"))
+					tri.append(tri[0])
+					c.draw_polyline(tri, INK, 1.0)
+				else:
+					c.draw_rect(Rect2(q - Vector2(2, 2), Vector2(4, 4)), Color("ff8a3a"))
+					c.draw_rect(Rect2(q - Vector2(2, 2), Vector2(4, 4)), INK, false, 1.0)
 	var hp: Vector2 = P.call(b.home_pos)
 	var blink := b.home_hp < b.home_max * 0.5 and int(b.t * 4) % 2 == 1
 	c.draw_rect(Rect2(hp - Vector2(3, 3), Vector2(6, 6)), Color("ff6a4a") if blink else Color("6a9ad8"))
