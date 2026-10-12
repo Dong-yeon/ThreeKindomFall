@@ -1,8 +1,9 @@
 class_name Battle
 extends Node2D
 ## 1장 전장(웹판 n_field.js 이식, D-170: 말 없이). 판의 상태 · 매 프레임 진행 · 목표 · 적·아군 생성 · 충돌.
-## 아래(아군 본진)에서 위(장각 본진)로 진군: 황건 진영 3곳(수비탑 2개 → 진영장 격파 · 보급 상자) 점령 → 관문 앞 정원지 격파 →
-## 성문이 열림(연출) → 요술 제단 3개 → 장각 → 첫 사신수 해방(판 끝).
+## 1장 탁현 싸움(D-210 · D-211): 황건 진영 3곳(수비탑 2개 → 진영장 격파 · 보급 상자)을 자유롭게 점령 → 관문 앞 정원지 대군 결전(1장 최종 보스, 2단계).
+## 사건은 시간표로(Stage1): 2:30 탁현 마을 습격 · 4:00 늑대 · 들개 · 5:00 본진 기습 · 정원지 출진(진영 셋 점령 + 8:00).
+## 2 · 3장용(성문 열림 · 장각의 요술 · 요술 제단 · 장각 · 첫 사신수 해방)은 siege.gd(Siege)로 떼어 둠 — 1장에선 siege = null.
 
 signal finished(win: bool)
 
@@ -84,22 +85,23 @@ var cap_n := 0
 var events: Array[Dictionary] = []
 var cyz_on := false
 var cyz_dead := false
-## 성문이 열리는 중(지난 초, -1 = 아님) · 다 열림(D-206)
-var gate_t := -1.0
-var gate_open := false
-var keep_open := false
+## 정원지 단계(1 · 2, D-211) · 1장을 이겨 끝나는 중(증원이 멈춤)
+var cyz_phase := 1
+var won := false
 var cyz: Enemy = null
+## 장각(2 · 3장, Siege가 만듦 — 1장엔 없음)
 var boss: Enemy = null
+## 2 · 3장용 진행(D-211): 성문 열림 · 장각의 요술 · 요술 제단 · 장각 · 사신수. 1장(Stage1.SIEGE = false)엔 없음
+var siege: Siege = null
 ## 탁현 마을(D-208): wait · raid(습격 중) · saved · lost · 남은 시간 · 등무 / 본진 기습을 했나 / 유비(쓰러지면 짐)
 var vil_st := "wait"
 var vil_t := 0.0
 var deng: Enemy = null
 var home_raided := false
 var liubei: Ally = null
-## 요술 제단(D-207 — 하나라도 남아 있으면 장각 보호막) · 봉인된 사신수 빛 구슬 자리(INF = 없음) · 풀려나는 중(지난 초, -1 = 아님)
-var altars: Array[Enemy] = []
-var beast_pos := Vector2.INF
-var beast_t := -1.0
+## 늑대 · 들개 무리가 나왔나(D-209) · 진행 중인 진영 id(수비탑을 처음 친 곳 — 점령할 때까지 목표, D-209)
+var pack_done := false
+var cur_camp := ""
 var party_t := 60.0
 var rein_t := 4.0
 ## 들판 증원(D-186): 몇 초마다 · 장수를 쫓는 무리 상한 · 떨어뜨리는 경험 배율(D-187 — 많이 오되 레벨은 천천히) · 지금까지 낸 수(종류 섞기)
@@ -164,6 +166,8 @@ func _ready() -> void:
 		d.merge({"cap": false, "lead": null, "al_t": 0.0, "tws": [], "call_t": 0.0})
 		camps.append(d)
 	_build_obstacles()
+	if Stage1.SIEGE:
+		siege = Siege.new(self)
 	_setup_allies()
 	_spawn_squads()
 	for i in start_march:
@@ -341,6 +345,8 @@ func _field_tick(dt: float) -> void:
 	var p := hero
 	var d := hero_data
 	p.spd = 0.0 if p.stun > 0 else d.move_speed * tactics.speed_mul() * (d.musou_move_mul if p.musou_t > 0 else 1.0)
+	if siege != null and siege.in_storm:
+		p.spd *= float(SiegeData.SORCERY.storm_slow)
 	# 공격: 무쌍 > 기본 공격(대표 무기가 날아감)
 	Perf.begin(&"기본 공격")
 	if p.musou_t > 0:
@@ -380,14 +386,15 @@ func _field_tick(dt: float) -> void:
 		return
 	Perf.begin(&"생성")
 	_village_tick(dt)
+	_pack_tick()
 	_home_raid_tick()
 	_camps_tick(dt)
 	_party_tick(dt)
 	_rein_tick(dt)
 	_wave_tick(dt)
 	_cyz_tick(dt)
-	_gate_tick(dt)
-	_beast_tick(dt)
+	if siege != null:
+		siege.tick(dt)
 	Perf.end()
 	Perf.begin(&"충돌")
 	_separate()
@@ -438,12 +445,12 @@ func choose(i: int) -> void:
 	state = "play"
 
 
-## 탁현 마을 습격(D-208, D-195 사건 1): VILLAGE.at초에 등무 + 습격대가 마을 둘레에 자리 잡음(가까이 오면 장수에게 덤빔) →
-## limit초 안에 등무를 쓰러뜨리면 구함(_on_kill), 시간이 다 되면 마을이 불타고 남은 습격대는 본진으로
+## 탁현 마을 습격(D-208): VILLAGE.at초가 지나고 장수가 마을에서 far px 넘게 떨어져 있으면(D-209) 등무 + 습격대가 마을 둘레에 자리 잡음
+## (가까이 오면 장수에게 덤빔) → limit초 안에 등무를 쓰러뜨리면 구함(_on_kill), 시간이 다 되면 마을이 불타고 남은 습격대는 본진으로
 func _village_tick(dt: float) -> void:
 	var V: Dictionary = Stage1.VILLAGE
 	if vil_st == "wait":
-		if t < float(V.at):
+		if t < float(V.at) or hero.position.distance_to(V.pos) <= float(V.far):
 			return
 		vil_st = "raid"
 		vil_t = float(V.limit)
@@ -483,21 +490,46 @@ func _village_tick(dt: float) -> void:
 		Sound.play("lose", 0.3)
 
 
-## 본진 기습(D-208 — 웹판과 같음): 진영 HOME_RAID.cap곳을 점령했거나 at초가 지나면 한 번, 본진 양옆에서 본진으로.
+## 늑대 · 들개 무리(D-209): PACK.at초에 한 번, 화면 바로 밖 dirs방향에서 늑대(멈칫 → 덮침) · 들개(빠르게 쫓음)가 장수에게
+func _pack_tick() -> void:
+	var P: Dictionary = Stage1.PACK
+	if pack_done or t < float(P.at):
+		return
+	pack_done = true
+	var m := mul_y(hero.position.y)
+	var dirs := int(P.dirs)
+	var nw := int(P.wolves)
+	var off := randf() * TAU
+	for i in nw + int(P.dogs):
+		var o := ring_pos(off + (i % dirs) * TAU / dirs + randf_range(-0.2, 0.2))
+		if o == Vector2.INF:
+			continue
+		var at := Vector2(clampf(o.x + randf_range(-30, 30), 30, W - 30), clampf(o.y + randf_range(-30, 30), 30, H - 30))
+		spawn("wolf" if i < nw else "dog", at, m)
+	note("늑대 · 들개 무리")
+	banner("늑대 · 들개 무리가 덮쳐요!", "빠르니 둘러싸이지 않게 조심해요")
+	Sound.play("alert", 0.5)
+
+
+## 본진 기습(D-208 · D-209): HOME_RAID.at초에 한 번, 본진 양옆에서. 돌격병은 유비만 노리고(아군과 붙지 않음), 나머지는 본진으로.
 ## 유비 · 수비대가 막고, 많이 밀리면 장수가 돌아가 도와야 함(유비가 쓰러지면 짐)
 func _home_raid_tick() -> void:
 	var R: Dictionary = Stage1.HOME_RAID
-	if home_raided or (cap_n < int(R.cap) and t < float(R.at)):
+	if home_raided or t < float(R.at):
 		return
 	home_raided = true
 	for i in int(R.n):
 		var x := randf_range(30, 90) if i % 2 == 1 else randf_range(W - 90, W - 30)
 		var k := "ytdash" if i % 4 == 0 else ("ytbig" if i % 5 == 3 else "ytb")
 		var e := spawn(k, Vector2(x, randf_range(2560, 2700)), float(R.mul))
-		e.goal_home = true
+		if k == "ytdash":
+			e.hunt_lb = true
+			e.no_eng = true
+		else:
+			e.goal_home = true
 		e.aggro = 160
 	note("본진 기습")
-	banner("본진 기습!", "유비와 수비대가 막아요 — 유비가 쓰러지면 져요")
+	banner("본진 기습!", "돌격병이 유비를 노려요 — 유비가 쓰러지면 져요")
 	Sound.play("alert", 0.6)
 
 
@@ -556,6 +588,26 @@ func towers_left(c: Dictionary) -> int:
 	return n
 
 
+## 목표 진영(D-209): 진행 중인 진영(cur_camp — 수비탑을 처음 친 곳)이 있으면 점령할 때까지 그곳, 없으면 장수에게서 가장 가까운 진영.
+## 전엔 늘 가장 가까운 진영이라, 탑이 진영 밖에 있다 보니 적을 피하다 다른 진영으로 화살표가 넘어갔음
+func focus_camp() -> Dictionary:
+	if cur_camp != "":
+		var cc := camp_by_id(cur_camp)
+		if not cc.is_empty() and not cc.cap:
+			return cc
+		cur_camp = ""
+	var best := {}
+	var bd := INF
+	for c in camps:
+		if c.cap:
+			continue
+		var d := hero.position.distance_to(c.pos)
+		if d < bd:
+			bd = d
+			best = c
+	return best
+
+
 ## 판의 사건 하나를 적어 둠(봇 출력용)
 func note(n: String) -> void:
 	events.append({"t": t, "n": n})
@@ -596,15 +648,17 @@ func _rein_tick(dt: float) -> void:
 	if rein_t > 0:
 		return
 	rein_t = REIN_GAP
-	if boss != null or enemies.size() >= 300:
+	if boss != null or won or enemies.size() >= 300:
 		return
 	var chase := 0
 	for e in enemies:
 		if not e.dead and not e.has_post and not e.goal_home and not e.building and e.position.distance_to(hero.position) < 520:
 			chase += 1
-	if chase >= REIN_CAP:
+	# 적 밀도(D-209): 상한 · 수에 시간 배율
+	var dn := density()
+	if chase >= REIN_CAP * dn:
 		return
-	var n := roundi(minf(21.0, 7.5 + t / 60.0 * 2.25) * REIN_GAP)
+	var n := roundi(minf(21.0, 7.5 + t / 60.0 * 2.25) * REIN_GAP * dn)
 	var dirs := mini(5, 3 + int(t / 120.0))
 	var m := mul_y(hero.position.y)
 	var py := hero.position.y
@@ -626,6 +680,11 @@ func _rein_tick(dt: float) -> void:
 			spawn(k, at, m).xp_mul = REIN_XP
 
 
+## 적 밀도 시간 배율(D-209, Stage1.DENSITY)
+func density() -> float:
+	return 1.0 + t / float(Stage1.DENSITY.per)
+
+
 ## 포위 웨이브(D-182): 30~40초마다 장수 둘레 300px 원 위 사방에서 조여 옴(체력은 웹판 '에워싸는 무리'처럼 60%).
 ## 수 32 + 분당 10(최대 96, D-191 — 처음엔 웹판과 같은 16 + 5 · 48) · 빠르기 +35%까지(10분) · 웨이브를 거듭할수록 돌격병 · 역사가 섞임.
 ## 벽 안 · 장수에게 걸어올 수 없는 자리는 뺌. 장각과 싸울 때는 쉼.
@@ -634,7 +693,7 @@ func _wave_tick(dt: float) -> void:
 	if wave_t > 0:
 		return
 	wave_t = randf_range(30, 40)
-	if boss != null or enemies.size() >= 300:
+	if boss != null or won or enemies.size() >= 300:
 		return
 	wave_n += 1
 	if flow.ver != obs_ver:
@@ -665,89 +724,65 @@ func _wave_tick(dt: float) -> void:
 		Sound.play("alert", 0.45)
 
 
-## 정원지가 나온 뒤(쓰러뜨릴 때까지): 관문 앞으로 6초마다 황건 무리(D-206 — 전엔 관문 너머 정원지 쪽)
+## 정원지 대군 결전(D-211 — 1장 최종 보스): 진영 셋을 점령하고 CYZ.at초가 지나면 관문 앞에 대군과 함께 나옴(전엔 셋째 진영을 점령하자마자).
+## 1단계: 관문 앞을 지키며 부채꼴 화살 · rein_gap초마다 관문 앞으로 황건 rein_n명.
+## 2단계(체력 phase2 아래): 분노 — 돌진 · 땅 내려찍기를 번갈아(공격 간격 × gap2), 더 넓게 움직이고(rect2 · 빠르기 × spd2) 남은 군사 rally명을 한 번에 부름
 func _cyz_tick(dt: float) -> void:
-	if not cyz_on or cyz_dead:
+	var Z: Dictionary = Stage1.CYZ
+	if not cyz_on:
+		if cap_n >= 3 and t >= float(Z.at):
+			_spawn_cyz()
 		return
+	if cyz_dead:
+		return
+	if cyz_phase == 1 and Unit.alive(cyz) and cyz.hp <= cyz.max_hp * float(Z.phase2):
+		cyz_phase = 2
+		cyz.skill_list = ["charge", "slam"]
+		cyz.sk_i = 0
+		cyz.gap_mul = float(Z.gap2)
+		cyz.lead_rect = Z.rect2
+		cyz.spd0 *= float(Z.spd2)
+		for i in int(Z.rally):
+			var at: Vector2 = cyz.position + Vector2.from_angle(randf() * TAU) * randf_range(60, 160)
+			at = at.clamp(Vector2(40, 745), Vector2(W - 40, H - 40))
+			spawn("ytbig" if i % 4 == 0 else ("ytdash" if i % 5 == 2 else "ytb"), at, 1.3)
+		note("정원지 2단계")
+		banner("정원지가 분노해요!", "남은 군사를 모두 불러요 — 돌진 · 땅 내려찍기를 피해요")
+		add_fx({"k": "ring", "pos": cyz.position, "t": 0.6, "r": 120.0, "c": Color("d9705e")})
+		shake = maxf(shake, 0.3)
+		Sound.play("alert", 0.6)
 	cyz_t -= dt
 	if cyz_t > 0:
 		return
-	cyz_t = 6
+	cyz_t = float(Z.rein_gap)
 	if enemies.size() >= 260:
 		return
-	for i in 10:
+	for i in int(Z.rein_n):
 		var k := "ytbig" if i % 5 == 0 else ("ytarch" if i % 4 == 1 else "ytb")
 		spawn(k, Vector2(randf_range(80, W - 80), randf_range(745, 790)), 1.3 * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
 
 
-## 성문 열림 연출(D-206): 정원지를 쓰러뜨리면 GATE.open초 동안 문짝이 양옆으로 열리며(ground.gd) 먼지 · 흔들림 →
-## 다 열리면 지나갈 수 있고 장각 본진 문도 열림
-func _gate_tick(dt: float) -> void:
-	if gate_t < 0:
-		return
-	var G: Dictionary = Stage1.GATE
-	var n0 := int(gate_t / 0.16)
-	gate_t += dt
-	if int(gate_t / 0.16) != n0:
-		add_fx({"k": "puff", "pos": Vector2(randf_range(float(G.x0) - 20, float(G.x1) + 20), float(G.y) + randf_range(4, 16)), "t": 0.3})
-		shake = maxf(shake, 0.06)
-	if gate_t < float(G.open):
-		return
-	gate_t = -1.0
-	gate_open = true
-	note("관문 열림")
-	open_door("gate")
-	add_fx({"k": "ring", "pos": Vector2((float(G.x0) + float(G.x1)) / 2, float(G.y)), "t": 0.6, "r": 120.0, "c": Color("f0c040")})
-	shake = maxf(shake, 0.3)
-	Sound.play("win", 0.4)
-	keep_open = true
-	open_door("keep")
-	var K := keep_rect()
-	for dx in [-24, 24]:
-		drops.append({"k": "bun", "pos": Vector2(K.get_center().x + dx, K.end.y + 40)})
-	var B: Dictionary = Stage1.KEEP
-	boss = spawn(B.boss, K.get_center() + Vector2(0, -40), B.bm)
-	boss.boss = true
-	boss.touch = 22
-	# 요술 제단(D-207): 남아 있는 동안 장각은 보호막
-	var A: Dictionary = Stage1.ALTAR
-	for ap in A.pos:
-		var al := spawn("altar", ap, float(A.hp))
-		al.r = float(A.r)
-		altars.append(al)
-	boss.shield = not altars.is_empty()
-	banner("관문이 열렸어요! 장각 본진으로", "요술 제단 %d개가 장각을 지켜요 — 제단부터 부숴요" % altars.size())
+## 관문 앞에 정원지 + 대군(D-206 · D-211). 진영장처럼 정해진 사각형 안을 움직이며 예고 있는 공격을 씀(Enemy.make_lead)
+func _spawn_cyz() -> void:
+	cyz_on = true
+	note("정원지 등장")
+	var Z: Dictionary = Stage1.CYZ
+	cyz = spawn("cyz", Z.pos, Z.m)
+	cyz.make_lead({"ln": "황건 장수 정원지", "id": "", "skill": "fan"}, Z.rect)
+	cyz.touch = 22
+	for i in int(Z.guards):
+		var at: Vector2 = Z.pos + Vector2(randf_range(-170, 170), randf_range(-50, 110))
+		var g := spawn("ytbig" if i % 4 == 0 else ("ytarch" if i % 5 == 2 else "ytb"), at, 1.3)
+		g.set_post(at)
+		g.aggro = 260
+	banner("정원지의 대군이 관문 앞에 나왔어요!", "1장 최종 결전 — 황건 장수 정원지를 쓰러뜨려요")
+	Sound.play("alert", 0.6)
 
 
-## 제단이 몇 개 남았나
-func altars_left() -> int:
-	var n := 0
-	for a in altars:
-		if not a.dead:
-			n += 1
-	return n
-
-
-## 첫 사신수 해방(D-207): 장수가 봉인된 빛 구슬에 닿으면 BEAST.release초 동안 빛이 퍼지며 풀려남 → 판 끝(이김)
-func _beast_tick(dt: float) -> void:
-	if beast_pos == Vector2.INF:
-		return
-	var Bs: Dictionary = Stage1.BEAST
-	if beast_t < 0:
-		if hero.position.distance_to(beast_pos) < hero.r + 14:
-			beast_t = 0.0
-			note("사신수 해방")
-			banner("%s%s 풀려났어요!" % [Bs.n, "이" if eul(Bs.n) == "을" else "가"], "황건적의 난을 평정했어요")
-			Sound.play("win", 0.5)
-			shake = 0.25
-		return
-	var n0 := int(beast_t / 0.3)
-	beast_t += dt
-	if int(beast_t / 0.3) != n0:
-		add_fx({"k": "ring", "pos": beast_pos, "t": 0.6, "r": 60.0 + beast_t * 60.0, "c": Color(Bs.c)})
-	if beast_t >= float(Bs.release):
-		beast_pos = Vector2.INF
-		finish(true, "")
+## 분:초
+static func mmss(s: float) -> String:
+	var n := maxi(0, ceili(s))
+	return "%d:%02d" % [n / 60, n % 60]
 
 
 ## 겹치지 않게(30px 칸으로 나눠 이웃끼리만 밀어냄). 적은 enemies 차례로, 이웃은 칸 차례 · 칸 안 enemies 차례로 봄.
@@ -1078,6 +1113,9 @@ func hurt_enemy(e: Enemy, d: float) -> void:
 	# 수비탑이 남은 진영의 진영장은 피해를 받지 않음(D-205)
 	if e.dead or e.shield:
 		return
+	# 수비탑을 처음 친 진영 = 진행 중인 진영(D-209)
+	if cur_camp == "" and e.tower_id != "":
+		cur_camp = e.camp_id
 	e.hp -= d
 	e.flash = 0.1
 	if e.is_lead() or e.building:
@@ -1094,31 +1132,8 @@ func hurt_enemy(e: Enemy, d: float) -> void:
 func _on_kill(e: Enemy) -> void:
 	if not e.boss:
 		drop_orb(e.position, TacticsData.xp_of(e.k, e.elite) * e.xp_mul)
-	if e.boss:
-		for o in enemies:
-			if not o.dead and o != e:
-				o.dead = true
-		note("장각 격파")
-		# 첫 사신수(D-207): 쓰러진 자리에 봉인된 빛 구슬 — 장수가 닿으면 풀려나고 판이 끝남(전엔 1.4초 뒤 바로 끝)
-		beast_pos = e.position.clamp(keep_rect().position + Vector2(40, 40), keep_rect().end - Vector2(40, 40))
-		var bn: String = e.def.n
-		banner("%s%s 쓰러뜨렸어요!" % [bn, eul(bn)], "봉인된 %s의 빛이 나타났어요 — 다가가 풀어 줘요" % Stage1.BEAST.n)
-		hit_stop = 0.15
-		shake = 0.5
-		return
-	if e.k == "altar":
-		var total := altars.size()
-		var left := altars_left()
-		add_fx({"k": "ring", "pos": e.position, "t": 0.5, "r": 60.0, "c": Color("ffb050")})
-		shake = maxf(shake, 0.15)
-		note("요술 제단 %d/%d" % [total - left, total])
-		if left == 0:
-			if Unit.alive(boss):
-				boss.shield = false
-				add_fx({"k": "ring", "pos": boss.position, "t": 0.5, "r": 90.0, "c": Color("6ac0e0")})
-			banner("요술 제단을 다 부쉈어요", "장각의 보호막이 풀렸어요 — 이제 장각을 쳐요")
-		else:
-			banner("요술 제단을 부쉈어요 (%d/%d)" % [total - left, total], "제단이 남아 있는 동안 장각은 다치지 않아요")
+	# 2 · 3장: 장각 · 요술 제단(D-211 — siege.gd)
+	if siege != null and siege.on_kill(e):
 		return
 	if e.building:
 		var c := camp_by_id(e.camp_id)
@@ -1143,6 +1158,8 @@ func _on_kill(e: Enemy) -> void:
 		var c := camp_by_id(e.camp_lead)
 		c.cap = true
 		cap_n += 1
+		if cur_camp == c.id:
+			cur_camp = ""
 		for o in enemies:
 			if not o.dead and o.camp_id == c.id:
 				o.dead = true
@@ -1160,22 +1177,9 @@ func _on_kill(e: Enemy) -> void:
 		add_fx({"k": "ring", "pos": c.pos, "t": 0.6, "r": 150.0, "c": Color("4a7ab8")})
 		Sound.play("win", 0.35)
 		if cap_n >= 3:
-			# 관문 앞에 문지기 정원지(D-206)
-			note("정원지 등장")
-			cyz_on = true
-			var Z: Dictionary = Stage1.CYZ
-			cyz = spawn("cyz", Z.pos, Z.m)
-			cyz.elite = true
-			cyz.ename = "황건 장수 정원지"
-			cyz.set_post(Z.pos)
-			cyz.aggro = 300
-			cyz.touch = 22
-			for i in int(Z.guards):
-				var at: Vector2 = Z.pos + Vector2(randf_range(-150, 150), randf_range(-60, 90))
-				var g := spawn("ytbig" if i % 4 == 0 else "ytb", at, 1.3)
-				g.set_post(at)
-				g.aggro = 260
-			banner("%s 점령! 관문 앞에 정원지가 나왔어요" % c.n, "보급 상자를 줍고 문지기 정원지를 쓰러뜨리면 관문이 열려요")
+			# 정원지는 CYZ.at초 뒤에 나옴(D-209 — _cyz_tick)
+			var za := float(Stage1.CYZ.at)
+			banner("%s 점령! 진영 셋을 다 점령했어요" % c.n, ("보급 상자를 줍고 관문 앞으로 — %s에 정원지가 나와요" % mmss(za)) if t < za else "보급 상자를 줍고 관문 앞으로")
 		else:
 			banner("%s 점령! (%d/3)" % [c.n, cap_n], "보급 상자를 주워요 — 진군 부대 %d명이 다음 진영으로 먼저 가요" % MARCH_ON_CAPTURE)
 		return
@@ -1189,23 +1193,32 @@ func _on_kill(e: Enemy) -> void:
 					kills += 1
 					add_fx({"k": "burst", "pos": o.position, "t": 0.3, "r": o.r * 0.6, "c": Color("f6e2a0")})
 			var V: Dictionary = Stage1.VILLAGE
-			hero.heal(hero.max_hp * float(V.heal))
-			drops.append({"k": "chest", "pos": e.position})
+			# 마을 상자(D-209): 회복 + 경험(진화 없음)
+			drops.append({"k": "chest", "kind": "village", "pos": e.position})
 			note("탁현 마을 구함")
-			banner("%s을 구했어요!" % V.n, "마을 사람들이 보급 상자를 내줬어요")
+			banner("%s을 구했어요!" % V.n, "마을 사람들이 보급 상자를 내줬어요(회복 + 경험)")
 			Sound.play("win", 0.35)
 		else:
 			banner("%s%s 쓰러뜨렸어요" % [e.ename, eul(e.ename)], "")
 		return
-	if e.k == "cyz" and e.elite:
-		# 성문이 열리기 시작(D-206 — _gate_tick)
+	if e == cyz:
 		note("정원지 격파")
 		cyz_dead = true
-		gate_t = 0.0
+		if siege != null:
+			# 2 · 3장: 성문이 열리기 시작(D-206)
+			siege.start_gate()
+			return
+		# 1장 최종 보스(D-210 · D-211): 남은 황건이 흩어지고 이김
+		won = true
+		for o in enemies:
+			if not o.dead:
+				o.dead = true
+				add_fx({"k": "burst", "pos": o.position, "t": 0.3, "r": o.r * 0.6, "c": Color("f6e2a0")})
+		banner("정원지를 쓰러뜨렸어요!", "탁현 싸움에서 이겼어요")
 		hit_stop = 0.15
-		shake = 0.35
-		banner("정원지 격파!", "관문이 열려요")
-		Sound.play("slam", 0.5)
+		shake = 0.5
+		Sound.play("win", 0.5)
+		later(1.8, finish.bind(true, ""))
 		return
 	if e.elite:
 		return
@@ -1323,8 +1336,17 @@ func _pickups() -> void:
 			banner("자석!", "구슬 %d개를 끌어와요" % n)
 			Sound.play("accept", 0.4)
 			add_fx({"k": "ring", "pos": hero.position, "t": 0.5, "r": 120.0, "c": Color("6ac0e0")})
+		elif dr.k == "chest" and dr.get("kind", "") == "village":
+			# 마을 상자(D-209): 회복 + 경험
+			var V: Dictionary = Stage1.VILLAGE
+			hero.heal(hero.max_hp * float(V.heal))
+			gain_xp(float(V.xp))
+			banner("마을 사람들의 보급!", "체력 %d%% 회복 · 경험 +%d" % [roundi(float(V.heal) * 100), int(V.xp)])
+			note("마을 상자")
+			Sound.play("heal", 0.4)
+			add_fx({"k": "ring", "pos": hero.position, "t": 0.6, "r": 90.0, "c": Color("8fe08a")})
 		elif dr.k == "chest":
-			# 보급 상자(D-205): 진화 또는 책략 1~3개 레벨 업
+			# 진영 상자(D-205 · D-209): 진화(조건이 맞으면) 또는 책략 1개 레벨 업
 			banner("보급 상자!", tactics.open_chest())
 			note("보급 상자")
 			Sound.play("win", 0.4)
@@ -1625,7 +1647,7 @@ func _path_for_impl(u: Unit, key: String, aim: Vector2) -> Vector2:
 	u.pth_k = key
 	if flow.ver != obs_ver:
 		flow.build(obs, W, H, obs_ver)
-	var f := flow.field(key, aim, t, 0.2 if key == "p" else 0.0)
+	var f := flow.field(key, aim, t, 0.2 if key == "p" else (0.5 if key == "lb" else 0.0))
 	if flow.clear(u.position, aim):
 		u.has_pth = false
 		return aim
@@ -1654,15 +1676,7 @@ func field_target() -> Dictionary:
 		var dp: Vector2 = deng.position if Unit.alive(deng) else V.pos
 		var who := String(V.ln).get_slice(" ", String(V.ln).get_slice_count(" ") - 1)
 		return {"pos": dp, "n": "%s 구하기 — %s 격파 (남은 %d초)" % [V.n, who, ceili(vil_t)], "warn": true}
-	var best := {}
-	var bd := INF
-	for c in camps:
-		if c.cap:
-			continue
-		var d := hero.position.distance_to(c.pos)
-		if d < bd:
-			bd = d
-			best = c
+	var best := focus_camp()
 	if not best.is_empty():
 		var total: int = best.tws.size()
 		var left := towers_left(best)
@@ -1677,32 +1691,22 @@ func field_target() -> Dictionary:
 				bd2 = hero.position.distance_to(tw.pos)
 				tp = tw.pos
 		return {"pos": tp, "n": "%s · 수비탑 부수기 %d/%d" % [best.n, total - left, total]}
+	if not cyz_on:
+		return {"pos": Stage1.CYZ.pos, "n": "관문 앞 — 정원지 출진까지 %s" % mmss(float(Stage1.CYZ.at) - t)}
+	var zp: Vector2 = cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos
 	if not cyz_dead:
-		var zp: Vector2 = cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos
-		return {"pos": zp, "n": "관문 앞 문지기 정원지 격파"}
-	if beast_pos != Vector2.INF:
-		return {"pos": beast_pos, "n": "봉인된 %s의 빛 — 다가가 풀어 주기" % Stage1.BEAST.n}
-	# 요술 제단이 남았으면 가까운 제단부터(장각은 보호 중, D-207)
-	var left := altars_left()
-	if left > 0:
-		var ap := keep_rect().get_center()
-		var ad := INF
-		for a in altars:
-			if not a.dead and hero.position.distance_to(a.position) < ad:
-				ad = hero.position.distance_to(a.position)
-				ap = a.position
-		return {"pos": ap, "n": "장각 본진 · 요술 제단 부수기 %d/%d" % [altars.size() - left, altars.size()]}
-	var bp: Vector2 = boss.position if Unit.alive(boss) else keep_rect().get_center()
-	return {"pos": bp, "n": "장각 본진 — 천공장군 장각 격파"}
+		return {"pos": zp, "n": "정원지 대군 결전%s — 정원지 격파" % (" (분노)" if cyz_phase == 2 else "")}
+	if siege != null:
+		return siege.target()
+	return {"pos": zp, "n": "탁현 싸움 승리"}
 
 
 ## 진군 부대(D-180)가 갈 곳과 길찾기 키
 func march_goal(from: Vector2) -> Dictionary:
 	if vil_st == "raid" and Unit.alive(deng):
 		return {"key": "m_deng", "pos": deng.position}
-	for c in camps:
-		if c.cap:
-			continue
+	var c := focus_camp()
+	if not c.is_empty():
 		var best := {}
 		var bd := INF
 		for tw in c.tws:
@@ -1712,12 +1716,9 @@ func march_goal(from: Vector2) -> Dictionary:
 		if not best.is_empty():
 			return {"key": "m_" + String(best.id), "pos": best.pos}
 		return {"key": "m_lead_" + c.id, "pos": c.lead.position if Unit.alive(c.lead) else c.pos}
-	if not cyz_dead:
+	if not cyz_dead or siege == null:
 		return {"key": "m_cyz", "pos": cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos}
-	for i in altars.size():
-		if not altars[i].dead:
-			return {"key": "m_altar_%d" % i, "pos": altars[i].position}
-	return {"key": "m_boss", "pos": boss.position if Unit.alive(boss) else keep_rect().get_center()}
+	return siege.march()
 
 
 # ─────────── 화면 ───────────

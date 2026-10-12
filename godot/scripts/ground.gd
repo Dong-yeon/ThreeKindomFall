@@ -24,17 +24,17 @@ func _draw_impl() -> void:
 		var rc: Rect2 = o.rect
 		if o.k == "water" or not V.intersects(rc):
 			continue
-		if o.door == "gate" and b.gate_t >= 0:
-			_gate_leaves(rc, b.gate_t / float(Stage1.GATE.open))
-		else:
+		# 성문이 열리는 중(2 · 3장, siege.gd)이면 문짝을 그 쪽에서 그림
+		if not (o.door == "gate" and b.siege != null and b.siege.draw_gate(self, rc)):
 			_stone(rc, o.door != "")
 	var K := b.keep_rect()
 	if V.intersects(K.grow(30)):
 		draw_rect(K.grow(-12), Color(0.85, 0.44, 0.37, 0.12))
-		_label("장각 본진" if b.keep_open else "장각 본진(닫힘)", Vector2(K.get_center().x, K.position.y - 14), Color("ffb0a0"))
+		_label("장각 본진" if b.siege != null and b.siege.keep_open else "장각 본진(닫힘)", Vector2(K.get_center().x, K.position.y - 14), Color("ffb0a0"))
 	_tactics_ground(V)
-	_altar_beams(V)
-	_beast(V)
+	# 2 · 3장: 요술 제단 빛줄기 · 장각의 요술 · 봉인된 사신수(D-211 — siege.gd)
+	if b.siege != null:
+		b.siege.draw_ground(self, V)
 	for dr in b.drops:
 		var p: Vector2 = dr.pos
 		if dr.get("k", "bun") == "magnet":
@@ -55,7 +55,8 @@ func _draw_impl() -> void:
 			draw_rect(Rect2(q + Vector2(-11, -7), Vector2(22, 15)), Color("8a5a2a"))
 			draw_rect(Rect2(q + Vector2(-11, -10), Vector2(22, 5)), Color("a8743a"))
 			draw_rect(Rect2(q + Vector2(-11, -10), Vector2(22, 18)), Color("4a2a10"), false, 1.5)
-			draw_rect(Rect2(q + Vector2(-2, -10), Vector2(4, 18)), Color("f0c040"))
+			# 마을 상자(회복 + 경험, D-209)는 초록 띠
+			draw_rect(Rect2(q + Vector2(-2, -10), Vector2(4, 18)), Color("7ad870") if dr.get("kind", "") == "village" else Color("f0c040"))
 			draw_rect(Rect2(q + Vector2(-3, -4), Vector2(6, 5)), Color("fff2c0"))
 			continue
 		draw_circle(p, 6, Color("f4ecd8"))
@@ -201,58 +202,6 @@ func _stone(o: Rect2, door: bool) -> void:
 		else:
 			draw_line(Vector2(o.position.x, o.position.y + s), Vector2(o.end.x, o.position.y + s), Color(0.24, 0.22, 0.19, 0.6), 1)
 		s += 14
-
-
-## 요술 제단 → 장각 빛줄기(D-207): 장각이 보호막인 동안 남은 제단마다(제단 · 장각 노드는 화면 근처에서만 다시 그려서 여기서 그림)
-func _altar_beams(V: Rect2) -> void:
-	if not Unit.alive(b.boss) or not b.boss.shield:
-		return
-	var bp: Vector2 = b.boss.position + Vector2(0, -24)
-	var a := 0.35 + 0.15 * sin(b.t * 8)
-	for al in b.altars:
-		if al.dead:
-			continue
-		var p: Vector2 = al.position + Vector2(0, -26)
-		if not V.intersects(Rect2(p, Vector2.ZERO).expand(bp)):
-			continue
-		draw_line(p, bp, Color(0.95, 0.75, 0.3, a), 5)
-		draw_line(p, bp, Color(1, 0.95, 0.7, a + 0.2), 1.5)
-
-
-## 봉인된 사신수 빛 구슬(D-207, 그림은 에셋 전까지): 둥실거리며 빛남 → 풀려나는 동안 커지며 흐려짐
-func _beast(V: Rect2) -> void:
-	if b.beast_pos == Vector2.INF or not V.has_point(b.beast_pos):
-		return
-	var Bs: Dictionary = Stage1.BEAST
-	var c := Color(Bs.c)
-	var p: Vector2 = b.beast_pos + Vector2(0, sin(b.t * 3) * 3 - 6)
-	if b.beast_t >= 0:
-		var k := clampf(b.beast_t / float(Bs.release), 0, 1)
-		draw_circle(p, 12 + 140 * k, Color(c, 0.35 * (1.0 - k)))
-		draw_circle(p, 10 + 30 * k, Color(1, 1, 1, 0.9 * (1.0 - k)))
-		return
-	draw_circle(b.beast_pos + Vector2(0, 8), 10, Color(0, 0, 0, 0.2))
-	draw_circle(p, 22 + sin(b.t * 5) * 3, Color(c, 0.25))
-	draw_circle(p, 13, Color(c, 0.75))
-	draw_circle(p, 8, Color(1, 1, 1, 0.95))
-	for i in 3:
-		var a := b.t * 2.0 + i * TAU / 3
-		draw_circle(p + Vector2.from_angle(a) * 20, 2, Color(1, 1, 1, 0.8))
-	_label("봉인된 %s" % Bs.n, p + Vector2(0, -34), Color("cfe8f8"))
-
-
-## 성문이 열리는 중(D-206): 문짝 둘이 양쪽 경첩을 축으로 북쪽(장각 쪽)으로 돌아감. k = 0 닫힘 → 1 열림
-func _gate_leaves(o: Rect2, k: float) -> void:
-	var e := 1.0 - pow(1.0 - clampf(k, 0, 1), 2)
-	var half := o.size.x / 2
-	var y := o.get_center().y
-	draw_rect(Rect2(o.position.x + 2, o.position.y + 3, o.size.x - 4, o.size.y - 6), Color(0.1, 0.07, 0.04, 0.5 * (1.0 - e)))
-	for side in [-1.0, 1.0]:
-		var hinge := Vector2(o.position.x if side < 0 else o.end.x, y)
-		var tip := hinge + Vector2(-side, 0).rotated(side * e * 1.75) * half
-		draw_line(hinge, tip, Color("3a2410"), 11)
-		draw_line(hinge, tip, Color("7a4a24"), 8)
-		draw_circle(hinge, 4, Color("5a3a1a"))
 
 
 func _label(s: String, at: Vector2, col: Color) -> void:

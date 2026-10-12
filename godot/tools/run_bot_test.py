@@ -54,12 +54,12 @@ def main():
             out, _ = p.communicate()
         text = out.decode('utf-8', 'replace')
         res = None
-        extra = {'slots': '-', 'evos': '-', 'picks': '-', 'phases': '-', 'events': '-', 'allies': '-', 'move': '-'}
+        extra = {'slots': '-', 'evos': '-', 'picks': '-', 'phases': '-', 'events': '-', 'timeline': '-', 'evo_t': '-', 'allies': '-', 'move': '-'}
         logged, printed = [], []  # 봇의 Logger가 모은 것(파일:줄 포함) / 엔진 출력에서 찾은 것(봇이 붙기 전 오류도 잡힘)
         for line in text.splitlines():
             if line.startswith('[result]'):
                 res = dict(kv.split('=', 1) for kv in line[len('[result]'):].split())
-            elif line.startswith(('[slots]', '[evos]', '[picks]', '[phases]', '[events]', '[allies]', '[move]')):
+            elif line.startswith(('[slots]', '[evos]', '[picks]', '[phases]', '[events]', '[timeline]', '[evo_t]', '[allies]', '[move]')):
                 tag, _, rest = line.partition(' ')
                 extra[tag.strip('[]')] = rest.strip()
             elif line.startswith('[error]'):
@@ -79,7 +79,7 @@ def main():
             failed = True
     # 표
     print()
-    print('1장 황건적의 난 — 자동 전투 (seed %d, 판 시간 상한 %s, 실제 %.0f초)' % (a.seed, fmt_t(a.max_time), time.time() - t0))
+    print('1장 탁현 싸움 — 자동 전투 (seed %d, 판 시간 상한 %s, 실제 %.0f초)' % (a.seed, fmt_t(a.max_time), time.time() - t0))
     head = ['모드', '결과', '걸린 시간', '처치', '공적 Lv', '진화', '이동(px)', '멈춤%', '둘레 적', '분당 피격', '최저 체력', '구슬%', '점령', '오류']
     body = []
     for m, r, n_err, _, _ in rows:
@@ -92,6 +92,8 @@ def main():
         print()
         print('[%s] 판 길이 %s (%s)' % (MODE_NAME.get(m, m), fmt_t(r['time']), STATUS_NAME.get(r['status'], r['status'])))
         print('  사건: %s' % ex['events'])
+        print('  시각별 Lv: %s' % ex['timeline'])
+        print('  진화 시각: %s' % ex['evo_t'])
         print('  구간: %s' % ex['phases'])
         print('  칸: %s' % ex['slots'])
         print('  이동: %s' % ex['move'])

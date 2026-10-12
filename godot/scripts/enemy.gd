@@ -46,8 +46,14 @@ var wander := Vector2.ZERO
 var wander_t := 0.0
 var sk_t := 0.0
 var sk_at := Vector2.ZERO
+## 공격을 번갈아 쓸 때(정원지 2단계, D-211): 차례대로 고를 공격 · 다음 차례 · 공격 간격 배율
+var skill_list: Array[String] = []
+var sk_i := 0
+var gap_mul := 1.0
 ## 탁현 마을 습격대(등무 포함, D-208)
 var raid := false
+## 유비만 노림(본진 기습 돌격병, D-209)
+var hunt_lb := false
 ## 호위병(D-205): 따라다니는 진영장 · 진영장에서 떨어진 자리(장수가 멀면 그 자리로)
 var guard_of: Enemy = null
 var guard_off := Vector2.ZERO
@@ -179,6 +185,10 @@ func tick(dt: float) -> void:
 	if engage != null and Unit.alive(engage) and engage.position.distance_to(p) < 100:
 		aim = engage.position
 		key = ""
+		at_hero = false
+	elif hunt_lb and Unit.alive(b.liubei):
+		aim = b.liubei.position
+		key = "lb"
 		at_hero = false
 	elif (has_post or goal_home) and hp.distance_to(p) > aggro:
 		at_hero = false
@@ -339,10 +349,13 @@ func _lead_tick(dt: float) -> void:
 		if d > 4:
 			p += dv / d * minf(spd0 * sm * dt, d)
 		sk_t += dt
-		if sk_t >= float(L.gap) and dh < float(L.range) and b.in_view(p, -10):
+		if sk_t >= float(L.gap) * gap_mul and dh < float(L.range) and b.in_view(p, -10):
 			sk_t = 0.0
 			st = 1
 			t = 0.0
+			if not skill_list.is_empty():
+				skill = skill_list[sk_i % skill_list.size()]
+				sk_i += 1
 			tdir = (hp - p).normalized() if hp != p else Vector2(0, 1)
 			sk_at = hp
 	position = p

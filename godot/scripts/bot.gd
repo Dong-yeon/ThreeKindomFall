@@ -52,6 +52,11 @@ var _still := 0.0
 var _min_hp := INF
 ## 유비 최저 체력 비율(D-208 — 쓰러지면 짐)
 var _lb_min := 1.0
+## 1분마다(D-209): 공적 Lv · 그 1분 동안 둘레 120px 평균 적 · 적 수
+var _tl_t := 60.0
+var _tl_near := 0.0
+var _tl_dt := 0.0
+var _timeline: Array[String] = []
 var _phase_t0 := 0.0
 var _phase_d0 := 0.0
 var _phase_s0 := 0.0
@@ -69,6 +74,9 @@ var _pick_wait := 0
 var _shot_pick := false
 var _shot_evo := false
 var _lead_shots := {}
+## 줍으러 가는 구슬 자리 · 그만둘 때(D-209 — 정한 구슬은 닿거나 시간이 지날 때까지 쫓음. 안 그러면 목표와 구슬 사이를 오락가락)
+var _orb_pos := Vector2.INF
+var _orb_until := 0.0
 
 
 func _ready() -> void:
@@ -184,7 +192,7 @@ func _bot_process() -> void:
 	if Perf.on:
 		var rid := get_viewport().get_viewport_rid()
 		var now_us := Time.get_ticks_usec()
-		Perf.frame({"en": b.enemies.size(), "al": b.allies.size(), "t": b.t, "ev": "Lv%d · 진영 %d/3%s" % [b.lvl, b.cap_n, " · 관문 열림" if b.gate_open else ""],
+		Perf.frame({"en": b.enemies.size(), "al": b.allies.size(), "t": b.t, "ev": "Lv%d · 진영 %d/3%s" % [b.lvl, b.cap_n, " · 정원지 %d단계" % b.cyz_phase if b.cyz_on else ""],
 			"proc": float(Time.get_ticks_usec() - _last_us) / 1000.0 if _last_us > 0 else 0.0,
 			"rcpu": RenderingServer.viewport_get_measured_render_time_cpu(rid),
 			"rgpu": RenderingServer.viewport_get_measured_render_time_gpu(rid)})
@@ -199,10 +207,29 @@ func _bot_process() -> void:
 			goal = c.lead.position
 	# 보급 상자(D-205)가 가까우면 먼저 주움
 	var cd := 600.0
+	var chest := false
 	for dr in b.drops:
 		if dr.k == "chest" and h.position.distance_to(dr.pos) < cd:
 			cd = h.position.distance_to(dr.pos)
 			goal = dr.pos
+			chest = true
+	# 구슬 줍기(D-209): 목표 가까이(150px 안)에 와 있으면 둘레 300px 안 가장 가까운 구슬로 — 사람처럼
+	# (전엔 목표에 서 있기만 해서 멀리서 쓰러뜨린 적의 구슬을 못 주웠음, 기다리는 시간이 생기며 레벨이 멈춤).
+	# 정한 구슬은 닿거나 2.5초가 지날 때까지 쫓고, 상자 · 사신수가 있으면 줍지 않음
+	if chest or (b.siege != null and b.siege.beast_pos != Vector2.INF):
+		_orb_pos = Vector2.INF
+	elif _orb_pos != Vector2.INF and (b.t > _orb_until or h.position.distance_to(_orb_pos) < 16):
+		_orb_pos = Vector2.INF
+	elif _orb_pos == Vector2.INF and h.position.distance_to(goal) < 150:
+		var od := 300.0
+		for o in b.orbs:
+			var d: float = h.position.distance_to(o.pos)
+			if d < od:
+				od = d
+				_orb_pos = o.pos
+				_orb_until = b.t + 2.5
+	if _orb_pos != Vector2.INF:
+		goal = _orb_pos
 	var to := goal
 	if h.position.distance_to(goal) > 30:
 		if b.flow.ver != b.obs_ver:
@@ -249,7 +276,8 @@ func _bot_process() -> void:
 
 
 ## 카드 점수: 진화 100 · 고르면 진화 60 · 기본 공격 40 · 가진 공격 30 · 가진 공격의 짝 보조 25 · 가진 보조 20 ·
-## 새 보조(가진 공격의 짝) 18 · 새 공격(짝 보조를 가짐) 17 · 새 공격 15 · 새 보조 10
+## 새 보조(가진 공격의 짝) 18 · 새 공격(짝 보조를 가짐) 17 · 새 공격 15 · 새 보조 10.
+## 공격을 셋(기본 공격 포함) 가졌으면 새 공격은 5(D-209 — 진화를 노리는 사람처럼 가진 것을 올림. 전엔 5~6개로 퍼져 진화가 늦었음)
 func _pick(opts: Array[Dictionary]) -> int:
 	var T := b.tactics
 	var best := 0
@@ -271,6 +299,8 @@ func _pick(opts: Array[Dictionary]) -> int:
 				sc = 30
 			else:
 				sc = 17 if T.level(T.pair_of(k)) > 0 else 15
+				if T.act_order.size() >= 3:
+					sc = 5
 		else:
 			var paired := false
 			for a in T.pairs_for(k):
@@ -320,15 +350,21 @@ func _shot(name: String) -> void:
 ## 성문이 반쯤 열렸을 때 · 장각 보호막(장수가 본진에 들어가 제단 빛줄기가 보일 때) · 사신수가 풀려나는 중 한 장씩.
 ## 찍히는 건 지난 프레임에 그린 화면이라, 막 생긴 것은 조금 지나서 찍음
 func _shot_events() -> void:
-	if Unit.alive(b.boss) and b.boss.shield and b.keep_rect().grow(-20).has_point(b.hero.position) and not _lead_shots.has("altar"):
-		_lead_shots["altar"] = true
-		_shot("boss_altars")
-	if b.beast_t >= float(Stage1.BEAST.release) * 0.3 and not _lead_shots.has("beast"):
-		_lead_shots["beast"] = true
-		_shot("beast_release")
-	if b.gate_t >= float(Stage1.GATE.open) * 0.5 and not _lead_shots.has("gate"):
-		_lead_shots["gate"] = true
-		_shot("gate_open")
+	# 정원지 2단계 첫 예고(D-211)
+	if b.cyz_phase == 2 and Unit.alive(b.cyz) and b.cyz.st == 1 and b.cyz.t >= float(Stage1.LEAD.warn) * 0.7 and not _lead_shots.has("cyz2"):
+		_lead_shots["cyz2"] = true
+		_shot("cyz_phase2")
+	if b.siege != null:
+		var sg := b.siege
+		if Unit.alive(b.boss) and b.boss.shield and b.keep_rect().grow(-20).has_point(b.hero.position) and not _lead_shots.has("altar"):
+			_lead_shots["altar"] = true
+			_shot("boss_altars")
+		if sg.beast_t >= float(SiegeData.BEAST.release) * 0.3 and not _lead_shots.has("beast"):
+			_lead_shots["beast"] = true
+			_shot("beast_release")
+		if sg.gate_t >= SiegeData.GATE_OPEN * 0.5 and not _lead_shots.has("gate"):
+			_lead_shots["gate"] = true
+			_shot("gate_open")
 	if not _lead_shots.has("chest") and b.drops.any(func(dr): return dr.k == "chest" and b.in_view(dr.pos, -20)):
 		_lead_shots["chest"] = true
 		_shot("chest")
@@ -365,6 +401,13 @@ func _measure() -> void:
 			near += 1
 	_near_sum += near * dt
 	_near_t += dt
+	_tl_near += near * dt
+	_tl_dt += dt
+	if b.t >= _tl_t:
+		_timeline.append("%s Lv%d(둘레 %.1f · 적 %d)" % [_fmt(_tl_t), b.lvl, _tl_near / maxf(_tl_dt, 0.01), b.enemies.size()])
+		_tl_near = 0.0
+		_tl_dt = 0.0
+		_tl_t += 60.0
 	for c in b.camps:
 		if c.cap and not _capped.has(c.id):
 			_capped[c.id] = true
@@ -399,7 +442,7 @@ static func _fmt(t: float) -> String:
 
 func _on_finished(win: bool) -> void:
 	_done = true
-	if win:
+	if win and b.siege != null:
 		_phase_end("사신수")
 	_log("WIN" if win else "LOSE(%s)" % b.end_why)
 	await get_tree().create_timer(1.2).timeout
@@ -439,6 +482,13 @@ func _result(status: String) -> void:
 		evs.append("%s %s(+%s)" % [_fmt(e.t), e.n, _fmt(e.t - t0)])
 		t0 = e.t
 	print("[events] " + (" · ".join(evs) if not evs.is_empty() else "-") + " | 유비 최저 체력 %d%%" % roundi(_lb_min * 100))
+	# 시각별 레벨 · 진화 시각(D-209)
+	print("[timeline] " + (" · ".join(_timeline) if not _timeline.is_empty() else "-") + " · 끝 %s Lv%d" % [_fmt(b.t), b.lvl])
+	var ev_t: Array[String] = []
+	for e in b.events:
+		if String(e.n).begins_with("진화 "):
+			ev_t.append("%s %s" % [_fmt(e.t), String(e.n).substr(3)])
+	print("[evo_t] " + (" · ".join(ev_t) if not ev_t.is_empty() else "-"))
 	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))
 	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 둘레 120px 적 평균 %.1f · 분당 피격 %.1f · 최저 체력 %d/%d · 구슬 주운 경험 %d%%" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0),
 		_near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(_min_hp), int(h.max_hp), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0)])

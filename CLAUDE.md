@@ -33,9 +33,9 @@
 - 실행 파일: `C:\Tools\Godot-4.7.2\Godot_v4.7.2-stable_win64_console.exe`(콘솔판). 렌더러 Compatibility, 화면 360×640 기준 세로(`keep_width`라 긴 화면은 아래위가 더 보임).
 - 처음 받으면: `python godot/tools/bb_export.py`(B.B.Bits 캐릭터 시트 → `godot/assets/bb/`, 구매 에셋 `assets/three-kingdom/`이 그 PC에 있어야 함) → `Godot… --path godot --headless --import`. 그림이 없어도 돌아감(인물이 동그라미).
 - 소리: `godot/assets/sfx/`(Ninja Adventure CC0, 커밋돼 있음). 다시 만들 땐 `python godot/tools/na_sounds.py`(웹판 `c3_na_data.js`에서 꺼냄). 창 없는 실행(봇)에서는 소리를 끔.
-- 구조: `data/`(장수 `HeroData`·기본 공격 `BasicAttack`·`heroes/*.tres`, 책략 `tactics_data.gd`, 적·아군 수치 `units.gd`, 1장 지도 `stage_1.gd`), `scripts/`(`battle.gd` 판 진행·목표·생성·충돌, `hero.gd` 기본 공격·연격 수·무쌍, `tactics.gd` 레벨업·책략·진화, `sound.gd` 자동 로드 `Sound`(효과음·배경음), `enemy.gd`·`ally.gd`, `flow_field.gd` 길찾기, `ground.gd`·`fx_layer.gd`·`hud.gd` 그리기, `bot.gd` 테스트 봇), `scenes/battle.tscn`.
+- 구조: `data/`(장수 `HeroData`·기본 공격 `BasicAttack`·`heroes/*.tres`, 책략 `tactics_data.gd`, 적·아군 수치 `units.gd`, 1장 지도 `stage_1.gd`), `scripts/`(`battle.gd` 판 진행·목표·생성·충돌, `hero.gd` 기본 공격·연격 수·무쌍, `tactics.gd` 레벨업·책략·진화, `sound.gd` 자동 로드 `Sound`(효과음·배경음), `enemy.gd`·`ally.gd`, `flow_field.gd` 길찾기, `ground.gd`·`fx_layer.gd`·`hud.gd` 그리기, `bot.gd` 테스트 봇, `siege.gd` 황건 편 2 · 3장용 진행 — 1장에선 꺼 둠 · 수치는 `data/siege_data.gd`), `scenes/battle.tscn`.
 - 조작(PC): 마우스 끌기 = 터치 끌기, 방향키·WASD 이동, 스페이스·K 무쌍.
-- 자동 전투 테스트: `python godot/tools/run_bot_test.py`(headless로 일반·무적 두 판 → 클리어 여부·판 길이·처치·공적 Lv·채운 칸·진화·오류 표와 사건마다 시각·고른 기록, 오류가 있거나 무적이 못 깨면 실패). 스크린샷: `Godot… --path godot --fixed-fps 60 -- --bot --shots=<폴더>`(진영장 보호막 · 공격 예고 · 상자도 처음 한 장씩). 성능: `… -- --bot --god --perf`(창 모드, D-204). 일시정지 점검: `… --headless -- --bot --selftest-pause`.
+- 자동 전투 테스트: `python godot/tools/run_bot_test.py`(headless로 일반·무적 두 판 → 클리어 여부·판 길이·처치·공적 Lv·채운 칸·진화·오류 표와 사건마다 시각·1분마다 레벨·진화 시각·고른 기록, 오류가 있거나 무적이 못 깨면 실패). 스크린샷: `Godot… --path godot --fixed-fps 60 -- --bot --shots=<폴더>`(진영장 보호막 · 공격 예고 · 상자도 처음 한 장씩). 성능: `… -- --bot --god --perf`(창 모드, D-204). 일시정지 점검: `… --headless -- --bot --selftest-pause`.
 - 내보내기: `export_presets.cfg`에 Android(arm64, APK) · Web(스레드 끔) 프리셋. 결과는 `godot/build/`(커밋 안 함). 내보내기 템플릿 4.7.2는 에디터에서 따로 설치(이 PC엔 JDK 17 · Android SDK · 디버그 키스토어는 있음, D-204).
 - 글꼴: `godot/assets/fonts/` Galmuri11 · Galmuri9(OFL 1.1, D-196). 이 PC 셸에서는 `python` 대신 `py -3 -X utf8`.
 

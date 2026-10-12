@@ -219,6 +219,7 @@ func apply(o: Dictionary) -> void:
 	elif o.get("evo", false):
 		evo[k] = true
 		tag = "진화 " + evo_name(k)
+		b.note(tag)
 		b.banner("진화 — %s!" % evo_name(k), evo_desc(k))
 		Sound.play("win", 0.4)
 		b.add_fx({"k": "ring", "pos": b.hero.position, "t": 0.6, "r": 90.0, "c": Color("7ae8c0")})
@@ -231,12 +232,13 @@ func apply(o: Dictionary) -> void:
 	history.append("Lv%d %s" % [b.lvl, tag])
 
 
-## 보급 상자(D-195 · D-205): 진화할 수 있는 공격이 있으면 진화(먼저 얻은 것), 아니면 가진 책략 중 Lv5가 아닌 것
-## Stage1.CHEST min~max개를 한 단계씩. 올릴 것도 없으면 고기만두. 고른 기록에 '상자'로 남김. 돌려주는 글 = 알림 아랫줄
+## 진영 보급 상자(D-195 · D-205 · D-209): 진화할 수 있는 공격이 있으면 진화(먼저 얻은 것), 아니면 가진 책략 중 Lv5가 아닌 것
+## Stage1.CHEST min~max개(D-209 — 1개)를 한 단계씩. 올릴 것도 없으면 고기만두. 고른 기록에 '상자'로 남김. 돌려주는 글 = 알림 아랫줄
 func open_chest() -> String:
 	for k in act_order:
 		if can_evolve(k):
 			evo[k] = true
+			b.note("진화 " + evo_name(k))
 			history.append("Lv%d 상자: 진화 %s" % [b.lvl, evo_name(k)])
 			return "진화 — %s!" % evo_name(k)
 	var can: Array[String] = []

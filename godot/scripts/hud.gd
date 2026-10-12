@@ -214,9 +214,9 @@ func show_end() -> void:
 		", ".join(evos) if not evos.is_empty() else "없음"]
 	var vil := {"saved": "구함", "lost": "불탐", "raid": "습격 중"}
 	end_stats.text += "\n탁현 마을   %s" % vil.get(b.vil_st, "—")
-	if win:
-		# 첫 사신수 해방(D-207)
-		end_stats.text += "\n사신수   %s 해방" % Stage1.BEAST.n
+	if win and b.siege != null and b.siege.beast_t >= 0:
+		# 첫 사신수 해방(D-207 — 3장)
+		end_stats.text += "\n사신수   %s 해방" % SiegeData.BEAST.n
 	end_panel.visible = true
 
 
@@ -336,11 +336,11 @@ func _draw_minimap(c: Control, sz: Vector2) -> void:
 	c.draw_rect(Rect2(mx, my, mw, mh), Color(0.35, 0.47, 0.24, 0.55))
 	var R: Dictionary = Stage1.RIVER
 	c.draw_rect(Rect2(mx, my + float(R.y0) * s, mw, (float(R.y1) - float(R.y0)) * s), Color("4a7ab8"))
-	c.draw_rect(Rect2(mx, my + (float(Stage1.GATE.y) - 10) * s, mw, 2), Color(0.54, 0.52, 0.47, 0.6) if b.gate_open else Color("8a8478"))
+	c.draw_rect(Rect2(mx, my + (float(Stage1.GATE.y) - 10) * s, mw, 2), Color(0.54, 0.52, 0.47, 0.6) if b.siege != null and b.siege.gate_open else Color("8a8478"))
 	var K := b.keep_rect()
 	c.draw_rect(Rect2(P.call(K.position), K.size * s), Color("ff6a4a") if b.boss != null else Color("d9705e"), false, 1.5)
 	# 요술 제단(D-207, 노란 네모)
-	for al in b.altars:
+	for al in (b.siege.altars if b.siege != null else []):
 		if not al.dead:
 			var aq: Vector2 = P.call(al.position)
 			c.draw_rect(Rect2(aq - Vector2(2, 2), Vector2(4, 4)), Color("f0c040"))

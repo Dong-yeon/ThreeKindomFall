@@ -57,9 +57,13 @@ const DEFS := {
 	"spirit": {"n": "기세", "g": "세", "c": "d8a030", "d": "무쌍 게이지 +15%", "per": 0.15},
 }
 
-## 레벨업에 필요한 경험(웹판 xpNeedM 지도 판). 처치 경험: 졸개 1 · 궁수 · 돌격병 2 · 역사 4 · 수비탑 · 요술 제단 10 · 장수급 20 · 정원지 40
+## 레벨업에 필요한 경험 = a + b·Lv + c·Lv²(D-209 — 한 판 10분에 Lv 25 안팎 · 진화 2~3개. 전엔 웹판 xpNeedM 8 + 6·Lv + 0.3·Lv²).
+## 처치 경험: 졸개 · 들개 1 · 궁수 · 돌격병 2 · 늑대 3 · 역사 4 · 수비탑 · 요술 제단 10 · 장수급 20 · 정원지 40
+const XP_CURVE := {"a": 40.0, "b": 12.0, "c": 0.34}
+
+
 static func xp_need(lv: int) -> int:
-	return roundi(8 + 6 * lv + 0.3 * lv * lv)
+	return roundi(float(XP_CURVE.a) + float(XP_CURVE.b) * lv + float(XP_CURVE.c) * lv * lv)
 
 
 static func xp_of(k: String, elite: bool) -> int:
@@ -71,9 +75,11 @@ static func xp_of(k: String, elite: bool) -> int:
 		"tower":
 			return int(Stage1.TOWER.xp)
 		"altar":
-			return int(Stage1.ALTAR.xp)
+			return int(SiegeData.ALTAR.xp)
 		"ytbig":
 			return 4
 		"ytarch", "ytdash":
 			return 2
+		"wolf":
+			return 3
 	return 1
