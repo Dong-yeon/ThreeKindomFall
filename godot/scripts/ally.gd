@@ -53,7 +53,7 @@ func tick(dt: float) -> void:
 		var best: Enemy = null
 		var bd := INF
 		for e in b.enemies:
-			if e.dead or e.air > 0 or e.position.distance_to(center) > rad:
+			if e.dead or e.shield or e.air > 0 or e.position.distance_to(center) > rad:
 				continue
 			var dd := e.position.distance_to(position)
 			if dd < bd:
@@ -104,10 +104,7 @@ func tick(dt: float) -> void:
 		b.ally_down(self)
 
 
-func _process(_dt: float) -> void:
-	queue_redraw()
-
-
+## 다시 그리기는 Battle._redraw_units가 화면 근처에 있을 때만 부름
 func _draw() -> void:
 	var b := battle
 	if b == null:

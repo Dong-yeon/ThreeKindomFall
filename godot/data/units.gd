@@ -16,6 +16,8 @@ const ENEMY := {
 	"zj": {"n": "천공장군 장각", "c": "e2c060", "r": 30.0, "hp": 1500.0, "spd": 36.0, "touch": 18.0, "ai": "boss", "spr": "zj"},
 	# 막사(D-180): 움직이지 않고 밀리지 않는 '적'. 공격 · 아군이 그대로 노림. 체력은 장마다 Stage의 BARRACKS.hp × 진영 mul(여기 hp는 1)
 	"barracks": {"n": "황건 막사", "c": "c8a050", "r": 22.0, "hp": 1.0, "spd": 0.0, "touch": 0.0, "ai": "building", "spr": ""},
+	# 수비탑(D-202): 막사처럼 움직이지 않는 건물이고 장수에게 화살을 쏨. 수치는 Stage의 TOWER
+	"tower": {"n": "황건 수비탑", "c": "a8743a", "r": 20.0, "hp": 1.0, "spd": 0.0, "touch": 0.0, "ai": "tower", "spr": ""},
 }
 
 const ALLY := {

@@ -10,6 +10,11 @@ const H := Stage1.H
 const GRID := 30.0
 const STICK_DEAD := 8.0
 const STICK_FULL := 50.0
+## 화면 밖 이만큼까지는 인물을 다시 그림(장각 그림 높이 ~90px · 띄워짐 · 화면 흔들림을 덮음)
+const DRAW_PAD := 120.0
+## 흐름장을 프레임마다 미리 넓혀 두는 칸 수(D-199, 이 PC에서 약 0.4ms). 지도는 42×150 = 6300칸.
+## 1200 · 2500은 넓히는 프레임 자체가 1~2ms씩 늘고, 0이면 물어볼 때 한꺼번에 넓히는 일이 잦았음
+const FLOW_WORK := 600
 
 @export var hero_data: HeroData
 
@@ -61,6 +66,8 @@ const ORB_CAP := 400
 var obs: Array[Dictionary] = []
 ## obs의 사각형만(충돌 검사용 — 매 프레임 수백 번 읽어서 따로 둠)
 var obs_rects: Array[Rect2] = []
+## obs_rects의 세로 범위를 겹치는 것끼리 합친 띠 [위, 아래, 위, 아래, …](push_out이 띠 근처에서만 사각형을 봄)
+var obs_bands := PackedFloat64Array()
 var obs_ver := 1
 var flow := FlowField.new()
 ## 아군이 지키는 곳: id → {pos, r}
@@ -106,7 +113,21 @@ var joy_o := Vector2.ZERO
 var joy_p := Vector2.ZERO
 
 var _later: Array[Dictionary] = []
-var _grid := {}
+## _separate가 만든 30px 칸(touching_enemy도 씀): 칸마다 첫 적 번호(_cell_head) → 같은 칸 다음 적 번호(_cell_next).
+## 번호는 그때의 enemies(_cell_units) 차례. 칸 (cx, cy)의 자리 = (cx + _cell_ox) * _cell_gh + cy + _cell_oy(둘레 한 칸 여유).
+var _cell_units: Array[Enemy] = []
+var _cell_head := PackedInt32Array()
+var _cell_next := PackedInt32Array()
+var _cell_gw := 0
+var _cell_gh := 0
+var _cell_ox := 0
+var _cell_oy := 0
+## _separate가 적마다 읽어 둔 칸 · 위치 · 반지름 · 밀림(0 쓰러짐 · 1 칸에만 · 2 밀림)
+var _sep_cx := PackedInt32Array()
+var _sep_cy := PackedInt32Array()
+var _sep_pos := PackedVector2Array()
+var _sep_r := PackedFloat64Array()
+var _sep_mv := PackedByteArray()
 
 
 func _ready() -> void:
@@ -134,7 +155,7 @@ func _ready() -> void:
 	_place_camera()
 	hud.setup(self)
 	Sound.music("fight", 0.3)
-	banner(Stage1.NAME, "황건 진영 3곳의 막사를 부수고 진영장을 쓰러뜨리세요")
+	banner(Stage1.NAME, "황건 진영 3곳: 수비탑을 부숴야 막사를 부술 수 있어요")
 	if "--bot" in OS.get_cmdline_user_args():
 		var bot: Node = load("res://scripts/bot.gd").new()
 		add_child(bot)
@@ -224,10 +245,27 @@ func _process(delta: float) -> void:
 	var dt := minf(delta, 0.033)  # 웹판과 같은 상한(프레임이 끊겨도 한 번에 0.033초까지만)
 	if state == "play":
 		_update(dt)
+	# 장수가 들어선 칸의 흐름장을 미리 넓혀 둠 — 'p'는 0.2초마다만 새로 만들어서 대개 몇 프레임 뒤에 이어받음
+	if flow.ver == obs_ver:
+		flow.prefetch("p", hero.position)
+	flow.work(FLOW_WORK)
 	_place_camera()
+	_redraw_units()
 	ground.queue_redraw()
 	fx_layer.queue_redraw()
 	hud.refresh()
+
+
+## 화면(+ DRAW_PAD) 근처 인물만 다시 그림. 전엔 인물마다 _process에서 매 프레임 다시 그려서
+## 지도(840×3000) 대부분 화면 밖인 적까지 그렸음(D-198). 화면 밖에 남은 지난 그림은 보이지 않음.
+func _redraw_units() -> void:
+	var V := view.grow(DRAW_PAD)
+	for e in enemies:
+		if V.has_point(e.position):
+			e.refresh_look()
+	for a in allies:
+		if V.has_point(a.position):
+			a.queue_redraw()
 
 
 func _update(dt: float) -> void:
@@ -351,7 +389,8 @@ func choose(i: int) -> void:
 	state = "play"
 
 
-## 진영(D-180): 병력은 살아 있는 막사에서만 나옴(막사마다 상한 · 장수가 가까우면 빨리) → 막사를 다 부수면 진영장 → 쓰러뜨리면 점령
+## 진영(D-180 · D-202): 병력은 살아 있는 막사에서만 나옴(막사마다 상한 · 장수가 가까우면 빨리) →
+## 건물(막사 1 + 수비탑 2)을 다 부수면 진영장 → 쓰러뜨리면 점령
 func _camps_tick(dt: float) -> void:
 	var B: Dictionary = Stage1.BARRACKS
 	for c in camps:
@@ -362,6 +401,8 @@ func _camps_tick(dt: float) -> void:
 			if not bk.alive:
 				continue
 			left += 1
+			if bk.kind != "barracks":
+				continue
 			bk.spawn_t -= dt
 			if bk.spawn_t > 0:
 				continue
@@ -381,7 +422,7 @@ func _camps_tick(dt: float) -> void:
 			L.touch = Units.ENEMY[lk].touch
 			L.r *= 1.4 if lk == "ytbig" else 1.6
 			c.lead = L
-			banner("%s 등장!" % c.ln, "막사를 다 부쉈어요 — 쓰러뜨리면 진영 점령")
+			banner("%s 등장!" % c.ln, "막사와 수비탑을 다 부쉈어요 — 쓰러뜨리면 진영 점령")
 			Sound.play("alert", 0.35)
 
 
@@ -407,10 +448,20 @@ func _count_barracks(id: String) -> int:
 	return n
 
 
-func barracks_left(c: Dictionary) -> int:
+## 진영에 남은 건물(막사 · 수비탑) 수
+func buildings_left(c: Dictionary) -> int:
 	var n := 0
 	for bk in c.bks:
 		if bk.alive:
+			n += 1
+	return n
+
+
+## 진영에 남은 수비탑 수(남아 있으면 막사는 보호 중, D-202)
+func towers_left(c: Dictionary) -> int:
+	var n := 0
+	for bk in c.bks:
+		if bk.alive and bk.kind == "tower":
 			n += 1
 	return n
 
@@ -424,7 +475,7 @@ func _party_tick(dt: float) -> void:
 	for c in camps:
 		if not c.cap:
 			for bk in c.bks:
-				if bk.alive:
+				if bk.alive and bk.kind == "barracks":
 					src.append([c, bk])
 	if src.is_empty():
 		return
@@ -496,7 +547,7 @@ func _wave_tick(dt: float) -> void:
 	wave_n += 1
 	if flow.ver != obs_ver:
 		flow.build(obs, W, H, obs_ver)
-	var d: PackedInt32Array = flow.field("p", hero.position, t, 0.2).d
+	var f := flow.field("p", hero.position, t, 0.2)
 	var n := mini(96, 32 + int(t / 60.0 * 10.0))
 	var R := 300.0
 	var m := mul_y(hero.position.y) * WAVE_HP
@@ -506,7 +557,7 @@ func _wave_tick(dt: float) -> void:
 	for i in n:
 		var at := hero.position + Vector2.from_angle(off + float(i) / n * TAU) * R
 		at = Vector2(clampf(at.x, 24, W - 24), clampf(at.y, 24, H - 24))
-		if hit_obs(at, 14) or d[flow.cell_of(at)] < 0:
+		if hit_obs(at, 14) or not flow.reach(f, flow.cell_of(at)):
 			continue
 		var k := "ytb"
 		if wave_n >= 2 and i % 6 == 3:
@@ -537,49 +588,99 @@ func _cyz_tick(dt: float) -> void:
 		spawn(k, Vector2(randf_range(80, W - 80), randf_range(470, 520)), 1.3 * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
 
 
-## 겹치지 않게(30px 칸으로 나눠 이웃끼리만 밀어냄)
+## 겹치지 않게(30px 칸으로 나눠 이웃끼리만 밀어냄). 적은 enemies 차례로, 이웃은 칸 차례 · 칸 안 enemies 차례로 봄.
+## 칸을 Dictionary 대신 번호 배열로 두고, 위치 · 반지름을 배열로 읽어 다 민 뒤 한 번만 씀(D-198 — 미는 차례 · 계산은 같아 결과도 같음).
 func _separate() -> void:
-	_grid.clear()
-	for e in enemies:
+	var list := enemies
+	var n := list.size()
+	_cell_units = list
+	_cell_next.resize(n)
+	_sep_cx.resize(n)
+	_sep_cy.resize(n)
+	_sep_pos.resize(n)
+	_sep_r.resize(n)
+	_sep_mv.resize(n)
+	var x0 := 1 << 30
+	var y0 := 1 << 30
+	var x1 := -x0
+	var y1 := -y0
+	for i in n:
+		var e := list[i]
 		if e.dead:
+			_sep_mv[i] = 0
 			continue
-		var key := int(e.position.x / GRID) * 4096 + int(e.position.y / GRID)
-		if _grid.has(key):
-			_grid[key].append(e)
-		else:
-			_grid[key] = [e]
-	for e in enemies:
-		if e.dead or e.boss or e.building or e.air > 0:
+		var p := e.position
+		var cx := int(p.x / GRID)
+		var cy := int(p.y / GRID)
+		_sep_cx[i] = cx
+		_sep_cy[i] = cy
+		_sep_pos[i] = p
+		_sep_r[i] = e.r
+		_sep_mv[i] = 1 if e.boss or e.building or e.air > 0 else 2
+		x0 = mini(x0, cx)
+		x1 = maxi(x1, cx)
+		y0 = mini(y0, cy)
+		y1 = maxi(y1, cy)
+	if x1 < x0:
+		_cell_gw = 0
+		_cell_gh = 0
+		_cell_head.resize(0)
+		return
+	_cell_ox = 1 - x0
+	_cell_oy = 1 - y0
+	_cell_gw = x1 - x0 + 3
+	_cell_gh = y1 - y0 + 3
+	var gh := _cell_gh
+	_cell_head.resize(_cell_gw * gh)
+	_cell_head.fill(-1)
+	# 뒤에서부터 앞에 끼워 넣어 칸 안은 enemies 차례가 됨
+	for i in range(n - 1, -1, -1):
+		if _sep_mv[i] == 0:
 			continue
-		var cx := int(e.position.x / GRID)
-		var cy := int(e.position.y / GRID)
-		for i in range(-1, 2):
-			for j in range(-1, 2):
-				var l = _grid.get((cx + i) * 4096 + cy + j)
-				if l == null:
-					continue
-				for o in l:
-					if o == e:
-						continue
-					var dv: Vector2 = e.position - o.position
-					var dd := dv.length()
-					var m: float = (e.r + o.r) * 0.85
-					if dd > 0.01 and dd < m:
-						e.position += dv * ((m - dd) * 0.25 / dd)
+		var c := (_sep_cx[i] + _cell_ox) * gh + _sep_cy[i] + _cell_oy
+		_cell_next[i] = _cell_head[c]
+		_cell_head[c] = i
+	for i in n:
+		if _sep_mv[i] != 2:
+			continue
+		var pe := _sep_pos[i]
+		var p0 := pe
+		var re := _sep_r[i]
+		var c0 := (_sep_cx[i] + _cell_ox) * gh + _sep_cy[i] + _cell_oy
+		for di in range(-1, 2):
+			for dj in range(-1, 2):
+				var k := _cell_head[c0 + di * gh + dj]
+				while k >= 0:
+					if k != i:
+						var dv := pe - _sep_pos[k]
+						var dd := dv.length()
+						var m := (re + _sep_r[k]) * 0.85
+						if dd > 0.01 and dd < m:
+							pe += dv * ((m - dd) * 0.25 / dd)
+					k = _cell_next[k]
+		if pe != p0:
+			_sep_pos[i] = pe
+			list[i].position = pe
 
 
 ## 아군에게 붙은 적(맞히는 쪽). _separate가 만든 칸을 씀.
 func touching_enemy(at: Vector2, extra: float) -> Enemy:
-	var cx := int(at.x / GRID)
-	var cy := int(at.y / GRID)
+	var cx := int(at.x / GRID) + _cell_ox
+	var cy := int(at.y / GRID) + _cell_oy
 	for i in range(-1, 2):
+		var gx := cx + i
+		if gx < 0 or gx >= _cell_gw:
+			continue
 		for j in range(-1, 2):
-			var l = _grid.get((cx + i) * 4096 + cy + j)
-			if l == null:
+			var gy := cy + j
+			if gy < 0 or gy >= _cell_gh:
 				continue
-			for e in l:
+			var k := _cell_head[gx * _cell_gh + gy]
+			while k >= 0:
+				var e := _cell_units[k]
 				if not e.dead and not e.building and e.air <= 0 and e.position.distance_to(at) < e.r + extra:
 					return e
+				k = _cell_next[k]
 	return null
 
 
@@ -667,7 +768,7 @@ func nearest_enemy(from: Vector2, max_d: float) -> Enemy:
 	var best: Enemy = null
 	var bd := max_d
 	for e in enemies:
-		if e.dead:
+		if e.dead or e.shield:
 			continue
 		var d := e.position.distance_to(from)
 		if d < bd:
@@ -707,7 +808,7 @@ func _tick_blades(dt: float) -> void:
 		while i < enemies.size():
 			var e := enemies[i]
 			i += 1
-			if e.dead or bl.hit.has(e.get_instance_id()):
+			if e.dead or e.shield or bl.hit.has(e.get_instance_id()):
 				continue
 			var d := e.position - p
 			var ly := d.dot(side)
@@ -751,7 +852,7 @@ func swing(at: Vector2, a: float, arc: float, rad: float, dmg: float, col: Array
 	while i < enemies.size():
 		var e := enemies[i]
 		i += 1
-		if e.dead:
+		if e.dead or e.shield:
 			continue
 		var dv := e.position - at
 		var d := dv.length()
@@ -783,7 +884,7 @@ func blast(at: Vector2, rad: float, dmg: float) -> int:
 	while i < enemies.size():
 		var e := enemies[i]
 		i += 1
-		if e.dead:
+		if e.dead or e.shield:
 			continue
 		var dv := e.position - at
 		var d := dv.length()
@@ -810,7 +911,8 @@ func push_away(at: Vector2, rad: float, amount: float) -> void:
 
 
 func hurt_enemy(e: Enemy, d: float) -> void:
-	if e.dead:
+	# 수비탑이 남은 진영의 막사는 피해를 받지 않음(D-202)
+	if e.dead or e.shield:
 		return
 	e.hp -= d
 	e.flash = 0.1
@@ -844,11 +946,18 @@ func _on_kill(e: Enemy) -> void:
 			if bk.id == e.barracks_id:
 				bk.alive = false
 		var total: int = c.bks.size()
-		var done := total - barracks_left(c)
+		var done := total - buildings_left(c)
 		add_fx({"k": "ring", "pos": e.position, "t": 0.5, "r": 60.0, "c": Color("ffb050")})
 		shake = maxf(shake, 0.15)
-		if done < total:
-			banner("막사를 부쉈어요 (%d/%d)" % [done, total], "%s — 남은 막사 %d" % [c.n, total - done])
+		if e.k == "tower" and towers_left(c) == 0:
+			# 마지막 탑: 막사 보호가 풀림(D-202)
+			for bk in c.bks:
+				if bk.kind == "barracks" and bk.alive:
+					bk.unit.shield = false
+			banner("수비탑을 다 부쉈어요 (%d/%d)" % [done, total], "%s — 이제 막사를 부술 수 있어요" % c.n)
+		elif done < total:
+			var what := "수비탑을" if e.k == "tower" else "막사를"
+			banner("%s 부쉈어요 (%d/%d)" % [what, done, total], "%s — 남은 막사 · 수비탑 %d" % [c.n, total - done])
 		return
 	if e.camp_lead != "":
 		var c := camp_by_id(e.camp_lead)
@@ -976,7 +1085,6 @@ func _sweep() -> void:
 				keep.append(e)
 			elif e.is_lead():
 				e.visible = false
-				e.set_process(false)
 			else:
 				e.queue_free()
 		enemies = keep
@@ -1105,18 +1213,31 @@ func _spawn_squads() -> void:
 			var e := spawn(k, at, s[3])
 			e.set_post(at)
 			e.aggro = 230
+	# 진영 건물(D-202): 막사(병력이 나옴) · 수비탑(장수를 쏨). c.bks = 둘 다, kind로 가름
 	var B: Dictionary = Stage1.BARRACKS
+	var T: Dictionary = Stage1.TOWER
 	for c in camps:
 		var i := 0
 		for bp in c.barracks:
-			var bk := {"id": "%s:%d" % [c.id, i], "pos": bp, "alive": true, "spawn_t": randf_range(0.5, 2.0)}
+			var bk := {"id": "%s:%d" % [c.id, i], "kind": "barracks", "pos": bp, "alive": true, "spawn_t": randf_range(0.5, 2.0)}
 			c.bks.append(bk)
 			var hut := spawn("barracks", bp, float(B.hp) * float(c.mul))
 			hut.camp_id = c.id
 			hut.barracks_id = bk.id
 			hut.r = float(B.r)
+			# 수비탑을 다 부술 때까지 보호(D-202)
+			hut.shield = not c.towers.is_empty()
+			bk["unit"] = hut
 			for j in int(B.start):
 				_barracks_soldier(c, bk, float(c.mul))
+			i += 1
+		for tp in c.towers:
+			var bk := {"id": "%s:%d" % [c.id, i], "kind": "tower", "pos": tp, "alive": true}
+			c.bks.append(bk)
+			var tw := spawn("tower", tp, float(T.hp) * float(c.mul))
+			tw.camp_id = c.id
+			tw.barracks_id = bk.id
+			tw.r = float(T.r)
 			i += 1
 
 
@@ -1126,11 +1247,11 @@ func ring_pos(a: float) -> Vector2:
 	var p := hero.position
 	if flow.ver != obs_ver:
 		flow.build(obs, W, H, obs_ver)
-	var d: PackedInt32Array = flow.field("p", p, t, 0.2).d
+	var f := flow.field("p", p, t, 0.2)
 	for da in [0.0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]:
 		var rr := view.size.length() / 2 + randf_range(20, 70)
 		var at := Vector2(clampf(p.x + cos(a + da) * rr, 24, W - 24), clampf(p.y + sin(a + da) * rr, 24, H - 24))
-		if not hit_obs(at, 16) and at.distance_to(p) > 200 and d[flow.cell_of(at)] >= 0:
+		if not hit_obs(at, 16) and at.distance_to(p) > 200 and flow.reach(f, flow.cell_of(at)):
 			return at
 	return Vector2.INF
 
@@ -1201,11 +1322,40 @@ func _obs_changed() -> void:
 	obs_rects.clear()
 	for o in obs:
 		obs_rects.append(o.rect)
+	# 사각형들의 세로 범위를 겹치는 것끼리 합친 띠
+	var ys: Array = []
+	for rc in obs_rects:
+		ys.append([rc.position.y, rc.end.y])
+	ys.sort_custom(func(a, c): return a[0] < c[0])
+	obs_bands.clear()
+	for y in ys:
+		var n := obs_bands.size()
+		if n > 0 and float(y[0]) <= obs_bands[n - 1]:
+			obs_bands[n - 1] = maxf(obs_bands[n - 1], y[1])
+		else:
+			obs_bands.append(y[0])
+			obs_bands.append(y[1])
 	obs_ver += 1
 
 
-## 벽·물에서 밀어내고 지도 밖으로 못 나가게
+## 벽·물에서 밀어내고 지도 밖으로 못 나가게.
+## 벽 · 물 띠(obs_bands)에 걸칠 때만 사각형을 하나씩 봄 — 안 걸치면 사각형마다 건너뛰어 그대로였음(D-198, 결과는 같음)
 func push_out(u: Unit) -> void:
+	var r := u.r
+	var p := u.position
+	var i := 0
+	while i < obs_bands.size():
+		if p.y + r >= obs_bands[i] and p.y - r <= obs_bands[i + 1]:
+			_push_out_rects(u)
+			p = u.position
+			break
+		i += 2
+	var q := p.clamp(Vector2(r + 4, r + 4), Vector2(W - r - 4, H - r - 4))
+	if q != p:
+		u.position = q
+
+
+func _push_out_rects(u: Unit) -> void:
 	for rc in obs_rects:
 		var p := u.position
 		if p.x + u.r < rc.position.x or p.x - u.r > rc.end.x or p.y + u.r < rc.position.y or p.y - u.r > rc.end.y:
@@ -1228,7 +1378,6 @@ func push_out(u: Unit) -> void:
 					u.position.y = rc.position.y - u.r
 				else:
 					u.position.y = rc.end.y + u.r
-	u.position = u.position.clamp(Vector2(u.r + 4, u.r + 4), Vector2(W - u.r - 4, H - u.r - 4))
 
 
 ## 벽(물 말고)만 탄을 막음
@@ -1295,17 +1444,19 @@ func field_target() -> Dictionary:
 			best = c
 	if not best.is_empty():
 		var total: int = best.bks.size()
-		var done := total - barracks_left(best)
+		var done := total - buildings_left(best)
 		if best.lead != null:
 			var lp: Vector2 = best.lead.position if Unit.alive(best.lead) else best.pos
-			return {"pos": lp, "n": "%s 격파 · 막사 %d/%d" % [best.ln, done, total]}
+			return {"pos": lp, "n": "%s 격파 · 막사·탑 %d/%d" % [best.ln, done, total]}
+		# 수비탑이 남았으면 가까운 탑부터(막사는 보호 중, D-202)
+		var tw := towers_left(best) > 0
 		var bp: Vector2 = best.pos
 		var bd2 := INF
 		for bk in best.bks:
-			if bk.alive and hero.position.distance_to(bk.pos) < bd2:
+			if bk.alive and (not tw or bk.kind == "tower") and hero.position.distance_to(bk.pos) < bd2:
 				bd2 = hero.position.distance_to(bk.pos)
 				bp = bk.pos
-		return {"pos": bp, "n": "%s · 막사 %d/%d 부수기" % [best.n, done, total]}
+		return {"pos": bp, "n": "%s · %s 부수기 %d/%d" % [best.n, "수비탑" if tw else "막사", done, total]}
 	if not cyz_dead:
 		var zp: Vector2 = cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos
 		return {"pos": zp, "n": "관문 너머 황건 장수 정원지 격파"}
@@ -1322,8 +1473,9 @@ func march_goal(from: Vector2) -> Dictionary:
 			return {"key": "m_lead_" + c.id, "pos": c.lead.position if Unit.alive(c.lead) else c.pos}
 		var best := {}
 		var bd := INF
+		var tw := towers_left(c) > 0
 		for bk in c.bks:
-			if bk.alive and from.distance_to(bk.pos) < bd:
+			if bk.alive and (not tw or bk.kind == "tower") and from.distance_to(bk.pos) < bd:
 				bd = from.distance_to(bk.pos)
 				best = bk
 		if not best.is_empty():

@@ -274,7 +274,7 @@ func tick(dt: float) -> void:
 func _in_view() -> Array[Enemy]:
 	var out: Array[Enemy] = []
 	for e in b.enemies:
-		if not e.dead and b.in_view(e.position, 0):
+		if not e.dead and not e.shield and b.in_view(e.position, 0):
 			out.append(e)
 	return out
 
@@ -283,7 +283,7 @@ func _nearest(n: int, max_d: float) -> Array[Enemy]:
 	var p := b.hero.position
 	var c: Array = []
 	for e in b.enemies:
-		if not e.dead:
+		if not e.dead and not e.shield:
 			var d := e.position.distance_to(p)
 			if d < max_d:
 				c.append([d, e])
@@ -300,7 +300,7 @@ func _hit_area(at: Vector2, r: float, dmg: float) -> int:
 	while i < b.enemies.size():
 		var e := b.enemies[i]
 		i += 1
-		if not e.dead and e.position.distance_to(at) < r + e.r:
+		if not e.dead and not e.shield and e.position.distance_to(at) < r + e.r:
 			b.hurt_enemy(e, dmg)
 			n += 1
 	return n
@@ -329,7 +329,7 @@ func _orbit(dt: float, atk: float) -> void:
 		while i < b.enemies.size():
 			var e := b.enemies[i]
 			i += 1
-			if not e.dead and e.orb_t <= 0 and e.position.distance_to(p) < e.r + 12:
+			if not e.dead and not e.shield and e.orb_t <= 0 and e.position.distance_to(p) < e.r + 12:
 				e.orb_t = gap
 				b.hurt_enemy(e, dmg)
 
@@ -411,7 +411,7 @@ func _bolt(atk: float) -> void:
 			var bd := 140.0
 			for o in b.enemies:
 				var d := o.position.distance_to(prev)
-				if not o.dead and d > 4 and d < bd:
+				if not o.dead and not o.shield and d > 4 and d < bd:
 					bd = d
 					nx = o
 			if nx == null:
@@ -470,7 +470,7 @@ func _tick_darts(dt: float) -> void:
 		while i < b.enemies.size() and s.hits > 0:
 			var e := b.enemies[i]
 			i += 1
-			if e.dead or s.hit.has(e.get_instance_id()) or e.position.distance_to(p) > e.r + 5:
+			if e.dead or e.shield or s.hit.has(e.get_instance_id()) or e.position.distance_to(p) > e.r + 5:
 				continue
 			s.hit[e.get_instance_id()] = true
 			b.hurt_enemy(e, s.dmg)
@@ -524,7 +524,7 @@ func _blast(at: Vector2, r: float, dmg: float, push: float, col: Color) -> void:
 	while i < b.enemies.size():
 		var e := b.enemies[i]
 		i += 1
-		if e.dead:
+		if e.dead or e.shield:
 			continue
 		var dv := e.position - at
 		var d := dv.length()
