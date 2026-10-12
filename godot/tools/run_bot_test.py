@@ -11,7 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PROJ = os.path.abspath(os.path.join(HERE, '..'))
 DEFAULT_GODOT = r'C:\Tools\Godot-4.7.2\Godot_v4.7.2-stable_win64_console.exe'
 MODE_NAME = {'normal': '일반', 'god': '무적'}
-STATUS_NAME = {'clear': '클리어', 'lose_hero': '실패(장수 쓰러짐)', 'lose_home': '실패(본진 함락)', 'timeout': '시간 초과'}
+STATUS_NAME = {'clear': '클리어', 'lose_hero': '실패(장수 쓰러짐)', 'lose_home': '실패(본진 함락)', 'lose_liubei': '실패(유비 쓰러짐)', 'timeout': '시간 초과'}
 # 엔진이 끝날 때 내는 소리(오류 아님)
 NOISE = ('Unreferenced static string', 'leaked at exit', 'PagedAllocator', 'ObjectDB instances leaked')
 

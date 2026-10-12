@@ -50,6 +50,8 @@ var _last_pos := Vector2.INF
 var _dist := 0.0
 var _still := 0.0
 var _min_hp := INF
+## 유비 최저 체력 비율(D-208 — 쓰러지면 짐)
+var _lb_min := 1.0
 var _phase_t0 := 0.0
 var _phase_d0 := 0.0
 var _phase_s0 := 0.0
@@ -352,6 +354,10 @@ func _measure() -> void:
 			_still += get_process_delta_time() if b.hit_stop <= 0 else 0.0
 	_last_pos = h.position
 	_min_hp = minf(_min_hp, h.hp)
+	if Unit.alive(b.liubei):
+		_lb_min = minf(_lb_min, b.liubei.hp / b.liubei.max_hp)
+	elif b.liubei != null:
+		_lb_min = 0.0
 	var dt := get_process_delta_time()
 	var near := 0
 	for e in b.enemies:
@@ -432,7 +438,7 @@ func _result(status: String) -> void:
 	for e in b.events:
 		evs.append("%s %s(+%s)" % [_fmt(e.t), e.n, _fmt(e.t - t0)])
 		t0 = e.t
-	print("[events] " + (" · ".join(evs) if not evs.is_empty() else "-"))
+	print("[events] " + (" · ".join(evs) if not evs.is_empty() else "-") + " | 유비 최저 체력 %d%%" % roundi(_lb_min * 100))
 	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))
 	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 둘레 120px 적 평균 %.1f · 분당 피격 %.1f · 최저 체력 %d/%d · 구슬 주운 경험 %d%%" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0),
 		_near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(_min_hp), int(h.max_hp), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0)])

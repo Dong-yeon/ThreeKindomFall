@@ -18,6 +18,7 @@ func _draw_impl() -> void:
 	draw_rect(Rect2(0, 0, Stage1.W, Stage1.H), GRASS)
 	_river(V)
 	_home(V)
+	_village(V)
 	_camps(V)
 	for o in b.obs:
 		var rc: Rect2 = o.rect
@@ -132,6 +133,42 @@ func _camps(V: Rect2) -> void:
 		var what: String = String(c.ln) if left == 0 else ("수비탑 %d/%d" % [total - left, total])
 		var txt: String = ("%s — 점령" % c.n) if cap else ("%s · %s" % [c.n, what])
 		_label(txt, Vector2(p.x, R.position.y - 14), Color("cfe2f4") if cap else Color("ffd8a0"))
+
+
+## 탁현 마을(D-208): 초가집 셋. 습격 중엔 지붕에 불길 · 빨간 고리가 깜빡이고 남은 시간 막대, 불타면 검게 그을림
+func _village(V: Rect2) -> void:
+	var VL: Dictionary = Stage1.VILLAGE
+	var p: Vector2 = VL.pos
+	if not V.intersects(Rect2(p - Vector2(90, 90), Vector2(180, 180))):
+		return
+	var raid := b.vil_st == "raid"
+	var lost := b.vil_st == "lost"
+	var i := 0
+	for d in [Vector2(-26, -14), Vector2(22, -20), Vector2(0, 18)]:
+		var q: Vector2 = p + d
+		draw_rect(Rect2(q.x - 13, q.y + 8, 26, 4), Color(0, 0, 0, 0.2))
+		draw_rect(Rect2(q.x - 12, q.y - 4, 24, 13), Color("4a4038") if lost else Color("d8c8a0"))
+		draw_rect(Rect2(q.x - 12, q.y - 4, 24, 13), INK, false, 1.0)
+		draw_rect(Rect2(q.x - 3, q.y + 1, 6, 8), Color("3a2a1a"))
+		var roof := PackedVector2Array([q + Vector2(-16, -3), q + Vector2(16, -3), q + Vector2(10, -14), q + Vector2(-10, -14)])
+		draw_colored_polygon(roof, Color("2a2420") if lost else Color("c8a050"))
+		roof.append(roof[0])
+		draw_polyline(roof, INK, 1.0)
+		if raid:
+			var fl := sin(b.t * 9 + i * 2.1) * 2
+			draw_colored_polygon(PackedVector2Array([q + Vector2(-6, -12), q + Vector2(6, -12), q + Vector2(fl, -26)]), Color(0.95, 0.5, 0.15, 0.85))
+			draw_colored_polygon(PackedVector2Array([q + Vector2(-3, -12), q + Vector2(3, -12), q + Vector2(fl * 0.5, -19)]), Color(1, 0.9, 0.45))
+		i += 1
+	if raid:
+		if int(b.t * 3) % 2 == 1:
+			draw_arc(p, float(VL.r) + 10, 0, TAU, 40, Color(0.85, 0.31, 0.24, 0.8), 2)
+		_bar(p + Vector2(0, -48), 70, b.vil_t / float(VL.limit), Color("d9705e"))
+	var txt: String = VL.n
+	if lost:
+		txt += "(불탐)"
+	elif b.vil_st == "saved":
+		txt += " — 구함"
+	_label(txt, p + Vector2(0, 40), Color("ffb0a0") if raid else (Color("a8a098") if lost else Color("fff2c0")))
 
 
 func _tent(p: Vector2, cl: Color, rf: Color) -> void:

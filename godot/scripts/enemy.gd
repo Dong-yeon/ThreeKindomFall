@@ -46,6 +46,8 @@ var wander := Vector2.ZERO
 var wander_t := 0.0
 var sk_t := 0.0
 var sk_at := Vector2.ZERO
+## 탁현 마을 습격대(등무 포함, D-208)
+var raid := false
 ## 호위병(D-205): 따라다니는 진영장 · 진영장에서 떨어진 자리(장수가 멀면 그 자리로)
 var guard_of: Enemy = null
 var guard_off := Vector2.ZERO

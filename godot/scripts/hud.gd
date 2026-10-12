@@ -178,7 +178,9 @@ func _refresh_impl() -> void:
 	var goal := "목표  " + String(T.n)
 	if goal_lbl.text != goal:
 		goal_lbl.text = goal
-	var tags := "%s %d/%d · 진영 %d/3 · 처치 %d · 본진 %d%% · 아군 %d" % [b.hero_data.display_name, ceili(h.hp), roundi(h.max_hp), b.cap_n, b.kills, ceili(b.home_hp / b.home_max * 100), b.allies.size()]
+	# 아군 수 자리에 유비 체력(D-208 — 유비가 쓰러지면 짐)
+	var lb := ceili(b.liubei.hp / b.liubei.max_hp * 100) if Unit.alive(b.liubei) else 0
+	var tags := "%s %d/%d · 진영 %d/3 · 처치 %d · 본진 %d%% · 유비 %d%%" % [b.hero_data.display_name, ceili(h.hp), roundi(h.max_hp), b.cap_n, b.kills, ceili(b.home_hp / b.home_max * 100), lb]
 	if tags_lbl.text != tags:
 		tags_lbl.text = tags
 	if banner_t > 0:
@@ -199,6 +201,8 @@ func show_end() -> void:
 		end_title.text = "%s 평정!" % Stage1.NAME
 	elif b.end_why == "home":
 		end_title.text = "아군 본진이 함락됐어요"
+	elif b.end_why == "liubei":
+		end_title.text = "유비가 쓰러졌어요"
 	else:
 		end_title.text = "%s가 쓰러졌어요" % hn if Battle.eul(hn) == "를" else "%s이 쓰러졌어요" % hn
 	var T := b.tactics
@@ -208,6 +212,8 @@ func show_end() -> void:
 	end_stats.text = "걸린 시간   %s\n점령한 진영   %d / 3\n쓰러뜨린 적   %d\n최대 연격   %d\n공적 레벨   %d (공격 %d/%d · 보조 %d/%d)\n진화   %s" % [
 		_fmt_t(b.t), b.cap_n, b.kills, b.hero.cb_max, b.lvl, T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS,
 		", ".join(evos) if not evos.is_empty() else "없음"]
+	var vil := {"saved": "구함", "lost": "불탐", "raid": "습격 중"}
+	end_stats.text += "\n탁현 마을   %s" % vil.get(b.vil_st, "—")
 	if win:
 		# 첫 사신수 해방(D-207)
 		end_stats.text += "\n사신수   %s 해방" % Stage1.BEAST.n
@@ -354,6 +360,14 @@ func _draw_minimap(c: Control, sz: Vector2) -> void:
 			var lq: Vector2 = P.call(cp.lead.position)
 			c.draw_circle(lq, 2.5, Color("ff9a3a"))
 			c.draw_arc(lq, 3.2, 0, TAU, 12, Color("8ac8f0") if cp.lead.shield else INK, 1.0)
+	# 탁현 마을(D-208): 습격 중이면 깜빡임, 불타면 회색
+	var vq: Vector2 = P.call(Stage1.VILLAGE.pos)
+	var vc := Color("e8d8a8")
+	if b.vil_st == "raid":
+		vc = Color("ff6a4a") if int(b.t * 4) % 2 == 1 else Color("ffd34a")
+	elif b.vil_st == "lost":
+		vc = Color("555555")
+	c.draw_rect(Rect2(vq - Vector2(2.5, 2.5), Vector2(5, 5)), vc)
 	var hp: Vector2 = P.call(b.home_pos)
 	var blink := b.home_hp < b.home_max * 0.5 and int(b.t * 4) % 2 == 1
 	c.draw_rect(Rect2(hp - Vector2(3, 3), Vector2(6, 6)), Color("ff6a4a") if blink else Color("6a9ad8"))

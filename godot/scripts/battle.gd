@@ -90,6 +90,12 @@ var gate_open := false
 var keep_open := false
 var cyz: Enemy = null
 var boss: Enemy = null
+## 탁현 마을(D-208): wait · raid(습격 중) · saved · lost · 남은 시간 · 등무 / 본진 기습을 했나 / 유비(쓰러지면 짐)
+var vil_st := "wait"
+var vil_t := 0.0
+var deng: Enemy = null
+var home_raided := false
+var liubei: Ally = null
 ## 요술 제단(D-207 — 하나라도 남아 있으면 장각 보호막) · 봉인된 사신수 빛 구슬 자리(INF = 없음) · 풀려나는 중(지난 초, -1 = 아님)
 var altars: Array[Enemy] = []
 var beast_pos := Vector2.INF
@@ -108,7 +114,6 @@ var wave_n := 0
 var WAVE_HP := 0.6
 var turret_t := 0.0
 var home_t := 8.0
-var lb_t := 0.0
 var cyz_t := 4.0
 var alert_home := false
 ## 지금 화면에 보이는 전장 범위
@@ -374,6 +379,8 @@ func _field_tick(dt: float) -> void:
 		finish(false, "home")
 		return
 	Perf.begin(&"생성")
+	_village_tick(dt)
+	_home_raid_tick()
 	_camps_tick(dt)
 	_party_tick(dt)
 	_rein_tick(dt)
@@ -429,6 +436,69 @@ func choose(i: int) -> void:
 	pick_opts.clear()
 	hud.hide_pick()
 	state = "play"
+
+
+## 탁현 마을 습격(D-208, D-195 사건 1): VILLAGE.at초에 등무 + 습격대가 마을 둘레에 자리 잡음(가까이 오면 장수에게 덤빔) →
+## limit초 안에 등무를 쓰러뜨리면 구함(_on_kill), 시간이 다 되면 마을이 불타고 남은 습격대는 본진으로
+func _village_tick(dt: float) -> void:
+	var V: Dictionary = Stage1.VILLAGE
+	if vil_st == "wait":
+		if t < float(V.at):
+			return
+		vil_st = "raid"
+		vil_t = float(V.limit)
+		var vp: Vector2 = V.pos
+		var lk: String = V.lk
+		deng = spawn(lk, vp + Vector2(0, -10), float(V.mul) * float(V.lm))
+		deng.elite = true
+		deng.ename = V.ln
+		deng.touch = Units.ENEMY[lk].touch
+		deng.r *= 1.4
+		deng.raid = true
+		deng.set_post(vp + Vector2(0, -10))
+		deng.aggro = 220
+		for i in int(V.raiders):
+			var at := vp + Vector2.from_angle(randf() * TAU) * randf_range(50, 110)
+			if hit_obs(at, 12):
+				at = vp + Vector2(randf_range(-30, 30), 40)
+			var e := spawn("ytbig" if i < 2 else "ytb", at, float(V.mul))
+			e.raid = true
+			e.set_post(at)
+			e.aggro = 170
+		note("탁현 마을 습격")
+		banner("%s이 습격당해요!" % V.n, "%s%s %d초 안에 쓰러뜨려요 — 오른쪽 아래" % [V.ln, eul(V.ln), int(V.limit)])
+		Sound.play("alert", 0.5)
+	elif vil_st == "raid":
+		vil_t -= dt
+		if vil_t > 0:
+			return
+		vil_st = "lost"
+		for e in enemies:
+			if not e.dead and e.raid:
+				e.has_post = false
+				e.goal_home = true
+				e.aggro = 160
+		note("탁현 마을 불탐")
+		banner("%s이 불탔어요…" % V.n, "%s의 습격대가 본진으로 향해요" % V.ln)
+		Sound.play("lose", 0.3)
+
+
+## 본진 기습(D-208 — 웹판과 같음): 진영 HOME_RAID.cap곳을 점령했거나 at초가 지나면 한 번, 본진 양옆에서 본진으로.
+## 유비 · 수비대가 막고, 많이 밀리면 장수가 돌아가 도와야 함(유비가 쓰러지면 짐)
+func _home_raid_tick() -> void:
+	var R: Dictionary = Stage1.HOME_RAID
+	if home_raided or (cap_n < int(R.cap) and t < float(R.at)):
+		return
+	home_raided = true
+	for i in int(R.n):
+		var x := randf_range(30, 90) if i % 2 == 1 else randf_range(W - 90, W - 30)
+		var k := "ytdash" if i % 4 == 0 else ("ytbig" if i % 5 == 3 else "ytb")
+		var e := spawn(k, Vector2(x, randf_range(2560, 2700)), float(R.mul))
+		e.goal_home = true
+		e.aggro = 160
+	note("본진 기습")
+	banner("본진 기습!", "유비와 수비대가 막아요 — 유비가 쓰러지면 져요")
+	Sound.play("alert", 0.6)
 
 
 ## 진영(D-205): 진영장이 처음부터 진영 안에서 호위병을 부름(장수가 가까우면 자주 · 진영 병력 상한 — 전엔 막사가 냄, D-202).
@@ -788,7 +858,7 @@ func _touching_enemy_impl(at: Vector2, extra: float) -> Enemy:
 ## 본진: 유비 + 창병 6명(7초마다 보충). 점령한 진영: 수비대 창병 4명(18초마다 보충) + 진군 부대 4명이 한 번(보충 없음, D-180)
 func _setup_allies() -> void:
 	anchors["home"] = {"pos": home_pos + Vector2(0, -50), "r": 230.0}
-	ally_spawn("liubei", home_pos + Vector2(0, -40), "guard", "home")
+	liubei = ally_spawn("liubei", home_pos + Vector2(0, -40), "guard", "home")
 	for i in 6:
 		ally_spawn("sol", home_pos + Vector2(randf_range(-60, 60), -30 + randf_range(-20, 20)), "guard", "home")
 
@@ -802,10 +872,10 @@ func ally_spawn(k: String, at: Vector2, mode: String, anchor_id: String) -> Ally
 	return a
 
 
+## 유비(아군 총대장)가 쓰러지면 짐(D-208 — 전엔 15초 뒤 본진으로 돌아왔음)
 func ally_down(a: Ally) -> void:
 	if a.k == "liubei":
-		lb_t = 15
-		banner("유비가 물러났어요", "15초 뒤 본진으로 돌아와요")
+		finish(false, "liubei")
 
 
 func _count_allies(anchor_id: String, k := "") -> int:
@@ -822,11 +892,6 @@ func _ally_timers(dt: float) -> void:
 		home_t = 7
 		if _count_allies("home", "sol") < 6:
 			ally_spawn("sol", home_pos + Vector2(randf_range(-40, 40), 0), "guard", "home")
-	if lb_t > 0:
-		lb_t -= dt
-		if lb_t <= 0:
-			ally_spawn("liubei", home_pos + Vector2(0, -30), "guard", "home")
-			banner("유비가 본진으로 돌아왔어요", "")
 	for c in camps:
 		if not c.cap:
 			continue
@@ -1113,6 +1178,24 @@ func _on_kill(e: Enemy) -> void:
 			banner("%s 점령! 관문 앞에 정원지가 나왔어요" % c.n, "보급 상자를 줍고 문지기 정원지를 쓰러뜨리면 관문이 열려요")
 		else:
 			banner("%s 점령! (%d/3)" % [c.n, cap_n], "보급 상자를 주워요 — 진군 부대 %d명이 다음 진영으로 먼저 가요" % MARCH_ON_CAPTURE)
+		return
+	if e == deng:
+		if vil_st == "raid":
+			# 탁현 마을을 구함(D-208): 남은 습격대는 흩어지고 회복 + 보급 상자
+			vil_st = "saved"
+			for o in enemies:
+				if not o.dead and o.raid:
+					o.dead = true
+					kills += 1
+					add_fx({"k": "burst", "pos": o.position, "t": 0.3, "r": o.r * 0.6, "c": Color("f6e2a0")})
+			var V: Dictionary = Stage1.VILLAGE
+			hero.heal(hero.max_hp * float(V.heal))
+			drops.append({"k": "chest", "pos": e.position})
+			note("탁현 마을 구함")
+			banner("%s을 구했어요!" % V.n, "마을 사람들이 보급 상자를 내줬어요")
+			Sound.play("win", 0.35)
+		else:
+			banner("%s%s 쓰러뜨렸어요" % [e.ename, eul(e.ename)], "")
 		return
 	if e.k == "cyz" and e.elite:
 		# 성문이 열리기 시작(D-206 — _gate_tick)
@@ -1557,10 +1640,20 @@ func _path_for_impl(u: Unit, key: String, aim: Vector2) -> Vector2:
 
 ## 지금 가야 할 곳(화살표 · 작은 지도 · 목표 글)
 func field_target() -> Dictionary:
+	# 유비가 절반 아래로 다쳤고 둘레에 적이 있으면(D-208 — 쓰러지면 짐)
+	if Unit.alive(liubei) and liubei.hp < liubei.max_hp * 0.5:
+		for e in enemies:
+			if not e.dead and not e.building and e.position.distance_to(liubei.position) < 200:
+				return {"pos": liubei.position, "n": "유비를 지켜요 (유비 %d%%)" % ceili(liubei.hp / liubei.max_hp * 100), "warn": true}
 	if home_hp < home_max * 0.4:
 		for e in enemies:
 			if not e.dead and e.goal_home and e.position.distance_to(home_pos) < 400:
 				return {"pos": home_pos, "n": "본진 지키기 (본진 %d%%)" % ceili(home_hp / home_max * 100), "warn": true}
+	if vil_st == "raid":
+		var V: Dictionary = Stage1.VILLAGE
+		var dp: Vector2 = deng.position if Unit.alive(deng) else V.pos
+		var who := String(V.ln).get_slice(" ", String(V.ln).get_slice_count(" ") - 1)
+		return {"pos": dp, "n": "%s 구하기 — %s 격파 (남은 %d초)" % [V.n, who, ceili(vil_t)], "warn": true}
 	var best := {}
 	var bd := INF
 	for c in camps:
@@ -1605,6 +1698,8 @@ func field_target() -> Dictionary:
 
 ## 진군 부대(D-180)가 갈 곳과 길찾기 키
 func march_goal(from: Vector2) -> Dictionary:
+	if vil_st == "raid" and Unit.alive(deng):
+		return {"key": "m_deng", "pos": deng.position}
 	for c in camps:
 		if c.cap:
 			continue
