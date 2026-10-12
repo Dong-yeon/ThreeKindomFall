@@ -181,7 +181,7 @@ func _bot_process() -> void:
 	if Perf.on:
 		var rid := get_viewport().get_viewport_rid()
 		var now_us := Time.get_ticks_usec()
-		Perf.frame({"en": b.enemies.size(), "al": b.allies.size(), "t": b.t, "ev": "Lv%d · 진영 %d/3%s" % [b.lvl, b.cap_n, " · 관문 열림" if b.cyz_on else ""],
+		Perf.frame({"en": b.enemies.size(), "al": b.allies.size(), "t": b.t, "ev": "Lv%d · 진영 %d/3%s" % [b.lvl, b.cap_n, " · 관문 열림" if b.gate_open else ""],
 			"proc": float(Time.get_ticks_usec() - _last_us) / 1000.0 if _last_us > 0 else 0.0,
 			"rcpu": RenderingServer.viewport_get_measured_render_time_cpu(rid),
 			"rgpu": RenderingServer.viewport_get_measured_render_time_gpu(rid)})
@@ -237,7 +237,7 @@ func _bot_process() -> void:
 	if not shot_at.is_empty() and b.t >= shot_at[0]:
 		_shot("t%03d" % int(shot_at.pop_front()))
 	if shot_dir != "":
-		_shot_leads()
+		_shot_events()
 	if b.t > max_t and not _done:
 		_done = true
 		_log("TIMEOUT")
@@ -313,8 +313,12 @@ func _shot(name: String) -> void:
 	print("[bot] shot ", name)
 
 
-## 스크린샷 모드(D-205): 보호막 진영장이 처음 화면에 들어올 때 · 진영장 공격마다 첫 예고가 거의 끝날 때 · 첫 보급 상자 한 장씩
-func _shot_leads() -> void:
+## 스크린샷 모드(D-205 · D-206): 보호막 진영장이 처음 화면에 들어올 때 · 진영장 공격마다 첫 예고가 거의 끝날 때 · 첫 보급 상자 ·
+## 성문이 반쯤 열렸을 때 한 장씩
+func _shot_events() -> void:
+	if b.gate_t >= float(Stage1.GATE.open) * 0.5 and not _lead_shots.has("gate"):
+		_lead_shots["gate"] = true
+		_shot("gate_open")
 	if not _lead_shots.has("chest") and b.drops.any(func(dr): return dr.k == "chest" and b.in_view(dr.pos, -20)):
 		_lead_shots["chest"] = true
 		_shot("chest")

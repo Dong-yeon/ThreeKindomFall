@@ -327,7 +327,7 @@ func _draw_minimap(c: Control, sz: Vector2) -> void:
 	c.draw_rect(Rect2(mx, my, mw, mh), Color(0.35, 0.47, 0.24, 0.55))
 	var R: Dictionary = Stage1.RIVER
 	c.draw_rect(Rect2(mx, my + float(R.y0) * s, mw, (float(R.y1) - float(R.y0)) * s), Color("4a7ab8"))
-	c.draw_rect(Rect2(mx, my + (float(Stage1.GATE.y) - 10) * s, mw, 2), Color(0.54, 0.52, 0.47, 0.6) if b.cap_n >= 3 else Color("8a8478"))
+	c.draw_rect(Rect2(mx, my + (float(Stage1.GATE.y) - 10) * s, mw, 2), Color(0.54, 0.52, 0.47, 0.6) if b.gate_open else Color("8a8478"))
 	var K := b.keep_rect()
 	c.draw_rect(Rect2(P.call(K.position), K.size * s), Color("ff6a4a") if b.boss != null else Color("d9705e"), false, 1.5)
 	for cp in b.camps:

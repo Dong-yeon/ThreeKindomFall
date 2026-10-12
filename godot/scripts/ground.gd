@@ -23,7 +23,10 @@ func _draw_impl() -> void:
 		var rc: Rect2 = o.rect
 		if o.k == "water" or not V.intersects(rc):
 			continue
-		_stone(rc, o.door != "")
+		if o.door == "gate" and b.gate_t >= 0:
+			_gate_leaves(rc, b.gate_t / float(Stage1.GATE.open))
+		else:
+			_stone(rc, o.door != "")
 	var K := b.keep_rect()
 	if V.intersects(K.grow(30)):
 		draw_rect(K.grow(-12), Color(0.85, 0.44, 0.37, 0.12))
@@ -159,6 +162,20 @@ func _stone(o: Rect2, door: bool) -> void:
 		else:
 			draw_line(Vector2(o.position.x, o.position.y + s), Vector2(o.end.x, o.position.y + s), Color(0.24, 0.22, 0.19, 0.6), 1)
 		s += 14
+
+
+## 성문이 열리는 중(D-206): 문짝 둘이 양쪽 경첩을 축으로 북쪽(장각 쪽)으로 돌아감. k = 0 닫힘 → 1 열림
+func _gate_leaves(o: Rect2, k: float) -> void:
+	var e := 1.0 - pow(1.0 - clampf(k, 0, 1), 2)
+	var half := o.size.x / 2
+	var y := o.get_center().y
+	draw_rect(Rect2(o.position.x + 2, o.position.y + 3, o.size.x - 4, o.size.y - 6), Color(0.1, 0.07, 0.04, 0.5 * (1.0 - e)))
+	for side in [-1.0, 1.0]:
+		var hinge := Vector2(o.position.x if side < 0 else o.end.x, y)
+		var tip := hinge + Vector2(-side, 0).rotated(side * e * 1.75) * half
+		draw_line(hinge, tip, Color("3a2410"), 11)
+		draw_line(hinge, tip, Color("7a4a24"), 8)
+		draw_circle(hinge, 4, Color("5a3a1a"))
 
 
 func _label(s: String, at: Vector2, col: Color) -> void:

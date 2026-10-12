@@ -1,7 +1,8 @@
 class_name Battle
 extends Node2D
 ## 1장 전장(웹판 n_field.js 이식, D-170: 말 없이). 판의 상태 · 매 프레임 진행 · 목표 · 적·아군 생성 · 충돌.
-## 아래(아군 본진)에서 위(장각 본진)로 진군: 황건 진영 3곳(수비탑 2개 → 진영장 격파 · 보급 상자) 점령 → 관문이 열림 → 정원지 → 장각.
+## 아래(아군 본진)에서 위(장각 본진)로 진군: 황건 진영 3곳(수비탑 2개 → 진영장 격파 · 보급 상자) 점령 → 관문 앞 정원지 격파 →
+## 성문이 열림(연출) → 장각.
 
 signal finished(win: bool)
 
@@ -83,6 +84,9 @@ var cap_n := 0
 var events: Array[Dictionary] = []
 var cyz_on := false
 var cyz_dead := false
+## 성문이 열리는 중(지난 초, -1 = 아님) · 다 열림(D-206)
+var gate_t := -1.0
+var gate_open := false
 var keep_open := false
 var cyz: Enemy = null
 var boss: Enemy = null
@@ -367,6 +371,7 @@ func _field_tick(dt: float) -> void:
 	_rein_tick(dt)
 	_wave_tick(dt)
 	_cyz_tick(dt)
+	_gate_tick(dt)
 	Perf.end()
 	Perf.begin(&"충돌")
 	_separate()
@@ -581,7 +586,7 @@ func _wave_tick(dt: float) -> void:
 		Sound.play("alert", 0.45)
 
 
-## 관문이 열린 뒤: 정원지 쪽으로 6초마다 황건 무리
+## 정원지가 나온 뒤(쓰러뜨릴 때까지): 관문 앞으로 6초마다 황건 무리(D-206 — 전엔 관문 너머 정원지 쪽)
 func _cyz_tick(dt: float) -> void:
 	if not cyz_on or cyz_dead:
 		return
@@ -593,7 +598,39 @@ func _cyz_tick(dt: float) -> void:
 		return
 	for i in 10:
 		var k := "ytbig" if i % 5 == 0 else ("ytarch" if i % 4 == 1 else "ytb")
-		spawn(k, Vector2(randf_range(80, W - 80), randf_range(470, 520)), 1.3 * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
+		spawn(k, Vector2(randf_range(80, W - 80), randf_range(745, 790)), 1.3 * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
+
+
+## 성문 열림 연출(D-206): 정원지를 쓰러뜨리면 GATE.open초 동안 문짝이 양옆으로 열리며(ground.gd) 먼지 · 흔들림 →
+## 다 열리면 지나갈 수 있고 장각 본진 문도 열림
+func _gate_tick(dt: float) -> void:
+	if gate_t < 0:
+		return
+	var G: Dictionary = Stage1.GATE
+	var n0 := int(gate_t / 0.16)
+	gate_t += dt
+	if int(gate_t / 0.16) != n0:
+		add_fx({"k": "puff", "pos": Vector2(randf_range(float(G.x0) - 20, float(G.x1) + 20), float(G.y) + randf_range(4, 16)), "t": 0.3})
+		shake = maxf(shake, 0.06)
+	if gate_t < float(G.open):
+		return
+	gate_t = -1.0
+	gate_open = true
+	note("관문 열림")
+	open_door("gate")
+	add_fx({"k": "ring", "pos": Vector2((float(G.x0) + float(G.x1)) / 2, float(G.y)), "t": 0.6, "r": 120.0, "c": Color("f0c040")})
+	shake = maxf(shake, 0.3)
+	Sound.play("win", 0.4)
+	keep_open = true
+	open_door("keep")
+	var K := keep_rect()
+	for dx in [-24, 24]:
+		drops.append({"k": "bun", "pos": Vector2(K.get_center().x + dx, K.end.y + 40)})
+	var B: Dictionary = Stage1.KEEP
+	boss = spawn(B.boss, K.get_center() + Vector2(0, -40), B.bm)
+	boss.boss = true
+	boss.touch = 22
+	banner("관문이 열렸어요! 장각 본진으로", "본진 문 앞 고기만두로 기운을 차리고 장각에게")
 
 
 ## 겹치지 않게(30px 칸으로 나눠 이웃끼리만 밀어냄). 적은 enemies 차례로, 이웃은 칸 차례 · 칸 안 enemies 차례로 봄.
@@ -996,8 +1033,8 @@ func _on_kill(e: Enemy) -> void:
 		add_fx({"k": "ring", "pos": c.pos, "t": 0.6, "r": 150.0, "c": Color("4a7ab8")})
 		Sound.play("win", 0.35)
 		if cap_n >= 3:
-			note("관문 열림")
-			open_door("gate")
+			# 관문 앞에 문지기 정원지(D-206)
+			note("정원지 등장")
 			cyz_on = true
 			var Z: Dictionary = Stage1.CYZ
 			cyz = spawn("cyz", Z.pos, Z.m)
@@ -1011,24 +1048,19 @@ func _on_kill(e: Enemy) -> void:
 				var g := spawn("ytbig" if i % 4 == 0 else "ytb", at, 1.3)
 				g.set_post(at)
 				g.aggro = 260
-			banner("%s 점령! 관문이 열렸어요" % c.n, "보급 상자를 줍고 관문 너머의 정원지를 쓰러뜨려요")
+			banner("%s 점령! 관문 앞에 정원지가 나왔어요" % c.n, "보급 상자를 줍고 문지기 정원지를 쓰러뜨리면 관문이 열려요")
 		else:
 			banner("%s 점령! (%d/3)" % [c.n, cap_n], "보급 상자를 주워요 — 진군 부대 %d명이 다음 진영으로 먼저 가요" % MARCH_ON_CAPTURE)
 		return
 	if e.k == "cyz" and e.elite:
+		# 성문이 열리기 시작(D-206 — _gate_tick)
 		note("정원지 격파")
 		cyz_dead = true
-		keep_open = true
-		open_door("keep")
-		var K := keep_rect()
-		for dx in [-24, 24]:
-			drops.append({"k": "bun", "pos": Vector2(K.get_center().x + dx, K.end.y + 40)})
-		var B: Dictionary = Stage1.KEEP
-		boss = spawn(B.boss, K.get_center() + Vector2(0, -40), B.bm)
-		boss.boss = true
-		boss.touch = 22
-		banner("정원지 격파! 장각 본진의 문이 열렸어요", "문 앞 고기만두로 기운을 차리고 장각에게")
-		Sound.play("alert", 0.5)
+		gate_t = 0.0
+		hit_stop = 0.15
+		shake = 0.35
+		banner("정원지 격파!", "관문이 열려요")
+		Sound.play("slam", 0.5)
 		return
 	if e.elite:
 		return
@@ -1492,7 +1524,7 @@ func field_target() -> Dictionary:
 		return {"pos": tp, "n": "%s · 수비탑 부수기 %d/%d" % [best.n, total - left, total]}
 	if not cyz_dead:
 		var zp: Vector2 = cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos
-		return {"pos": zp, "n": "관문 너머 황건 장수 정원지 격파"}
+		return {"pos": zp, "n": "관문 앞 문지기 정원지 격파"}
 	var bp: Vector2 = boss.position if Unit.alive(boss) else keep_rect().get_center()
 	return {"pos": bp, "n": "장각 본진 — 천공장군 장각 격파"}
 
