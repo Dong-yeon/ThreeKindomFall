@@ -205,6 +205,12 @@ func _process(_dt: float) -> void:
 
 
 func _draw() -> void:
+	Perf.begin(&"그리기:아군")
+	_draw_impl()
+	Perf.end()
+
+
+func _draw_impl() -> void:
 	if musou_t > 0:
 		# 금빛은 무적인 동안 짙고, 무적이 끝나면 흐려짐(D-193)
 		var ga := 1.0 if musou_guard() else 0.35

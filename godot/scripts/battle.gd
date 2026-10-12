@@ -246,11 +246,15 @@ func _process(delta: float) -> void:
 	if state == "play":
 		_update(dt)
 	# 장수가 들어선 칸의 흐름장을 미리 넓혀 둠 — 'p'는 0.2초마다만 새로 만들어서 대개 몇 프레임 뒤에 이어받음
+	Perf.begin(&"길찾기")
 	if flow.ver == obs_ver:
 		flow.prefetch("p", hero.position)
 	flow.work(FLOW_WORK)
+	Perf.end()
 	_place_camera()
+	Perf.begin(&"그리기 요청")
 	_redraw_units()
+	Perf.end()
 	ground.queue_redraw()
 	fx_layer.queue_redraw()
 	hud.refresh()
@@ -268,7 +272,14 @@ func _redraw_units() -> void:
 			a.queue_redraw()
 
 
+## 판 한 프레임. 성능 측정(D-198)은 구간별로 잼 — 이름 붙지 않은 나머지는 '판:기타'
 func _update(dt: float) -> void:
+	Perf.begin(&"판:기타")
+	_update_impl(dt)
+	Perf.end()
+
+
+func _update_impl(dt: float) -> void:
 	if hit_stop > 0:
 		hit_stop -= dt
 		return
@@ -288,14 +299,18 @@ func _update(dt: float) -> void:
 		push_out(hero)
 	hero.vel = (hero.position - hero.last_pos) / dt
 	hero.still = 0.0 if moving else hero.still + dt
+	Perf.begin(&"적 움직임")
 	for e in enemies:
 		if not e.dead:
 			e.tick(dt)
+	Perf.end()
 	# 장수가 쓰러졌으면(적에게 닿음) 이 프레임의 나머지(날아가던 참격 등)를 멈춤 — 안 그러면 진영장을 잡아 점령 회복이 들어갔음
 	if state != "play":
 		return
 	_run_later()
+	Perf.begin(&"기본 공격")
 	_tick_blades(dt)
+	Perf.end()
 	_tick_shots(dt)
 	_sweep()
 	var keep: Array[Dictionary] = []
@@ -311,10 +326,12 @@ func _field_tick(dt: float) -> void:
 	var d := hero_data
 	p.spd = 0.0 if p.stun > 0 else d.move_speed * tactics.speed_mul() * (d.musou_move_mul if p.musou_t > 0 else 1.0)
 	# 공격: 무쌍 > 기본 공격(대표 무기가 날아감)
+	Perf.begin(&"기본 공격")
 	if p.musou_t > 0:
 		p.musou_tick(dt)
 	elif p.stun <= 0:
 		p.attack_tick(dt)
+	Perf.end()
 	# 아군 본진: 궁병이 가까운 적을 쏨 · 적이 붙으면 체력이 깎임
 	turret_t -= dt
 	if turret_t <= 0:
@@ -341,18 +358,26 @@ func _field_tick(dt: float) -> void:
 		home_hp = 0
 		finish(false, "home")
 		return
+	Perf.begin(&"생성")
 	_camps_tick(dt)
 	_party_tick(dt)
 	_rein_tick(dt)
 	_wave_tick(dt)
 	_cyz_tick(dt)
+	Perf.end()
+	Perf.begin(&"충돌")
 	_separate()
+	Perf.end()
+	Perf.begin(&"아군")
 	_ally_timers(dt)
 	_engage_tick(dt)
 	for a in allies:
 		if not a.dead:
 			a.tick(dt)
+	Perf.end()
+	Perf.begin(&"책략")
 	tactics.tick(dt)
+	Perf.end()
 	_pickups()
 	# 레벨업: 판을 멈추고 책략 3개 중 1개 고르기(밀린 만큼 한 번씩)
 	if lvl_q > 0 and state == "play":
@@ -665,6 +690,13 @@ func _separate() -> void:
 
 ## 아군에게 붙은 적(맞히는 쪽). _separate가 만든 칸을 씀.
 func touching_enemy(at: Vector2, extra: float) -> Enemy:
+	Perf.begin(&"충돌")
+	var e := _touching_enemy_impl(at, extra)
+	Perf.end()
+	return e
+
+
+func _touching_enemy_impl(at: Vector2, extra: float) -> Enemy:
 	var cx := int(at.x / GRID) + _cell_ox
 	var cy := int(at.y / GRID) + _cell_oy
 	for i in range(-1, 2):
@@ -1341,6 +1373,12 @@ func _obs_changed() -> void:
 ## 벽·물에서 밀어내고 지도 밖으로 못 나가게.
 ## 벽 · 물 띠(obs_bands)에 걸칠 때만 사각형을 하나씩 봄 — 안 걸치면 사각형마다 건너뛰어 그대로였음(D-198, 결과는 같음)
 func push_out(u: Unit) -> void:
+	Perf.begin(&"충돌")
+	_push_out_impl(u)
+	Perf.end()
+
+
+func _push_out_impl(u: Unit) -> void:
 	var r := u.r
 	var p := u.position
 	var i := 0
@@ -1406,6 +1444,13 @@ func in_view(p: Vector2, pad: float) -> bool:
 
 ## 길찾기: key = 'p'(장수) · 'h'(본진) · ''(곧장). 0.18~0.26초마다 다시 봄.
 func path_for(u: Unit, key: String, aim: Vector2) -> Vector2:
+	Perf.begin(&"길찾기")
+	var p := _path_for_impl(u, key, aim)
+	Perf.end()
+	return p
+
+
+func _path_for_impl(u: Unit, key: String, aim: Vector2) -> Vector2:
 	if key == "" or u.position.distance_to(aim) < 40:
 		return aim
 	if u.pth_t > t and u.pth_k == key:

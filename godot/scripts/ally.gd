@@ -106,6 +106,12 @@ func tick(dt: float) -> void:
 
 ## 다시 그리기는 Battle._redraw_units가 화면 근처에 있을 때만 부름
 func _draw() -> void:
+	Perf.begin(&"그리기:아군")
+	_draw_impl()
+	Perf.end()
+
+
+func _draw_impl() -> void:
 	var b := battle
 	if b == null:
 		return

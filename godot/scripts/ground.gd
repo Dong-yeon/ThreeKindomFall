@@ -8,6 +8,12 @@ const INK := Color(0.11, 0.09, 0.07, 0.85)
 
 
 func _draw() -> void:
+	Perf.begin(&"그리기:바닥")
+	_draw_impl()
+	Perf.end()
+
+
+func _draw_impl() -> void:
 	var V := b.view.grow(40)
 	draw_rect(Rect2(0, 0, Stage1.W, Stage1.H), GRASS)
 	_river(V)

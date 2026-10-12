@@ -7,6 +7,8 @@ extends Node
 ## 실행(창 없이 빠르게): Godot --path godot --headless --fixed-fps 60 -- --bot [--seed=1]
 ## 스크린샷(창 모드): Godot --path godot --fixed-fps 60 -- --bot --shots=<폴더> [--shot-at=3,60,120]
 ## 그 밖: --max-time=<초>(기본 900) · --god(장수 무적: 목표 흐름이 끝까지 이어지는지)
+## 성능(D-198): --perf → 구간별 프레임 시간을 모아 '적이 가장 많던 순간'과 판 전체를 출력. 그리기 · 렌더 시간은 창 모드에서만 잡힘
+##   예) Godot --path godot --fixed-fps 60 -- --bot --god --perf
 
 const FIGHT_R := 58.0
 
@@ -41,6 +43,8 @@ var shot_at: Array[float] = [3.0, 40.0, 120.0, 240.0]
 var _log_t := 0.0
 var _errs := ErrorLog.new()
 var _done := false
+## 성능 측정: 지난 봇 프레임 시각(실제 경과 = 프레임 시간, 수직 동기화 끔)
+var _last_us := 0
 # 버티기 · 난이도 확인(D-180): 장수 이동 거리 · 멈춘 시간 · 최저 체력 · 구간(진영 · 정원지 · 장각)별 시간과 이동 · 30초마다 아군 수
 var _last_pos := Vector2.INF
 var _dist := 0.0
@@ -81,6 +85,10 @@ func _ready() -> void:
 		# 화면을 찍을 땐 수직 동기화를 꺼서 빨리 돌림(--fixed-fps로 판 시간은 그대로)
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	b.bot_on = true
+	if "--perf" in OS.get_cmdline_user_args():
+		Perf.on = true
+		RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	if "--selftest-pause" in OS.get_cmdline_user_args():
 		_selftest_pause()
 		return
@@ -147,6 +155,12 @@ func _check(name: String, cond: bool) -> bool:
 
 
 func _process(_dt: float) -> void:
+	Perf.begin(&"봇(측정용)")
+	_bot_process()
+	Perf.end()
+
+
+func _bot_process() -> void:
 	if b.state == "pick":
 		if shot_dir != "":
 			var has_evo := b.pick_opts.any(func(o): return o.get("evo", false))
@@ -163,6 +177,14 @@ func _process(_dt: float) -> void:
 		return
 	if b.state != "play":
 		return
+	if Perf.on:
+		var rid := get_viewport().get_viewport_rid()
+		var now_us := Time.get_ticks_usec()
+		Perf.frame({"en": b.enemies.size(), "al": b.allies.size(), "t": b.t, "ev": "Lv%d · 진영 %d/3%s" % [b.lvl, b.cap_n, " · 관문 열림" if b.cyz_on else ""],
+			"proc": float(Time.get_ticks_usec() - _last_us) / 1000.0 if _last_us > 0 else 0.0,
+			"rcpu": RenderingServer.viewport_get_measured_render_time_cpu(rid),
+			"rgpu": RenderingServer.viewport_get_measured_render_time_gpu(rid)})
+		_last_us = now_us
 	_measure()
 	var h := b.hero
 	var T := b.field_target()
@@ -360,6 +382,8 @@ func _result(status: String) -> void:
 	var slots: Array[String] = []
 	for k in T.act_order + T.pas_order:
 		slots.append("%s%s" % [T.name_of(k), "(진화)" if T.evolved(k) else " %d" % T.level(k)])
+	if Perf.on:
+		_perf_report()
 	print("[phases] " + (" · ".join(_phases) if not _phases.is_empty() else "-"))
 	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))
 	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 둘레 120px 적 평균 %.1f · 분당 피격 %.1f · 최저 체력 %d/%d · 구슬 주운 경험 %d%%" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0),
@@ -370,3 +394,70 @@ func _result(status: String) -> void:
 	print("[result] status=%s time=%.1f kills=%d max_combo=%d cap=%d hero_hp=%d home=%d allies=%d level=%d act=%d/%d pas=%d/%d evos=%d picks=%d dist=%d still=%d min_hp=%d near=%.1f hits_pm=%.1f orbs=%d errors=%d warnings=%d" % [
 		status, b.t, b.kills, h.cb_max, b.cap_n, ceili(h.hp), ceili(b.home_hp / b.home_max * 100), b.allies.size(), b.lvl,
 		T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count(), T.history.size(), int(_dist), int(_still / maxf(b.t, 1.0) * 100.0), int(_min_hp), _near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0), _errs.lines.size(), _errs.warnings])
+
+
+## 성능 정리: 적이 가장 많던 순간(앞뒤 0.5초 평균) · 판 전체 평균 · 가장 무거운 프레임
+const PERF_KEYS := ["적 움직임", "길찾기", "충돌", "아군", "책략", "기본 공격", "생성", "판:기타", "HUD 갱신", "그리기 요청", "그리기:적", "그리기:아군", "그리기:바닥", "그리기:효과", "그리기:HUD"]
+
+
+func _perf_report() -> void:
+	var fr := Perf.frames
+	if fr.size() < 10:
+		return
+	var peak := 0
+	var worst := 0
+	for i in fr.size():
+		if int(fr[i].en) > int(fr[peak].en):
+			peak = i
+		if float(fr[i].proc) > float(fr[worst].proc):
+			worst = i
+	var t0: float = fr[peak].t
+	var win: Array[Dictionary] = []
+	for f in fr:
+		if absf(float(f.t) - t0) <= 0.5:
+			win.append(f)
+	print("[perf] 적이 가장 많던 순간 %s · 적 %d · 아군 %d (앞뒤 0.5초 %d프레임 평균)" % [_fmt(t0), int(fr[peak].en), int(fr[peak].al), win.size()])
+	print("[perf]   " + _perf_line(win))
+	print("[perf] 판 전체 평균(%d프레임) · 적 평균 %d" % [fr.size(), int(_avg(fr, "en"))])
+	print("[perf]   " + _perf_line(fr))
+	# 무거운 프레임(처음 2초 빼고) 위 5개: 그 프레임에서 큰 구간 셋 · 그때 판 상태
+	var idx: Array = []
+	for i in fr.size():
+		if float(fr[i].t) > 2.0:
+			idx.append(i)
+	idx.sort_custom(func(x, y): return float(fr[x].proc) > float(fr[y].proc))
+	for j in mini(5, idx.size()):
+		var f: Dictionary = fr[idx[j]]
+		var cs: Array = []
+		for k in PERF_KEYS:
+			cs.append([float(f.get(k, 0)) / 1000.0, k])
+		cs.sort_custom(func(x, y): return x[0] > y[0])
+		print("[perf] 무거운 프레임 %s · 프레임 %.1fms · 렌더 CPU %.1f · 적 %d · 큰 구간 %s %.1f · %s %.1f · %s %.1f%s" % [_fmt(float(f.t)), float(f.proc), float(f.rcpu), int(f.en),
+			cs[0][1], cs[0][0], cs[1][1], cs[1][0], cs[2][1], cs[2][0], " · " + String(f.get("ev", "")) if f.get("ev", "") != "" else ""])
+
+
+func _perf_line(fr: Array) -> String:
+	var parts: Array[String] = []
+	parts.append("프레임 %.2fms(실제 경과) · 렌더 CPU %.2f · GPU %.2f" % [_avg(fr, "proc"), _avg(fr, "rcpu"), _avg(fr, "rgpu")])
+	var logic := 0.0
+	var draw := 0.0
+	var cats: Array[String] = []
+	for k in PERF_KEYS:
+		var ms := _avg(fr, k) / 1000.0
+		if k.begins_with("그리기"):
+			draw += ms
+		else:
+			logic += ms
+		cats.append("%s %.2f" % [k, ms])
+	var bot := _avg(fr, "봇(측정용)") / 1000.0
+	var rest := _avg(fr, "proc") - logic - draw - bot - _avg(fr, "rcpu")
+	parts.append("판 로직 %.2fms · 그리기(GDScript) %.2fms · 봇(측정용) %.2fms · 그 밖(엔진: 노드 위치 · 정렬 · 글자 등) %.2fms" % [logic, draw, bot, rest])
+	return " | ".join(parts) + "
+[perf]   " + " · ".join(cats)
+
+
+func _avg(fr: Array, k: String) -> float:
+	var sum := 0.0
+	for f in fr:
+		sum += float(f.get(k, 0.0))
+	return sum / maxf(fr.size(), 1)

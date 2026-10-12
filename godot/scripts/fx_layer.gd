@@ -5,6 +5,12 @@ extends Node2D
 
 
 func _draw() -> void:
+	Perf.begin(&"그리기:효과")
+	_draw_impl()
+	Perf.end()
+
+
+func _draw_impl() -> void:
 	var V := b.view.grow(60)
 	for s in b.shots:
 		var p: Vector2 = s.pos

@@ -164,6 +164,12 @@ func banner(title: String, sub: String) -> void:
 
 
 func refresh() -> void:
+	Perf.begin(&"HUD 갱신")
+	_refresh_impl()
+	Perf.end()
+
+
+func _refresh_impl() -> void:
 	var h := b.hero
 	var T := b.field_target()
 	var title := "%s · %s · 공적 Lv %d" % [Stage1.NAME, _fmt_t(b.t), b.lvl]
@@ -216,6 +222,12 @@ func _w2s(p: Vector2) -> Vector2:
 
 
 func _draw_overlay() -> void:
+	Perf.begin(&"그리기:HUD")
+	_draw_overlay_impl()
+	Perf.end()
+
+
+func _draw_overlay_impl() -> void:
 	var c := overlay
 	var sz := overlay.size
 	var h := b.hero
@@ -361,6 +373,12 @@ func _text(c: Control, font: Font, s: String, at: Vector2, size: int, col: Color
 
 ## 위 패널 맨 아래 줄: 공격 6칸 · 보조 6칸(빈 칸은 테두리만, 진화하면 금테 + '진') + 공적 경험 막대
 func _draw_slots() -> void:
+	Perf.begin(&"그리기:HUD")
+	_draw_slots_impl()
+	Perf.end()
+
+
+func _draw_slots_impl() -> void:
 	var c := slots_ctl
 	var T := b.tactics
 	var font := Fonts.main()

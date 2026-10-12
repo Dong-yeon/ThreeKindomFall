@@ -350,6 +350,12 @@ func refresh_look() -> void:
 
 ## 다시 그리기는 refresh_look(화면 근처 · 바뀌었을 때)이 부름. 그린 상태를 적어 둠
 func _draw() -> void:
+	Perf.begin(&"그리기:적")
+	_draw_impl()
+	Perf.end()
+
+
+func _draw_impl() -> void:
 	var b := battle
 	if b == null:
 		return
