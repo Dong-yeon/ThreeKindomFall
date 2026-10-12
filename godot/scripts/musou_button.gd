@@ -28,7 +28,7 @@ func _draw() -> void:
 	if h.mg > 0:
 		draw_arc(c, rad - 4, -PI / 2, -PI / 2 + TAU * h.mg / 100.0, 48, Color("e2a83a") if full else Color("b8862a"), 6)
 	draw_arc(c, rad, 0, TAU, 48, Color("fff2b0") if full else Color("8a7a5a"), 2)
-	var font := ThemeDB.fallback_font
+	var font := Fonts.main()
 	var col := Color("fff2b0") if full else Color("c8b890")
 	draw_string(font, Vector2(0, c.y + 4), "無雙", HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, col)
 	draw_string(font, Vector2(0, c.y + 22), "무쌍" if h.musou_t <= 0 else "", HORIZONTAL_ALIGNMENT_CENTER, size.x, 11, col)

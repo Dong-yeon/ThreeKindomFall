@@ -210,7 +210,7 @@ func _draw_overlay() -> void:
 	var c := overlay
 	var sz := overlay.size
 	var h := b.hero
-	var font := ThemeDB.fallback_font
+	var font := Fonts.main()
 	if h.musou_t > 0:
 		c.draw_texture_rect(vignette, Rect2(Vector2.ZERO, sz), false)
 	_draw_lead_bar(c, font, sz)
@@ -348,7 +348,7 @@ func _text(c: Control, font: Font, s: String, at: Vector2, size: int, col: Color
 func _draw_slots() -> void:
 	var c := slots_ctl
 	var T := b.tactics
-	var font := ThemeDB.fallback_font
+	var font := Fonts.main()
 	var y := 55.0
 	var x := 10.0
 	for side in 2:
@@ -363,8 +363,8 @@ func _draw_slots() -> void:
 				c.draw_rect(r, Color("fff2b0") if ev else INK, false, 2.0 if ev else 1.0)
 				c.draw_string(font, Vector2(x, y + 14), T.glyph_of(k), HORIZONTAL_ALIGNMENT_CENTER, 18, 12, Color("fffaf0"))
 				var lvt := "진" if ev else str(T.level(k))
-				c.draw_string_outline(font, Vector2(x + 11, y + 20), lvt, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, 2, INK)
-				c.draw_string(font, Vector2(x + 11, y + 20), lvt, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color("fff2c0"))
+				c.draw_string_outline(Fonts.small(), Vector2(x + 11, y + 20), lvt, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, 2, INK)
+				c.draw_string(Fonts.small(), Vector2(x + 11, y + 20), lvt, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color("fff2c0"))
 			else:
 				c.draw_rect(r, Color(1, 1, 1, 0.06))
 				c.draw_rect(r, Color(0.8, 0.72, 0.56, 0.35), false, 1.0)

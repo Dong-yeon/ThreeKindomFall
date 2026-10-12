@@ -41,7 +41,7 @@ func draw_body(dir: String, step: int, size: float, alpha := 1.0, lift := 0.0, g
 		draw_circle(Vector2(0, -lift), r, Color(Color.WHITE if flash > 0 else tint, alpha))
 		draw_circle(Vector2(0, -lift), r, Color(0.11, 0.09, 0.07, alpha), false, 1.5)
 		if glyph != "":
-			var font := ThemeDB.fallback_font
+			var font := Fonts.main()
 			draw_string(font, Vector2(-r, -lift + r * 0.4), glyph, HORIZONTAL_ALIGNMENT_CENTER, r * 2, int(r * 1.1), Color(0.11, 0.09, 0.07, alpha))
 		return
 	var w := size * 0.8
@@ -70,7 +70,7 @@ func draw_bar(center_x: float, y: float, w: float, h: float, frac: float, col: C
 
 
 func draw_label(text: String, at: Vector2, col: Color, size := 10) -> void:
-	var font := ThemeDB.fallback_font
+	var font := Fonts.at(size)
 	var pos := at + Vector2(-100, size * 0.35)
 	draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, 200, size, 3, Color(0.11, 0.09, 0.07, 0.85))
 	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, 200, size, col)

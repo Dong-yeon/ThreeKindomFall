@@ -17,7 +17,7 @@ func _draw() -> void:
 		if V.has_point(p):
 			_crescent(bl)
 	_tactics(V)
-	var font := ThemeDB.fallback_font
+	var font := Fonts.main()
 	for f in b.fx:
 		var p: Vector2 = f.pos
 		if not V.has_point(p):

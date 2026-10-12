@@ -123,7 +123,7 @@ func _flag(p: Vector2, col: Color, glyph: String) -> void:
 	draw_rect(Rect2(p.x - 1.5, p.y - 34, 3, 40), Color("5a3a1a"))
 	var wv := sin(b.t * 4 + p.x) * 2
 	draw_colored_polygon(PackedVector2Array([p + Vector2(1.5, -34), p + Vector2(24, -31 + wv), p + Vector2(24, -15 + wv), p + Vector2(1.5, -18)]), col)
-	draw_string(ThemeDB.fallback_font, p + Vector2(2, -21 + wv * 0.5), glyph, HORIZONTAL_ALIGNMENT_CENTER, 20, 10, Color("fffaf0"))
+	draw_string(Fonts.small(), p + Vector2(2, -21 + wv * 0.5), glyph, HORIZONTAL_ALIGNMENT_CENTER, 20, 10, Color("fffaf0"))
 
 
 func _stone(o: Rect2, door: bool) -> void:
@@ -143,7 +143,7 @@ func _stone(o: Rect2, door: bool) -> void:
 
 
 func _label(s: String, at: Vector2, col: Color) -> void:
-	var font := ThemeDB.fallback_font
+	var font := Fonts.small()
 	var pos := at + Vector2(-150, 4)
 	draw_string_outline(font, pos, s, HORIZONTAL_ALIGNMENT_CENTER, 300, 10, 3, INK)
 	draw_string(font, pos, s, HORIZONTAL_ALIGNMENT_CENTER, 300, 10, col)
