@@ -2,8 +2,11 @@ class_name Enemy
 extends Unit
 ## 적(웹판 spawn · aimOf · enemyTick). 노리는 곳: 붙어 싸우는 아군 > 자리(post)·목표(본진)를 지키다 장수가 aggro 안에 오면 장수.
 
-## 장각이 다음 공격을 쓰는 간격(초). 0.1초 전부터 빨간 테두리로 예고(D-192 — 처음 1.7)
+## 장각이 다음 공격을 쓰는 간격(초, D-192 — 처음 1.7)
 const BOSS_GAP := 1.2
+## 공격 예고(초, D-194): 이만큼 전에 다음 공격을 정하고 빨간 테두리로 알림. 돌진이면 그때 방향을 정해 갈 길을 보여 줌
+## (전엔 0.1초 전 테두리뿐이고 돌진 방향은 공격 순간에 정해서 사람이 피할 틈이 없었음)
+const BOSS_WARN := 0.5
 
 var k := ""
 var def: Dictionary
@@ -45,6 +48,8 @@ var slide := 0.0
 var slide_t := 0.0
 # 돌진
 var tdir := Vector2.ZERO
+## 장각이 예고 중인 다음 공격(-1 = 아직). 0 탄막 · 1 세 갈래 연사 · 2 무리 부르기 · 3 돌진
+var next_kind := -1
 var _moving := false
 var _anim_off := 0.0
 
@@ -207,10 +212,15 @@ func _boss_tick(dt: float, dv: Vector2, d: float) -> void:
 	else:
 		var want := 1.0 if d > 230 else (-0.6 if d < 150 else 0.0)
 		position += dv / d * spd * 1.6 * want * dt
+	if st != 4 and next_kind < 0 and t > BOSS_GAP - BOSS_WARN:
+		phase = (phase + 1) % 4
+		next_kind = phase if hp < max_hp * 0.5 else phase % 3
+		if next_kind == 3:
+			tdir = dv / d
 	if st != 4 and t > BOSS_GAP:
 		t = 0
-		phase = (phase + 1) % 4
-		var kind := phase if hp < max_hp * 0.5 else phase % 3
+		var kind := next_kind
+		next_kind = -1
 		if kind == 0:
 			var n := 18 if hp < max_hp * 0.5 else 14
 			var off := randf()
@@ -228,7 +238,6 @@ func _boss_tick(dt: float, dv: Vector2, d: float) -> void:
 		else:
 			st = 4
 			t = 0
-			tdir = dv / d
 			b.banner("장각이 누런 바람을 타고 달려들어요!", "")
 
 
@@ -252,8 +261,15 @@ func _draw() -> void:
 		lift = sin(minf(1.0, (air0 - air) / air0) * PI) * 22
 	if boss:
 		draw_circle(Vector2.ZERO, r + 10 + sin(b.t * 4) * 3, Color(0.89, 0.72, 0.35, 0.25))
-		if st == 4 or t > BOSS_GAP - 0.1:
-			draw_oval(Vector2.ZERO, r * 1.35, r * 1.2, Color("d9705e"), false, 2)
+		if st == 4 or next_kind >= 0:
+			# 예고: 공격이 가까울수록 테두리가 굵고 진해짐. 돌진이면 갈 길(0.7초 × 260)을 미리 그림
+			var k := 1.0 if st == 4 else clampf(1.0 - (BOSS_GAP - t) / BOSS_WARN, 0.0, 1.0)
+			draw_oval(Vector2.ZERO, r * 1.35, r * 1.2, Color(0.85, 0.44, 0.37, 0.5 + 0.5 * k), false, 2 + 3 * k)
+			if next_kind == 3 or st == 4:
+				var tip := tdir * 182
+				draw_line(Vector2.ZERO, tip, Color(0.85, 0.3, 0.25, 0.25 + 0.35 * k), r * 1.6)
+				draw_line(tip, tip - tdir.rotated(0.5) * 18, Color(0.9, 0.3, 0.25, 0.8), 3)
+				draw_line(tip, tip - tdir.rotated(-0.5) * 18, Color(0.9, 0.3, 0.25, 0.8), 3)
 	var warn := (ai == "dash" and st == 1) or (ai == "shooter" and t > 1.4)
 	if warn:
 		draw_arc(Vector2.ZERO, r + 4, 0, TAU, 24, Color("d9705e"), 1.5)
