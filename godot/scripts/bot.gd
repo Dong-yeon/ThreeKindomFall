@@ -80,8 +80,70 @@ func _ready() -> void:
 	if shot_dir != "":
 		# 화면을 찍을 땐 수직 동기화를 꺼서 빨리 돌림(--fixed-fps로 판 시간은 그대로)
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	b.bot_on = true
+	if "--selftest-pause" in OS.get_cmdline_user_args():
+		_selftest_pause()
+		return
 	b.finished.connect(_on_finished)
 	print("[bot] start  hero=%s  enemies=%d  allies=%d" % [b.hero_data.display_name, b.enemies.size(), b.allies.size()])
+
+
+## 일시정지 자체 점검(D-197): 버튼 터치 · 다시 눌러 풀기 · Esc · 앱이 뒤로 감 · 봇 중 포커스 잃음
+func _selftest_pause() -> void:
+	set_process(false)
+	for i in 5:
+		await get_tree().process_frame
+	var vp := get_viewport()
+	var c := b.hud.pause_btn.get_global_rect().get_center()
+	var touch := func(pressed: bool):
+		var e := InputEventScreenTouch.new()
+		e.index = 1
+		e.position = c
+		e.pressed = pressed
+		vp.push_input(e, true)
+	var key := func():
+		var e := InputEventKey.new()
+		e.physical_keycode = KEY_ESCAPE
+		e.pressed = true
+		vp.push_input(e, true)
+	var ok := true
+	touch.call(true)
+	await get_tree().process_frame
+	touch.call(false)
+	var tp := b.t
+	for i in 10:
+		await get_tree().process_frame
+	ok = ok and _check("버튼 → 멈춤", b.state == "pause" and b.hud.pause_panel.visible)
+	ok = ok and _check("멈춘 동안 판 시간 그대로", b.t == tp)
+	_shot("pause")
+	touch.call(true)
+	await get_tree().process_frame
+	touch.call(false)
+	await get_tree().process_frame
+	ok = ok and _check("다시 누름 → 계속", b.state == "play" and not b.hud.pause_panel.visible)
+	key.call()
+	await get_tree().process_frame
+	ok = ok and _check("Esc → 멈춤", b.state == "pause")
+	key.call()
+	await get_tree().process_frame
+	ok = ok and _check("Esc → 계속", b.state == "play")
+	b.bot_on = false
+	b.notification(Node.NOTIFICATION_APPLICATION_PAUSED)
+	ok = ok and _check("앱이 뒤로 감 → 멈춤", b.state == "pause")
+	b.resume()
+	b.notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	ok = ok and _check("포커스 잃음 → 멈춤", b.state == "pause")
+	b.resume()
+	b.bot_on = true
+	b.notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	ok = ok and _check("봇 중 포커스 잃음 → 그대로", b.state == "play")
+	print("[selftest] pause ", "통과" if ok else "실패")
+	_quit(0 if ok else 1)
+
+
+func _check(name: String, cond: bool) -> bool:
+	print("[selftest] %s %s" % ["OK " if cond else "실패", name])
+	return cond
 
 
 func _process(_dt: float) -> void:

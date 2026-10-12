@@ -20,6 +20,9 @@ var banner_sub: Label
 var banner_t := 0.0
 var musou_btn: MusouButton
 var end_panel: PanelContainer
+var pause_btn: PauseButton
+var pause_panel: PanelContainer
+var pause_info: Label
 var end_title: Label
 var end_stats: Label
 var vignette: GradientTexture2D
@@ -112,6 +115,7 @@ func setup(battle: Battle) -> void:
 	vb.add_child(retry)
 	end_panel.visible = false
 	add_child(end_panel)
+	_build_pause()
 	# 무쌍 중 화면 가장자리
 	vignette = GradientTexture2D.new()
 	vignette.fill = GradientTexture2D.FILL_RADIAL
@@ -142,8 +146,12 @@ func musou_hit(p: Vector2) -> bool:
 
 
 ## 이 자리를 누르면 끌어서 이동을 시작하지 않음(버튼 · 결과 창)
+func pause_hit(p: Vector2) -> bool:
+	return pause_btn.visible and pause_btn.get_global_rect().grow(6).has_point(p)
+
+
 func blocks(p: Vector2) -> bool:
-	return musou_hit(p) or end_panel.visible or pick_panel.visible
+	return musou_hit(p) or pause_hit(p) or end_panel.visible or pick_panel.visible or pause_panel.visible
 
 
 func banner(title: String, sub: String) -> void:
@@ -171,6 +179,7 @@ func refresh() -> void:
 		banner_t -= get_process_delta_time()
 		banner_box.modulate.a = clampf(banner_t / 0.5, 0, 1)
 	musou_btn.visible = b.state == "play"
+	pause_btn.visible = b.state == "play" or b.state == "pause"
 	if pick_panel.visible:
 		_pulse_cards()
 	overlay.queue_redraw()
@@ -541,3 +550,61 @@ func _pulse_cards() -> void:
 				box.border_color = CARD_INK
 				box.set_border_width_all(2)
 				box.shadow_size = 0
+
+
+# ─────────── 일시정지(D-197) ───────────
+
+func _build_pause() -> void:
+	pause_btn = PauseButton.new()
+	pause_btn.b = b
+	pause_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	pause_btn.offset_left = -38
+	pause_btn.offset_right = -6
+	pause_btn.offset_top = 4
+	pause_btn.offset_bottom = 32
+	add_child(pause_btn)
+	pause_panel = PanelContainer.new()
+	pause_panel.set_anchors_preset(Control.PRESET_CENTER)
+	pause_panel.custom_minimum_size = Vector2(260, 0)
+	pause_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	pause_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("f4ecd8")
+	sb.border_color = Color("3a2a1a")
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(10)
+	sb.set_content_margin_all(18)
+	pause_panel.add_theme_stylebox_override("panel", sb)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 12)
+	pause_panel.add_child(vb)
+	var title := _label(18, Color("3a2a1a"), 0)
+	title.text = "잠깐 멈춤"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(title)
+	pause_info = _label(12, Color("5a4a36"), 0)
+	pause_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(pause_info)
+	var go := Button.new()
+	go.text = "계속하기"
+	go.custom_minimum_size = Vector2(0, 44)
+	go.pressed.connect(b.resume)
+	vb.add_child(go)
+	var again := Button.new()
+	again.text = "처음부터 다시"
+	again.custom_minimum_size = Vector2(0, 40)
+	again.pressed.connect(func():
+		Sound.set_paused(false)
+		b.get_tree().reload_current_scene())
+	vb.add_child(again)
+	pause_panel.visible = false
+	add_child(pause_panel)
+
+
+func show_pause() -> void:
+	pause_info.text = "%s · %s · 공적 Lv %d · 진영 %d/3" % [Stage1.NAME, _fmt_t(b.t), b.lvl, b.cap_n]
+	pause_panel.visible = true
+
+
+func hide_pause() -> void:
+	pause_panel.visible = false

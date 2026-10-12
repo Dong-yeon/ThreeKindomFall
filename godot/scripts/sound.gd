@@ -95,6 +95,11 @@ func music(key: String, vol := 0.3) -> void:
 	_music.play()
 
 
+## 일시정지 동안 배경음을 멈췄다가 이어서(D-197)
+func set_paused(p: bool) -> void:
+	_music.stream_paused = p
+
+
 ## 모두 멈추고 놓음. 끄기 전에 부르고 두어 프레임 기다리면 종료 때 "resources still in use" 경고가 안 남
 func stop_all() -> void:
 	for k in _pools:

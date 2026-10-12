@@ -27,7 +27,7 @@ const MARCH_ON_CAPTURE := 4
 @onready var hud: Hud = $Hud
 
 var t := 0.0
-## play · pick(레벨업 책략 고르기 — 판이 멈춤) · end(이김) · dead(짐)
+## play · pick(레벨업 책략 고르기 — 판이 멈춤) · pause(일시정지, D-197) · end(이김) · dead(짐)
 var state := "play"
 var end_why := ""
 var hit_stop := 0.0
@@ -97,6 +97,8 @@ var alert_home := false
 var view := Rect2(0, 0, 360, 640)
 ## 봇(테스트)이 넣는 이동. 0이면 사람 입력.
 var bot_move := Vector2.ZERO
+## 봇이 돌리는 중(앱 포커스를 잃어도 자동으로 멈추지 않음)
+var bot_on := false
 # 끌어서 이동(화면 어디든 누른 곳이 기준점)
 var joy_on := false
 var joy_id := -1
@@ -144,7 +146,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		var ev := event as InputEventScreenTouch
 		# 무쌍 버튼은 몇 번째 손가락이든 받음(끌면서 다른 손가락으로 누름). 마우스는 터치로 바뀌어 여기로 옴
-		if ev.pressed and hud.musou_hit(ev.position):
+		if ev.pressed and hud.pause_hit(ev.position):
+			toggle_pause()
+			get_viewport().set_input_as_handled()
+		elif ev.pressed and hud.musou_hit(ev.position):
 			hero.musou_go()
 			get_viewport().set_input_as_handled()
 		elif ev.pressed and not joy_on and state == "play" and not hud.blocks(ev.position):
@@ -163,6 +168,35 @@ func _unhandled_input(event: InputEvent) -> void:
 		var ev := event as InputEventKey
 		if ev.pressed and not ev.echo and (ev.physical_keycode == KEY_SPACE or ev.physical_keycode == KEY_K):
 			hero.musou_go()
+		elif ev.pressed and not ev.echo and (ev.physical_keycode == KEY_ESCAPE or ev.physical_keycode == KEY_P):
+			toggle_pause()
+
+
+## 일시정지(D-197): 판 · 배경음이 멈추고 멈춤 창. 레벨업 고르는 중 · 판이 끝난 뒤엔 안 됨
+func toggle_pause() -> void:
+	if state == "play":
+		state = "pause"
+		joy_on = false
+		joy_id = -1
+		Sound.set_paused(true)
+		hud.show_pause()
+	elif state == "pause":
+		resume()
+
+
+func resume() -> void:
+	if state != "pause":
+		return
+	state = "play"
+	hud.hide_pause()
+	Sound.set_paused(false)
+
+
+## 앱이 뒤로 가거나(안드로이드 · iOS) 창이 포커스를 잃으면 자동으로 멈춤(D-177의 모바일 필수 항목)
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if state == "play" and not bot_on:
+			toggle_pause()
 
 
 func move_vec() -> Vector2:
