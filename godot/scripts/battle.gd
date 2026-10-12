@@ -2,7 +2,7 @@ class_name Battle
 extends Node2D
 ## 1장 전장(웹판 n_field.js 이식, D-170: 말 없이). 판의 상태 · 매 프레임 진행 · 목표 · 적·아군 생성 · 충돌.
 ## 아래(아군 본진)에서 위(장각 본진)로 진군: 황건 진영 3곳(수비탑 2개 → 진영장 격파 · 보급 상자) 점령 → 관문 앞 정원지 격파 →
-## 성문이 열림(연출) → 장각.
+## 성문이 열림(연출) → 요술 제단 3개 → 장각 → 첫 사신수 해방(판 끝).
 
 signal finished(win: bool)
 
@@ -90,6 +90,10 @@ var gate_open := false
 var keep_open := false
 var cyz: Enemy = null
 var boss: Enemy = null
+## 요술 제단(D-207 — 하나라도 남아 있으면 장각 보호막) · 봉인된 사신수 빛 구슬 자리(INF = 없음) · 풀려나는 중(지난 초, -1 = 아님)
+var altars: Array[Enemy] = []
+var beast_pos := Vector2.INF
+var beast_t := -1.0
 var party_t := 60.0
 var rein_t := 4.0
 ## 들판 증원(D-186): 몇 초마다 · 장수를 쫓는 무리 상한 · 떨어뜨리는 경험 배율(D-187 — 많이 오되 레벨은 천천히) · 지금까지 낸 수(종류 섞기)
@@ -354,7 +358,11 @@ func _field_tick(dt: float) -> void:
 		if e.goal_home and not Unit.alive(e.engage) and e.position.distance_to(home_pos) < home_r + e.r:
 			home_hp -= 1.2 * dt
 		if e.boss:
-			e.position = e.position.clamp(K.position + Vector2(e.r + 12, e.r + 12), K.end - Vector2(e.r + 12, e.r + 12))
+			# 요술 제단이 남아 있는 동안(보호막) 장각은 본진 안쪽 절반에서만 — 문을 막아서 장수가 못 들어왔음(D-207)
+			var hi := K.end - Vector2(e.r + 12, e.r + 12)
+			if e.shield:
+				hi.y = K.get_center().y
+			e.position = e.position.clamp(K.position + Vector2(e.r + 12, e.r + 12), hi)
 	if home_hp <= home_max * 0.4 and not alert_home:
 		alert_home = true
 		banner("아군 본진이 밀려요!", "수비대가 버티기 어려워요 — 돌아가 도와요")
@@ -372,6 +380,7 @@ func _field_tick(dt: float) -> void:
 	_wave_tick(dt)
 	_cyz_tick(dt)
 	_gate_tick(dt)
+	_beast_tick(dt)
 	Perf.end()
 	Perf.begin(&"충돌")
 	_separate()
@@ -630,7 +639,45 @@ func _gate_tick(dt: float) -> void:
 	boss = spawn(B.boss, K.get_center() + Vector2(0, -40), B.bm)
 	boss.boss = true
 	boss.touch = 22
-	banner("관문이 열렸어요! 장각 본진으로", "본진 문 앞 고기만두로 기운을 차리고 장각에게")
+	# 요술 제단(D-207): 남아 있는 동안 장각은 보호막
+	var A: Dictionary = Stage1.ALTAR
+	for ap in A.pos:
+		var al := spawn("altar", ap, float(A.hp))
+		al.r = float(A.r)
+		altars.append(al)
+	boss.shield = not altars.is_empty()
+	banner("관문이 열렸어요! 장각 본진으로", "요술 제단 %d개가 장각을 지켜요 — 제단부터 부숴요" % altars.size())
+
+
+## 제단이 몇 개 남았나
+func altars_left() -> int:
+	var n := 0
+	for a in altars:
+		if not a.dead:
+			n += 1
+	return n
+
+
+## 첫 사신수 해방(D-207): 장수가 봉인된 빛 구슬에 닿으면 BEAST.release초 동안 빛이 퍼지며 풀려남 → 판 끝(이김)
+func _beast_tick(dt: float) -> void:
+	if beast_pos == Vector2.INF:
+		return
+	var Bs: Dictionary = Stage1.BEAST
+	if beast_t < 0:
+		if hero.position.distance_to(beast_pos) < hero.r + 14:
+			beast_t = 0.0
+			note("사신수 해방")
+			banner("%s%s 풀려났어요!" % [Bs.n, "이" if eul(Bs.n) == "을" else "가"], "황건적의 난을 평정했어요")
+			Sound.play("win", 0.5)
+			shake = 0.25
+		return
+	var n0 := int(beast_t / 0.3)
+	beast_t += dt
+	if int(beast_t / 0.3) != n0:
+		add_fx({"k": "ring", "pos": beast_pos, "t": 0.6, "r": 60.0 + beast_t * 60.0, "c": Color(Bs.c)})
+	if beast_t >= float(Bs.release):
+		beast_pos = Vector2.INF
+		finish(true, "")
 
 
 ## 겹치지 않게(30px 칸으로 나눠 이웃끼리만 밀어냄). 적은 enemies 차례로, 이웃은 칸 차례 · 칸 안 enemies 차례로 봄.
@@ -986,12 +1033,27 @@ func _on_kill(e: Enemy) -> void:
 		for o in enemies:
 			if not o.dead and o != e:
 				o.dead = true
-		later(1.4, finish.bind(true, ""))
 		note("장각 격파")
+		# 첫 사신수(D-207): 쓰러진 자리에 봉인된 빛 구슬 — 장수가 닿으면 풀려나고 판이 끝남(전엔 1.4초 뒤 바로 끝)
+		beast_pos = e.position.clamp(keep_rect().position + Vector2(40, 40), keep_rect().end - Vector2(40, 40))
 		var bn: String = e.def.n
-		banner("%s%s 쓰러뜨렸어요!" % [bn, eul(bn)], "황건적의 난을 평정했어요")
+		banner("%s%s 쓰러뜨렸어요!" % [bn, eul(bn)], "봉인된 %s의 빛이 나타났어요 — 다가가 풀어 줘요" % Stage1.BEAST.n)
 		hit_stop = 0.15
 		shake = 0.5
+		return
+	if e.k == "altar":
+		var total := altars.size()
+		var left := altars_left()
+		add_fx({"k": "ring", "pos": e.position, "t": 0.5, "r": 60.0, "c": Color("ffb050")})
+		shake = maxf(shake, 0.15)
+		note("요술 제단 %d/%d" % [total - left, total])
+		if left == 0:
+			if Unit.alive(boss):
+				boss.shield = false
+				add_fx({"k": "ring", "pos": boss.position, "t": 0.5, "r": 90.0, "c": Color("6ac0e0")})
+			banner("요술 제단을 다 부쉈어요", "장각의 보호막이 풀렸어요 — 이제 장각을 쳐요")
+		else:
+			banner("요술 제단을 부쉈어요 (%d/%d)" % [total - left, total], "제단이 남아 있는 동안 장각은 다치지 않아요")
 		return
 	if e.building:
 		var c := camp_by_id(e.camp_id)
@@ -1121,7 +1183,7 @@ func _tick_shots(dt: float) -> void:
 	shots = keep
 
 
-## 쓰러진 것 치우기. 장수급(진영장 · 정원지 · 장각)은 다른 곳이 붙잡고 있어 숨기기만 한다.
+## 쓰러진 것 치우기. 장수급(진영장 · 정원지 · 장각)과 건물(요술 제단 — altars가 붙잡음, D-207)은 다른 곳이 붙잡고 있어 숨기기만 한다.
 func _sweep() -> void:
 	var gone_e := false
 	for e in enemies:
@@ -1136,7 +1198,7 @@ func _sweep() -> void:
 		for e in enemies:
 			if not e.dead:
 				keep.append(e)
-			elif e.is_lead():
+			elif e.is_lead() or e.building:
 				e.visible = false
 			else:
 				e.queue_free()
@@ -1525,6 +1587,18 @@ func field_target() -> Dictionary:
 	if not cyz_dead:
 		var zp: Vector2 = cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos
 		return {"pos": zp, "n": "관문 앞 문지기 정원지 격파"}
+	if beast_pos != Vector2.INF:
+		return {"pos": beast_pos, "n": "봉인된 %s의 빛 — 다가가 풀어 주기" % Stage1.BEAST.n}
+	# 요술 제단이 남았으면 가까운 제단부터(장각은 보호 중, D-207)
+	var left := altars_left()
+	if left > 0:
+		var ap := keep_rect().get_center()
+		var ad := INF
+		for a in altars:
+			if not a.dead and hero.position.distance_to(a.position) < ad:
+				ad = hero.position.distance_to(a.position)
+				ap = a.position
+		return {"pos": ap, "n": "장각 본진 · 요술 제단 부수기 %d/%d" % [altars.size() - left, altars.size()]}
 	var bp: Vector2 = boss.position if Unit.alive(boss) else keep_rect().get_center()
 	return {"pos": bp, "n": "장각 본진 — 천공장군 장각 격파"}
 
@@ -1545,6 +1619,9 @@ func march_goal(from: Vector2) -> Dictionary:
 		return {"key": "m_lead_" + c.id, "pos": c.lead.position if Unit.alive(c.lead) else c.pos}
 	if not cyz_dead:
 		return {"key": "m_cyz", "pos": cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos}
+	for i in altars.size():
+		if not altars[i].dead:
+			return {"key": "m_altar_%d" % i, "pos": altars[i].position}
 	return {"key": "m_boss", "pos": boss.position if Unit.alive(boss) else keep_rect().get_center()}
 
 

@@ -56,6 +56,7 @@ var _phase_s0 := 0.0
 var _phases: Array[String] = []
 var _capped := {}
 var _cyz_seen := false
+var _boss_seen := false
 var _ally_t := 30.0
 var _ally_log: Array[String] = []
 ## 둘레 120px 안 적 수(프레임 평균) · 표본 시간
@@ -314,8 +315,15 @@ func _shot(name: String) -> void:
 
 
 ## 스크린샷 모드(D-205 · D-206): 보호막 진영장이 처음 화면에 들어올 때 · 진영장 공격마다 첫 예고가 거의 끝날 때 · 첫 보급 상자 ·
-## 성문이 반쯤 열렸을 때 한 장씩
+## 성문이 반쯤 열렸을 때 · 장각 보호막(장수가 본진에 들어가 제단 빛줄기가 보일 때) · 사신수가 풀려나는 중 한 장씩.
+## 찍히는 건 지난 프레임에 그린 화면이라, 막 생긴 것은 조금 지나서 찍음
 func _shot_events() -> void:
+	if Unit.alive(b.boss) and b.boss.shield and b.keep_rect().grow(-20).has_point(b.hero.position) and not _lead_shots.has("altar"):
+		_lead_shots["altar"] = true
+		_shot("boss_altars")
+	if b.beast_t >= float(Stage1.BEAST.release) * 0.3 and not _lead_shots.has("beast"):
+		_lead_shots["beast"] = true
+		_shot("beast_release")
 	if b.gate_t >= float(Stage1.GATE.open) * 0.5 and not _lead_shots.has("gate"):
 		_lead_shots["gate"] = true
 		_shot("gate_open")
@@ -358,6 +366,9 @@ func _measure() -> void:
 	if b.cyz_dead and not _cyz_seen:
 		_cyz_seen = true
 		_phase_end("정원지")
+	if b.boss != null and b.boss.dead and not _boss_seen:
+		_boss_seen = true
+		_phase_end("장각")
 	if b.t >= _ally_t:
 		var march := 0
 		for a in b.allies:
@@ -383,7 +394,7 @@ static func _fmt(t: float) -> String:
 func _on_finished(win: bool) -> void:
 	_done = true
 	if win:
-		_phase_end("장각")
+		_phase_end("사신수")
 	_log("WIN" if win else "LOSE(%s)" % b.end_why)
 	await get_tree().create_timer(1.2).timeout
 	_shot("end")

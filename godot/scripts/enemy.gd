@@ -12,13 +12,14 @@ var k := ""
 var def: Dictionary
 var ai := "chase"
 ## ai를 숫자로(매 프레임 문자열 match가 정수 비교보다 10배쯤 느려서, D-200). 없으면 -1
-const AI_CODE := {"chase": 0, "dash": 1, "shooter": 2, "boss": 3, "tower": 4, "lead": 5}
+const AI_CODE := {"chase": 0, "dash": 1, "shooter": 2, "boss": 3, "tower": 4, "lead": 5, "altar": 6}
 const AI_CHASE := 0
 const AI_DASH := 1
 const AI_SHOOTER := 2
 const AI_BOSS := 3
 const AI_TOWER := 4
 const AI_LEAD := 5
+const AI_ALTAR := 6
 var _ai := AI_CHASE
 var spd := 60.0
 var spd0 := 60.0
@@ -32,10 +33,10 @@ var ename := ""
 var camp_id := ""
 ## 떨어뜨리는 경험 배율(들판 증원은 Battle.REIN_XP, D-187)
 var xp_mul := 1.0
-## 건물(수비탑, D-202): 움직이지 않는 적. tower_id = "진영id:번호"
+## 건물(수비탑 D-202 · 요술 제단 D-207): 움직이지 않는 적. tower_id = "진영id:번호"(수비탑만)
 var building := false
 var tower_id := ""
-## 진영장 보호(D-205 — 전엔 막사, D-202): 진영 수비탑이 하나라도 남아 있으면 피해를 받지 않고 아무도 겨누지 않음
+## 보호막: 피해를 받지 않고 아무도 겨누지 않음 — 진영장은 진영 수비탑이 하나라도 남아 있으면(D-205 — 전엔 막사, D-202), 장각은 요술 제단이 남아 있으면(D-207)
 var shield := false
 var camp_lead := ""
 ## 진영장(D-205): 공격(Stage1.LEAD_SKILL 키) · 돌아다닐 사각형 · 돌아다닐 자리와 다음에 바꿀 때까지 · 지난 공격 뒤 시간 · 땅 내려찍기 자리
@@ -105,7 +106,7 @@ func setup(b: Battle, key: String, at: Vector2, mul: float) -> void:
 	tex = Sprites.sheet(def.spr) if String(def.spr) != "" else null
 	_anim_off = r
 	_glyph = String(def.n).left(1)
-	building = ai == "tower"
+	building = ai == "tower" or ai == "altar"
 
 
 func set_post(p: Vector2) -> void:
@@ -136,7 +137,7 @@ func is_lead() -> bool:
 	return elite or boss
 
 
-## 밀리거나 띄워지지 않음(장수급 · 수비탑)
+## 밀리거나 띄워지지 않음(장수급 · 건물)
 func immovable() -> bool:
 	return elite or boss or building
 
@@ -438,7 +439,7 @@ func _boss_tick(dt: float, dv: Vector2, d: float) -> void:
 ## (Unit.anim_moved · Sprites.dir_of · walk_step과 같은 계산을 함수 부르기 없이 함)
 func refresh_look() -> void:
 	if building:
-		# 수비탑은 사거리 원 · 경고 고리가 있어 늘 그림(진영마다 2개뿐)
+		# 건물은 늘 그림(수비탑 사거리 원 · 경고 고리, 제단 불꽃 — 진영마다 2개 · 제단 3개뿐)
 		queue_redraw()
 		return
 	var p := position
@@ -482,7 +483,10 @@ func _draw_impl() -> void:
 	_dk_flash = flash > 0
 	_dk_hp = hp / max_hp
 	if building:
-		_draw_tower()
+		if _ai == AI_TOWER:
+			_draw_tower()
+		else:
+			_draw_altar()
 		return
 	var lift := 0.0
 	if air > 0 and air0 > 0:
@@ -544,6 +548,26 @@ func _draw_tower() -> void:
 	if _aiming and t > float(T.gap) - float(T.warn):
 		draw_arc(Vector2(0, -31), 13, 0, TAU, 24, Color("d9705e"), 2)
 	draw_bar(0, -70, 40, 4, hp / max_hp, Color("d9705e"))
+
+
+## 요술 제단(D-207): 돌 받침 + 누런 부적 + 일렁이는 불꽃 + 체력 막대(맞으면 번쩍). 장각과 잇는 빛줄기는 ground.gd
+func _draw_altar() -> void:
+	var stone := Color("fff2c0") if flash > 0 else Color("8a8478")
+	var dark := Color("4a463e")
+	draw_rect(Rect2(-18, 8, 36, 6), Color(0, 0, 0, 0.22))
+	var base := PackedVector2Array([Vector2(-16, 10), Vector2(16, 10), Vector2(11, -8), Vector2(-11, -8)])
+	draw_colored_polygon(base, stone)
+	base.append(base[0])
+	draw_polyline(base, dark, 1.5)
+	draw_rect(Rect2(-13, -12, 26, 5), stone)
+	draw_rect(Rect2(-13, -12, 26, 5), dark, false, 1.5)
+	draw_rect(Rect2(-4, -5, 8, 12), Color("e8c040"))
+	draw_line(Vector2(-2, -2), Vector2(2, -2), Color("b03020"), 1)
+	draw_line(Vector2(0, -4), Vector2(0, 5), Color("b03020"), 1)
+	var fl := sin(battle.t * 10 + position.x) * 2
+	draw_colored_polygon(PackedVector2Array([Vector2(-7, -12), Vector2(7, -12), Vector2(fl, -30 - absf(fl))]), Color(0.95, 0.6, 0.2, 0.9))
+	draw_colored_polygon(PackedVector2Array([Vector2(-3.5, -12), Vector2(3.5, -12), Vector2(fl * 0.5, -22)]), Color(1, 0.92, 0.5))
+	draw_bar(0, -38, 40, 4, hp / max_hp, Color("d9705e"))
 
 
 ## 진영장 공격 예고(D-205): 예고가 끝에 가까울수록 테두리가 굵고 진해짐. 돌진 = 갈 길(남은 길) · 땅 내려찍기 = 떨어질 원(안쪽 원이 차오름) ·

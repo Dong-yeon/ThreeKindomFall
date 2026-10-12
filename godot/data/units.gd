@@ -1,7 +1,7 @@
 class_name Units
 ## 적·아군 기본 수치(웹판 b_core.js EN · n_field.js AL). 적 빠르기(spd)는 웹판 × 1.3(D-184 — 웨이브 최대 +35%여도 장수 150보다 느림).
 ## spr = assets/bb/<키>.png, c = 그림이 없을 때 동그라미 색.
-## ai: chase(쫓아옴) · shooter(거리 두고 쏨) · dash(멈칫 → 돌진) · boss(장각: 탄막·소환·돌진) · tower(수비탑).
+## ai: chase(쫓아옴) · shooter(거리 두고 쏨) · dash(멈칫 → 돌진) · boss(장각: 탄막·소환·돌진) · tower(수비탑) · altar(요술 제단).
 ## 진영장은 이 종류(ytbig · ytarch)로 낸 뒤 Enemy.make_lead가 lead(진영 안을 돌며 공격 하나)로 바꿈(D-205)
 
 ## 적이 장수에게 주는 피해 배율(닿기 · 탄 모두, D-188 — 더 어렵게)
@@ -17,6 +17,8 @@ const ENEMY := {
 	"zj": {"n": "천공장군 장각", "c": "e2c060", "r": 30.0, "hp": 1500.0, "spd": 36.0, "touch": 18.0, "ai": "boss", "spr": "zj"},
 	# 수비탑(D-202): 움직이지 않고 밀리지 않는 '적'(건물)이고 장수에게 화살을 쏨. 체력은 장마다 Stage의 TOWER.hp × 진영 mul(여기 hp는 1)
 	"tower": {"n": "황건 수비탑", "c": "a8743a", "r": 20.0, "hp": 1.0, "spd": 0.0, "touch": 0.0, "ai": "tower", "spr": ""},
+	# 요술 제단(D-207): 움직이지 않고 공격하지 않는 건물. 남아 있는 동안 장각이 무적. 체력은 Stage의 ALTAR.hp(여기 hp는 1)
+	"altar": {"n": "요술 제단", "c": "8a8478", "r": 18.0, "hp": 1.0, "spd": 0.0, "touch": 0.0, "ai": "altar", "spr": ""},
 }
 
 const ALLY := {

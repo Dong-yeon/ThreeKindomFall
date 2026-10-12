@@ -32,6 +32,8 @@ func _draw_impl() -> void:
 		draw_rect(K.grow(-12), Color(0.85, 0.44, 0.37, 0.12))
 		_label("장각 본진" if b.keep_open else "장각 본진(닫힘)", Vector2(K.get_center().x, K.position.y - 14), Color("ffb0a0"))
 	_tactics_ground(V)
+	_altar_beams(V)
+	_beast(V)
 	for dr in b.drops:
 		var p: Vector2 = dr.pos
 		if dr.get("k", "bun") == "magnet":
@@ -162,6 +164,44 @@ func _stone(o: Rect2, door: bool) -> void:
 		else:
 			draw_line(Vector2(o.position.x, o.position.y + s), Vector2(o.end.x, o.position.y + s), Color(0.24, 0.22, 0.19, 0.6), 1)
 		s += 14
+
+
+## 요술 제단 → 장각 빛줄기(D-207): 장각이 보호막인 동안 남은 제단마다(제단 · 장각 노드는 화면 근처에서만 다시 그려서 여기서 그림)
+func _altar_beams(V: Rect2) -> void:
+	if not Unit.alive(b.boss) or not b.boss.shield:
+		return
+	var bp: Vector2 = b.boss.position + Vector2(0, -24)
+	var a := 0.35 + 0.15 * sin(b.t * 8)
+	for al in b.altars:
+		if al.dead:
+			continue
+		var p: Vector2 = al.position + Vector2(0, -26)
+		if not V.intersects(Rect2(p, Vector2.ZERO).expand(bp)):
+			continue
+		draw_line(p, bp, Color(0.95, 0.75, 0.3, a), 5)
+		draw_line(p, bp, Color(1, 0.95, 0.7, a + 0.2), 1.5)
+
+
+## 봉인된 사신수 빛 구슬(D-207, 그림은 에셋 전까지): 둥실거리며 빛남 → 풀려나는 동안 커지며 흐려짐
+func _beast(V: Rect2) -> void:
+	if b.beast_pos == Vector2.INF or not V.has_point(b.beast_pos):
+		return
+	var Bs: Dictionary = Stage1.BEAST
+	var c := Color(Bs.c)
+	var p: Vector2 = b.beast_pos + Vector2(0, sin(b.t * 3) * 3 - 6)
+	if b.beast_t >= 0:
+		var k := clampf(b.beast_t / float(Bs.release), 0, 1)
+		draw_circle(p, 12 + 140 * k, Color(c, 0.35 * (1.0 - k)))
+		draw_circle(p, 10 + 30 * k, Color(1, 1, 1, 0.9 * (1.0 - k)))
+		return
+	draw_circle(b.beast_pos + Vector2(0, 8), 10, Color(0, 0, 0, 0.2))
+	draw_circle(p, 22 + sin(b.t * 5) * 3, Color(c, 0.25))
+	draw_circle(p, 13, Color(c, 0.75))
+	draw_circle(p, 8, Color(1, 1, 1, 0.95))
+	for i in 3:
+		var a := b.t * 2.0 + i * TAU / 3
+		draw_circle(p + Vector2.from_angle(a) * 20, 2, Color(1, 1, 1, 0.8))
+	_label("봉인된 %s" % Bs.n, p + Vector2(0, -34), Color("cfe8f8"))
 
 
 ## 성문이 열리는 중(D-206): 문짝 둘이 양쪽 경첩을 축으로 북쪽(장각 쪽)으로 돌아감. k = 0 닫힘 → 1 열림

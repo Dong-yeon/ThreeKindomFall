@@ -57,7 +57,7 @@ const DEFS := {
 	"spirit": {"n": "기세", "g": "세", "c": "d8a030", "d": "무쌍 게이지 +15%", "per": 0.15},
 }
 
-## 레벨업에 필요한 경험(웹판 xpNeedM 지도 판). 처치 경험: 졸개 1 · 궁수 · 돌격병 2 · 역사 4 · 수비탑 10 · 장수급 20 · 정원지 40
+## 레벨업에 필요한 경험(웹판 xpNeedM 지도 판). 처치 경험: 졸개 1 · 궁수 · 돌격병 2 · 역사 4 · 수비탑 · 요술 제단 10 · 장수급 20 · 정원지 40
 static func xp_need(lv: int) -> int:
 	return roundi(8 + 6 * lv + 0.3 * lv * lv)
 
@@ -70,6 +70,8 @@ static func xp_of(k: String, elite: bool) -> int:
 	match k:
 		"tower":
 			return int(Stage1.TOWER.xp)
+		"altar":
+			return int(Stage1.ALTAR.xp)
 		"ytbig":
 			return 4
 		"ytarch", "ytdash":

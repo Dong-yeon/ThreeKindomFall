@@ -208,6 +208,9 @@ func show_end() -> void:
 	end_stats.text = "걸린 시간   %s\n점령한 진영   %d / 3\n쓰러뜨린 적   %d\n최대 연격   %d\n공적 레벨   %d (공격 %d/%d · 보조 %d/%d)\n진화   %s" % [
 		_fmt_t(b.t), b.cap_n, b.kills, b.hero.cb_max, b.lvl, T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS,
 		", ".join(evos) if not evos.is_empty() else "없음"]
+	if win:
+		# 첫 사신수 해방(D-207)
+		end_stats.text += "\n사신수   %s 해방" % Stage1.BEAST.n
 	end_panel.visible = true
 
 
@@ -309,7 +312,7 @@ func _draw_lead_bar(c: Control, font: Font, sz: Vector2) -> void:
 	var w := sz.x - MM_W - 40 - x0
 	var y := TOP_H + 8
 	c.draw_rect(Rect2(x0, y, w, 8), Color("3a3024"))
-	c.draw_rect(Rect2(x0, y, w * clampf(L.hp / L.max_hp, 0, 1), 8), Color("d9705e") if L.boss else (Color("6a9ad8") if L.shield else Color("d89a3a")))
+	c.draw_rect(Rect2(x0, y, w * clampf(L.hp / L.max_hp, 0, 1), 8), Color("6a9ad8") if L.shield else (Color("d9705e") if L.boss else Color("d89a3a")))
 	var name: String = L.ename if L.ename != "" else String(L.def.n)
 	if L.shield:
 		name += " (보호막)"
@@ -330,6 +333,12 @@ func _draw_minimap(c: Control, sz: Vector2) -> void:
 	c.draw_rect(Rect2(mx, my + (float(Stage1.GATE.y) - 10) * s, mw, 2), Color(0.54, 0.52, 0.47, 0.6) if b.gate_open else Color("8a8478"))
 	var K := b.keep_rect()
 	c.draw_rect(Rect2(P.call(K.position), K.size * s), Color("ff6a4a") if b.boss != null else Color("d9705e"), false, 1.5)
+	# 요술 제단(D-207, 노란 네모)
+	for al in b.altars:
+		if not al.dead:
+			var aq: Vector2 = P.call(al.position)
+			c.draw_rect(Rect2(aq - Vector2(2, 2), Vector2(4, 4)), Color("f0c040"))
+			c.draw_rect(Rect2(aq - Vector2(2, 2), Vector2(4, 4)), INK, false, 1.0)
 	for cp in b.camps:
 		var CR := b.camp_rect(cp)
 		c.draw_rect(Rect2(P.call(CR.position), CR.size * s), Color("6a9ad8") if cp.cap else Color("e2b040"))
