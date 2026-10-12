@@ -231,6 +231,32 @@ func apply(o: Dictionary) -> void:
 	history.append("Lv%d %s" % [b.lvl, tag])
 
 
+## 보급 상자(D-195 · D-205): 진화할 수 있는 공격이 있으면 진화(먼저 얻은 것), 아니면 가진 책략 중 Lv5가 아닌 것
+## Stage1.CHEST min~max개를 한 단계씩. 올릴 것도 없으면 고기만두. 고른 기록에 '상자'로 남김. 돌려주는 글 = 알림 아랫줄
+func open_chest() -> String:
+	for k in act_order:
+		if can_evolve(k):
+			evo[k] = true
+			history.append("Lv%d 상자: 진화 %s" % [b.lvl, evo_name(k)])
+			return "진화 — %s!" % evo_name(k)
+	var can: Array[String] = []
+	for k in act_order + pas_order:
+		if level(k) < TacticsData.MAX_LV:
+			can.append(k)
+	if can.is_empty():
+		b.hero.heal(b.hero.max_hp * 0.3)
+		history.append("Lv%d 상자: 고기만두" % b.lvl)
+		return "고기만두 — 기운을 차렸어요"
+	can.shuffle()
+	var n := mini(can.size(), randi_range(int(Stage1.CHEST.min), int(Stage1.CHEST.max)))
+	var ups: Array[String] = []
+	for k in can.slice(0, n):
+		lv[k] = level(k) + 1
+		ups.append("%s %d" % [name_of(k), lv[k]])
+	history.append("Lv%d 상자: %s" % [b.lvl, ", ".join(ups)])
+	return "레벨 업 — " + ", ".join(ups)
+
+
 # ─────────── 매 프레임 ───────────
 
 func tick(dt: float) -> void:

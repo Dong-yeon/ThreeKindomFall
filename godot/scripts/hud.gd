@@ -309,8 +309,10 @@ func _draw_lead_bar(c: Control, font: Font, sz: Vector2) -> void:
 	var w := sz.x - MM_W - 40 - x0
 	var y := TOP_H + 8
 	c.draw_rect(Rect2(x0, y, w, 8), Color("3a3024"))
-	c.draw_rect(Rect2(x0, y, w * clampf(L.hp / L.max_hp, 0, 1), 8), Color("d9705e") if L.boss else Color("d89a3a"))
+	c.draw_rect(Rect2(x0, y, w * clampf(L.hp / L.max_hp, 0, 1), 8), Color("d9705e") if L.boss else (Color("6a9ad8") if L.shield else Color("d89a3a")))
 	var name: String = L.ename if L.ename != "" else String(L.def.n)
+	if L.shield:
+		name += " (보호막)"
 	_text(c, font, name, Vector2(x0 + w / 2, y + 20), 12, Color("fff2c0"))
 
 
@@ -331,18 +333,18 @@ func _draw_minimap(c: Control, sz: Vector2) -> void:
 	for cp in b.camps:
 		var CR := b.camp_rect(cp)
 		c.draw_rect(Rect2(P.call(CR.position), CR.size * s), Color("6a9ad8") if cp.cap else Color("e2b040"))
-		# 남은 막사(D-180, 주황 네모) · 수비탑(D-202, 빨간 세모)
-		for bk in cp.bks:
-			if bk.alive:
-				var q: Vector2 = P.call(bk.pos)
-				if bk.kind == "tower":
-					var tri := PackedVector2Array([q + Vector2(0, -3), q + Vector2(3, 2), q + Vector2(-3, 2)])
-					c.draw_colored_polygon(tri, Color("e04a3a"))
-					tri.append(tri[0])
-					c.draw_polyline(tri, INK, 1.0)
-				else:
-					c.draw_rect(Rect2(q - Vector2(2, 2), Vector2(4, 4)), Color("ff8a3a"))
-					c.draw_rect(Rect2(q - Vector2(2, 2), Vector2(4, 4)), INK, false, 1.0)
+		# 남은 수비탑(D-202, 빨간 세모) · 진영장(D-205, 주황 점 — 보호막이면 푸른 테)
+		for tw in cp.tws:
+			if tw.alive:
+				var q: Vector2 = P.call(tw.pos)
+				var tri := PackedVector2Array([q + Vector2(0, -3), q + Vector2(3, 2), q + Vector2(-3, 2)])
+				c.draw_colored_polygon(tri, Color("e04a3a"))
+				tri.append(tri[0])
+				c.draw_polyline(tri, INK, 1.0)
+		if not cp.cap and Unit.alive(cp.lead):
+			var lq: Vector2 = P.call(cp.lead.position)
+			c.draw_circle(lq, 2.5, Color("ff9a3a"))
+			c.draw_arc(lq, 3.2, 0, TAU, 12, Color("8ac8f0") if cp.lead.shield else INK, 1.0)
 	var hp: Vector2 = P.call(b.home_pos)
 	var blink := b.home_hp < b.home_max * 0.5 and int(b.t * 4) % 2 == 1
 	c.draw_rect(Rect2(hp - Vector2(3, 3), Vector2(6, 6)), Color("ff6a4a") if blink else Color("6a9ad8"))

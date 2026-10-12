@@ -1,7 +1,7 @@
 class_name Battle
 extends Node2D
 ## 1장 전장(웹판 n_field.js 이식, D-170: 말 없이). 판의 상태 · 매 프레임 진행 · 목표 · 적·아군 생성 · 충돌.
-## 아래(아군 본진)에서 위(장각 본진)로 진군: 황건 진영 3곳 점령 → 관문이 열림 → 정원지 → 장각.
+## 아래(아군 본진)에서 위(장각 본진)로 진군: 황건 진영 3곳(수비탑 2개 → 진영장 격파 · 보급 상자) 점령 → 관문이 열림 → 정원지 → 장각.
 
 signal finished(win: bool)
 
@@ -76,8 +76,11 @@ var home_pos: Vector2 = Stage1.HOME.pos
 var home_r: float = Stage1.HOME.r
 var home_hp: float = Stage1.HOME.hp
 var home_max: float = Stage1.HOME.hp
+## 진영: Stage1.CAMPS + {cap 점령함, lead 진영장, al_t 수비대 보충, tws 수비탑 {id, pos, alive}, call_t 다음 호위병까지}
 var camps: Array[Dictionary] = []
 var cap_n := 0
+## 판의 사건 {t, n}(수비탑 · 점령 · 상자 · 관문 · 정원지 · 장각 — 봇이 사건마다 걸린 시간을 출력, D-205)
+var events: Array[Dictionary] = []
 var cyz_on := false
 var cyz_dead := false
 var keep_open := false
@@ -145,7 +148,7 @@ func _ready() -> void:
 	world.add_child(hero)
 	for c in Stage1.CAMPS:
 		var d: Dictionary = c.duplicate()
-		d.merge({"cap": false, "lead": null, "al_t": 0.0, "bks": []})
+		d.merge({"cap": false, "lead": null, "al_t": 0.0, "tws": [], "call_t": 0.0})
 		camps.append(d)
 	_build_obstacles()
 	_setup_allies()
@@ -155,7 +158,7 @@ func _ready() -> void:
 	_place_camera()
 	hud.setup(self)
 	Sound.music("fight", 0.3)
-	banner(Stage1.NAME, "황건 진영 3곳: 수비탑을 부숴야 막사를 부술 수 있어요")
+	banner(Stage1.NAME, "황건 진영 3곳: 수비탑을 부숴야 진영장을 칠 수 있어요")
 	if "--bot" in OS.get_cmdline_user_args():
 		var bot: Node = load("res://scripts/bot.gd").new()
 		add_child(bot)
@@ -414,112 +417,92 @@ func choose(i: int) -> void:
 	state = "play"
 
 
-## 진영(D-180 · D-202): 병력은 살아 있는 막사에서만 나옴(막사마다 상한 · 장수가 가까우면 빨리) →
-## 건물(막사 1 + 수비탑 2)을 다 부수면 진영장 → 쓰러뜨리면 점령
+## 진영(D-205): 진영장이 처음부터 진영 안에서 호위병을 부름(장수가 가까우면 자주 · 진영 병력 상한 — 전엔 막사가 냄, D-202).
+## 수비탑이 하나라도 서 있으면 진영장은 보호막 → 탑을 다 부수고 진영장을 쓰러뜨리면 점령
 func _camps_tick(dt: float) -> void:
-	var B: Dictionary = Stage1.BARRACKS
+	var L: Dictionary = Stage1.LEAD
 	for c in camps:
-		if c.cap:
+		if c.cap or not Unit.alive(c.lead):
 			continue
-		var left := 0
-		for bk in c.bks:
-			if not bk.alive:
-				continue
-			left += 1
-			if bk.kind != "barracks":
-				continue
-			bk.spawn_t -= dt
-			if bk.spawn_t > 0:
-				continue
-			var bp: Vector2 = bk.pos
-			bk.spawn_t = float(B.gap_near) if hero.position.distance_to(bp) < float(B.near) else float(B.gap_far)
-			if _count_barracks(bk.id) < int(B.cap) and enemies.size() < 240:
-				_barracks_soldier(c, bk, float(c.mul) * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
-		if c.lead == null and left == 0:
-			var lk: String = c.lk
-			var at: Vector2 = c.pos + Vector2(0, -20)
-			var L := spawn(lk, at, float(c.mul) * float(c.lm))
-			L.elite = true
-			L.ename = c.ln
-			L.camp_lead = c.id
-			L.set_post(at)
-			L.aggro = 280
-			L.touch = Units.ENEMY[lk].touch
-			L.r *= 1.4 if lk == "ytbig" else 1.6
-			c.lead = L
-			banner("%s 등장!" % c.ln, "막사와 수비탑을 다 부쉈어요 — 쓰러뜨리면 진영 점령")
-			Sound.play("alert", 0.35)
+		c.call_t -= dt
+		if c.call_t > 0:
+			continue
+		var lp: Vector2 = c.lead.position
+		c.call_t = float(L.call_near) if hero.position.distance_to(lp) < float(L.near) else float(L.call_far)
+		var room := int(L.cap) - _count_guards(c.id)
+		if room <= 0 or enemies.size() >= 240:
+			continue
+		for i in mini(room, int(L.call_n)):
+			_guard(c, float(c.mul) * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
+		if in_view(lp, 40):
+			add_fx({"k": "ring", "pos": lp, "t": 0.35, "r": 46.0, "c": Color("e8c060")})
 
 
-## 막사 옆에서 병력 하나(벽 · 물이면 막사 앞)
-func _barracks_soldier(c: Dictionary, bk: Dictionary, mul: float) -> Enemy:
-	var bp: Vector2 = bk.pos
-	var at := bp + Vector2.from_angle(randf() * TAU) * randf_range(30, 50)
+## 진영장 곁에 호위병 하나(벽 · 물이면 진영장 앞). 장수가 멀면 진영장을 따라다님
+func _guard(c: Dictionary, mul: float) -> Enemy:
+	var L: Enemy = c.lead
+	var lp := L.position
+	var at := lp + Vector2.from_angle(randf() * TAU) * randf_range(30, 55)
 	if hit_obs(at, 12):
-		at = bp + Vector2(randf_range(-20, 20), 34)
+		at = lp + Vector2(randf_range(-20, 20), 34)
 	var e := spawn("ytarch" if randf() < 0.2 else "ytb", at, mul)
 	e.camp_id = c.id
-	e.barracks_id = bk.id
 	e.set_post(at)
+	e.guard_of = L
+	e.guard_off = at - lp
 	e.aggro = 220
 	return e
 
 
-func _count_barracks(id: String) -> int:
+## 진영의 살아 있는 병력(진영장 · 수비탑 빼고)
+func _count_guards(id: String) -> int:
 	var n := 0
 	for e in enemies:
-		if not e.dead and e.barracks_id == id and not e.building:
+		if not e.dead and e.camp_id == id and not e.building and not e.elite:
 			n += 1
 	return n
 
 
-## 진영에 남은 건물(막사 · 수비탑) 수
-func buildings_left(c: Dictionary) -> int:
-	var n := 0
-	for bk in c.bks:
-		if bk.alive:
-			n += 1
-	return n
-
-
-## 진영에 남은 수비탑 수(남아 있으면 막사는 보호 중, D-202)
+## 진영에 남은 수비탑 수(남아 있으면 진영장은 보호 중, D-205)
 func towers_left(c: Dictionary) -> int:
 	var n := 0
-	for bk in c.bks:
-		if bk.alive and bk.kind == "tower":
+	for tw in c.tws:
+		if tw.alive:
 			n += 1
 	return n
 
 
-## 황건 부대가 본진으로(45초마다, 살아 있는 막사 하나에서)
+## 판의 사건 하나를 적어 둠(봇 출력용)
+func note(n: String) -> void:
+	events.append({"t": t, "n": n})
+
+
+## 황건 부대가 본진으로(45초마다, 점령 안 된 진영 하나의 진영장 곁에서)
 func _party_tick(dt: float) -> void:
 	party_t -= dt
 	if party_t > 0:
 		return
-	var src: Array = []
+	var src: Array[Dictionary] = []
 	for c in camps:
-		if not c.cap:
-			for bk in c.bks:
-				if bk.alive and bk.kind == "barracks":
-					src.append([c, bk])
+		if not c.cap and Unit.alive(c.lead):
+			src.append(c)
 	if src.is_empty():
 		return
 	party_t = 45
-	var pick: Array = src.pick_random()
-	var c: Dictionary = pick[0]
-	var bp: Vector2 = pick[1].pos
+	var c: Dictionary = src.pick_random()
+	var lp: Vector2 = c.lead.position
 	for i in 8:
-		var at := bp + Vector2(randf_range(-30, 30), 30 + randf_range(0, 20))
+		var at := lp + Vector2(randf_range(-30, 30), 30 + randf_range(0, 20))
 		if hit_obs(at, 12):
-			at = bp + Vector2(0, 34)
+			at = lp + Vector2(0, 34)
 		var e := spawn("ytdash" if i < 2 else "ytb", at, c.mul)
 		e.goal_home = true
 		e.aggro = 200
-	banner("%s 막사에서 부대가 본진으로!" % c.n, "본진 체력을 지켜요")
+	banner("%s에서 부대가 본진으로!" % c.n, "본진 체력을 지켜요")
 	Sound.play("alert", 0.3)
 
 
-## 들판 증원(D-186): 끊이지 않고 여러 방향에서 동시에 몰려옴(막사를 부수는 동안에도).
+## 들판 증원(D-186): 끊이지 않고 여러 방향에서 동시에 몰려옴(진영을 치는 동안에도).
 ## REIN_GAP초마다 화면 바로 바깥 둘레를 방향 수만큼 고르게 나눈 곳(조금씩 흔듦)에서 나눠 나옴.
 ## 초당 7.5명 → 분당 +2.25(최대 21, D-189 — 처음엔 5 · 1.5 · 14), 방향 3 → 2분 4 → 4분 5.
 ## 쉬는 건 장수를 쫓는 무리(자리 · 본진 목표가 없는 적)가 둘레 520px 안에 REIN_CAP 이상 · 적이 너무 많음 · 장각과 싸울 때뿐
@@ -943,7 +926,7 @@ func push_away(at: Vector2, rad: float, amount: float) -> void:
 
 
 func hurt_enemy(e: Enemy, d: float) -> void:
-	# 수비탑이 남은 진영의 막사는 피해를 받지 않음(D-202)
+	# 수비탑이 남은 진영의 진영장은 피해를 받지 않음(D-205)
 	if e.dead or e.shield:
 		return
 	e.hp -= d
@@ -967,6 +950,7 @@ func _on_kill(e: Enemy) -> void:
 			if not o.dead and o != e:
 				o.dead = true
 		later(1.4, finish.bind(true, ""))
+		note("장각 격파")
 		var bn: String = e.def.n
 		banner("%s%s 쓰러뜨렸어요!" % [bn, eul(bn)], "황건적의 난을 평정했어요")
 		hit_stop = 0.15
@@ -974,22 +958,22 @@ func _on_kill(e: Enemy) -> void:
 		return
 	if e.building:
 		var c := camp_by_id(e.camp_id)
-		for bk in c.bks:
-			if bk.id == e.barracks_id:
-				bk.alive = false
-		var total: int = c.bks.size()
-		var done := total - buildings_left(c)
+		for tw in c.tws:
+			if tw.id == e.tower_id:
+				tw.alive = false
+		var total: int = c.tws.size()
+		var left := towers_left(c)
 		add_fx({"k": "ring", "pos": e.position, "t": 0.5, "r": 60.0, "c": Color("ffb050")})
 		shake = maxf(shake, 0.15)
-		if e.k == "tower" and towers_left(c) == 0:
-			# 마지막 탑: 막사 보호가 풀림(D-202)
-			for bk in c.bks:
-				if bk.kind == "barracks" and bk.alive:
-					bk.unit.shield = false
-			banner("수비탑을 다 부쉈어요 (%d/%d)" % [done, total], "%s — 이제 막사를 부술 수 있어요" % c.n)
-		elif done < total:
-			var what := "수비탑을" if e.k == "tower" else "막사를"
-			banner("%s 부쉈어요 (%d/%d)" % [what, done, total], "%s — 남은 막사 · 수비탑 %d" % [c.n, total - done])
+		note("%s 수비탑 %d/%d" % [c.n, total - left, total])
+		if left == 0:
+			# 마지막 탑: 진영장 보호막이 풀림(D-205)
+			if Unit.alive(c.lead):
+				c.lead.shield = false
+				add_fx({"k": "ring", "pos": c.lead.position, "t": 0.5, "r": 70.0, "c": Color("6ac0e0")})
+			banner("수비탑을 다 부쉈어요", "%s — %s의 보호막이 풀렸어요" % [c.n, c.ln])
+		else:
+			banner("수비탑을 부쉈어요 (%d/%d)" % [total - left, total], "%s — 남은 탑을 부수면 %s의 보호막이 풀려요" % [c.n, c.ln])
 		return
 	if e.camp_lead != "":
 		var c := camp_by_id(e.camp_lead)
@@ -1001,6 +985,9 @@ func _on_kill(e: Enemy) -> void:
 				kills += 1
 				add_fx({"k": "burst", "pos": o.position, "t": 0.3, "r": o.r * 0.6, "c": Color("f6e2a0")})
 		hero.heal(hero.max_hp * 0.15)
+		# 보급 상자(D-205): 진영장이 쓰러진 자리
+		drops.append({"k": "chest", "pos": e.position})
+		note("%s 점령" % c.n)
 		var R := camp_rect(c)
 		anchors["camp_" + c.id] = {"pos": Vector2(R.get_center().x, R.end.y + 40), "r": 260.0}
 		c.al_t = 0.0
@@ -1009,6 +996,7 @@ func _on_kill(e: Enemy) -> void:
 		add_fx({"k": "ring", "pos": c.pos, "t": 0.6, "r": 150.0, "c": Color("4a7ab8")})
 		Sound.play("win", 0.35)
 		if cap_n >= 3:
+			note("관문 열림")
 			open_door("gate")
 			cyz_on = true
 			var Z: Dictionary = Stage1.CYZ
@@ -1023,11 +1011,12 @@ func _on_kill(e: Enemy) -> void:
 				var g := spawn("ytbig" if i % 4 == 0 else "ytb", at, 1.3)
 				g.set_post(at)
 				g.aggro = 260
-			banner("%s 점령! 관문이 열렸어요" % c.n, "관문 너머의 정원지를 쓰러뜨려요")
+			banner("%s 점령! 관문이 열렸어요" % c.n, "보급 상자를 줍고 관문 너머의 정원지를 쓰러뜨려요")
 		else:
-			banner("%s 점령! (%d/3)" % [c.n, cap_n], "수비대가 진영을 지키고, 진군 부대 %d명이 다음 진영으로 먼저 가요" % MARCH_ON_CAPTURE)
+			banner("%s 점령! (%d/3)" % [c.n, cap_n], "보급 상자를 주워요 — 진군 부대 %d명이 다음 진영으로 먼저 가요" % MARCH_ON_CAPTURE)
 		return
 	if e.k == "cyz" and e.elite:
+		note("정원지 격파")
 		cyz_dead = true
 		keep_open = true
 		open_door("keep")
@@ -1157,6 +1146,12 @@ func _pickups() -> void:
 			banner("자석!", "구슬 %d개를 끌어와요" % n)
 			Sound.play("accept", 0.4)
 			add_fx({"k": "ring", "pos": hero.position, "t": 0.5, "r": 120.0, "c": Color("6ac0e0")})
+		elif dr.k == "chest":
+			# 보급 상자(D-205): 진화 또는 책략 1~3개 레벨 업
+			banner("보급 상자!", tactics.open_chest())
+			note("보급 상자")
+			Sound.play("win", 0.4)
+			add_fx({"k": "ring", "pos": hero.position, "t": 0.6, "r": 90.0, "c": Color("f0c040")})
 		else:
 			hero.heal(hero.max_hp * 0.3)
 			Sound.play("heal", 0.35)
@@ -1245,32 +1240,26 @@ func _spawn_squads() -> void:
 			var e := spawn(k, at, s[3])
 			e.set_post(at)
 			e.aggro = 230
-	# 진영 건물(D-202): 막사(병력이 나옴) · 수비탑(장수를 쏨). c.bks = 둘 다, kind로 가름
-	var B: Dictionary = Stage1.BARRACKS
+	# 진영(D-205): 수비탑 2개(장수를 쏨, D-202) · 진영장(처음부터 진영 안, 탑이 남아 있는 동안 보호막) · 처음 호위병
 	var T: Dictionary = Stage1.TOWER
+	var L: Dictionary = Stage1.LEAD
 	for c in camps:
 		var i := 0
-		for bp in c.barracks:
-			var bk := {"id": "%s:%d" % [c.id, i], "kind": "barracks", "pos": bp, "alive": true, "spawn_t": randf_range(0.5, 2.0)}
-			c.bks.append(bk)
-			var hut := spawn("barracks", bp, float(B.hp) * float(c.mul))
-			hut.camp_id = c.id
-			hut.barracks_id = bk.id
-			hut.r = float(B.r)
-			# 수비탑을 다 부술 때까지 보호(D-202)
-			hut.shield = not c.towers.is_empty()
-			bk["unit"] = hut
-			for j in int(B.start):
-				_barracks_soldier(c, bk, float(c.mul))
-			i += 1
 		for tp in c.towers:
-			var bk := {"id": "%s:%d" % [c.id, i], "kind": "tower", "pos": tp, "alive": true}
-			c.bks.append(bk)
-			var tw := spawn("tower", tp, float(T.hp) * float(c.mul))
-			tw.camp_id = c.id
-			tw.barracks_id = bk.id
-			tw.r = float(T.r)
+			var tw := {"id": "%s:%d" % [c.id, i], "pos": tp, "alive": true}
+			c.tws.append(tw)
+			var u := spawn("tower", tp, float(T.hp) * float(c.mul))
+			u.camp_id = c.id
+			u.tower_id = tw.id
+			u.r = float(T.r)
 			i += 1
+		var ld := spawn(c.lk, c.pos, float(c.mul) * float(c.lm))
+		ld.make_lead(c, camp_rect(c))
+		ld.shield = not c.tws.is_empty()
+		c.lead = ld
+		c.call_t = randf_range(0.5, 2.0)
+		for j in int(L.start):
+			_guard(c, float(c.mul))
 
 
 ## 화면 바로 바깥 둘레에서 a 방향의 빈 곳(안 되면 조금씩 돌려 봄). 장수에게 걸어올 수 없는 곳(닫힌 장각 본진 안 · 닫힌 관문 너머)은 뺀다
@@ -1488,20 +1477,19 @@ func field_target() -> Dictionary:
 			bd = d
 			best = c
 	if not best.is_empty():
-		var total: int = best.bks.size()
-		var done := total - buildings_left(best)
-		if best.lead != null:
+		var total: int = best.tws.size()
+		var left := towers_left(best)
+		if left == 0:
 			var lp: Vector2 = best.lead.position if Unit.alive(best.lead) else best.pos
-			return {"pos": lp, "n": "%s 격파 · 막사·탑 %d/%d" % [best.ln, done, total]}
-		# 수비탑이 남았으면 가까운 탑부터(막사는 보호 중, D-202)
-		var tw := towers_left(best) > 0
-		var bp: Vector2 = best.pos
+			return {"pos": lp, "n": "%s · %s 격파" % [best.n, best.ln]}
+		# 수비탑이 남았으면 가까운 탑부터(진영장은 보호 중, D-205)
+		var tp: Vector2 = best.pos
 		var bd2 := INF
-		for bk in best.bks:
-			if bk.alive and (not tw or bk.kind == "tower") and hero.position.distance_to(bk.pos) < bd2:
-				bd2 = hero.position.distance_to(bk.pos)
-				bp = bk.pos
-		return {"pos": bp, "n": "%s · %s 부수기 %d/%d" % [best.n, "수비탑" if tw else "막사", done, total]}
+		for tw in best.tws:
+			if tw.alive and hero.position.distance_to(tw.pos) < bd2:
+				bd2 = hero.position.distance_to(tw.pos)
+				tp = tw.pos
+		return {"pos": tp, "n": "%s · 수비탑 부수기 %d/%d" % [best.n, total - left, total]}
 	if not cyz_dead:
 		var zp: Vector2 = cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos
 		return {"pos": zp, "n": "관문 너머 황건 장수 정원지 격파"}
@@ -1514,18 +1502,15 @@ func march_goal(from: Vector2) -> Dictionary:
 	for c in camps:
 		if c.cap:
 			continue
-		if c.lead != null:
-			return {"key": "m_lead_" + c.id, "pos": c.lead.position if Unit.alive(c.lead) else c.pos}
 		var best := {}
 		var bd := INF
-		var tw := towers_left(c) > 0
-		for bk in c.bks:
-			if bk.alive and (not tw or bk.kind == "tower") and from.distance_to(bk.pos) < bd:
-				bd = from.distance_to(bk.pos)
-				best = bk
+		for tw in c.tws:
+			if tw.alive and from.distance_to(tw.pos) < bd:
+				bd = from.distance_to(tw.pos)
+				best = tw
 		if not best.is_empty():
 			return {"key": "m_" + String(best.id), "pos": best.pos}
-		return {"key": "m_camp_" + c.id, "pos": c.pos}
+		return {"key": "m_lead_" + c.id, "pos": c.lead.position if Unit.alive(c.lead) else c.pos}
 	if not cyz_dead:
 		return {"key": "m_cyz", "pos": cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos}
 	return {"key": "m_boss", "pos": boss.position if Unit.alive(boss) else keep_rect().get_center()}

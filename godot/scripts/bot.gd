@@ -65,6 +65,7 @@ var _near_t := 0.0
 var _pick_wait := 0
 var _shot_pick := false
 var _shot_evo := false
+var _lead_shots := {}
 
 
 func _ready() -> void:
@@ -189,10 +190,16 @@ func _bot_process() -> void:
 	var h := b.hero
 	var T := b.field_target()
 	var goal: Vector2 = T.pos
-	# 진영장이 나왔으면 진영 가운데가 아니라 진영장을 쫓음(궁대장은 물러나며 쏨)
+	# 보호막이 풀린 진영장이 목표 근처면 진영장을 쫓음(궁대장은 물러나며 쏨)
 	for c in b.camps:
-		if not c.cap and c.lead != null and Unit.alive(c.lead) and c.lead.position.distance_to(goal) < 220:
+		if not c.cap and Unit.alive(c.lead) and not c.lead.shield and c.lead.position.distance_to(goal) < 220:
 			goal = c.lead.position
+	# 보급 상자(D-205)가 가까우면 먼저 주움
+	var cd := 600.0
+	for dr in b.drops:
+		if dr.k == "chest" and h.position.distance_to(dr.pos) < cd:
+			cd = h.position.distance_to(dr.pos)
+			goal = dr.pos
 	var to := goal
 	if h.position.distance_to(goal) > 30:
 		if b.flow.ver != b.obs_ver:
@@ -229,6 +236,8 @@ func _bot_process() -> void:
 		_log("")
 	if not shot_at.is_empty() and b.t >= shot_at[0]:
 		_shot("t%03d" % int(shot_at.pop_front()))
+	if shot_dir != "":
+		_shot_leads()
 	if b.t > max_t and not _done:
 		_done = true
 		_log("TIMEOUT")
@@ -276,7 +285,7 @@ func _pick(opts: Array[Dictionary]) -> int:
 
 func _lead_near(p: Vector2) -> bool:
 	for e in b.enemies:
-		if e.is_lead() and not e.dead and e.position.distance_to(p) < 110:
+		if e.is_lead() and not e.dead and not e.shield and e.position.distance_to(p) < 110:
 			return true
 	return false
 
@@ -302,6 +311,23 @@ func _shot(name: String) -> void:
 		FileAccess.open(shot_dir.path_join(".gdignore"), FileAccess.WRITE)
 	img.save_png(shot_dir.path_join(name + ".png"))
 	print("[bot] shot ", name)
+
+
+## 스크린샷 모드(D-205): 보호막 진영장이 처음 화면에 들어올 때 · 진영장 공격마다 첫 예고가 거의 끝날 때 · 첫 보급 상자 한 장씩
+func _shot_leads() -> void:
+	if not _lead_shots.has("chest") and b.drops.any(func(dr): return dr.k == "chest" and b.in_view(dr.pos, -20)):
+		_lead_shots["chest"] = true
+		_shot("chest")
+	for c in b.camps:
+		var L: Enemy = c.lead
+		if c.cap or not Unit.alive(L) or not b.in_view(L.position, -20):
+			continue
+		if L.shield and not _lead_shots.has("shield"):
+			_lead_shots["shield"] = true
+			_shot("lead_shield")
+		if L.st == 1 and L.t >= float(Stage1.LEAD.warn) * 0.7 and not _lead_shots.has(L.skill):
+			_lead_shots[L.skill] = true
+			_shot("lead_" + L.skill)
 
 
 ## 매 프레임 측정. 구간이 끝나면(진영 점령 · 정원지 · 장각) 걸린 시간 · 이동 · 멈춘 비율을 한 줄로
@@ -385,6 +411,13 @@ func _result(status: String) -> void:
 	if Perf.on:
 		_perf_report()
 	print("[phases] " + (" · ".join(_phases) if not _phases.is_empty() else "-"))
+	# 사건(D-205): 판 시각 · 사건 · 앞 사건부터 걸린 시간
+	var evs: Array[String] = []
+	var t0 := 0.0
+	for e in b.events:
+		evs.append("%s %s(+%s)" % [_fmt(e.t), e.n, _fmt(e.t - t0)])
+		t0 = e.t
+	print("[events] " + (" · ".join(evs) if not evs.is_empty() else "-"))
 	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))
 	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 둘레 120px 적 평균 %.1f · 분당 피격 %.1f · 최저 체력 %d/%d · 구슬 주운 경험 %d%%" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0),
 		_near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(_min_hp), int(h.max_hp), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0)])

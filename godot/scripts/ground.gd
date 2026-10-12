@@ -40,6 +40,18 @@ func _draw_impl() -> void:
 			draw_rect(Rect2(p + Vector2(-9, bob + 5), Vector2(4, 3)), Color("e8e8f0"))
 			draw_rect(Rect2(p + Vector2(5, bob + 5), Vector2(4, 3)), Color("e8e8f0"))
 			continue
+		if dr.k == "chest":
+			# 보급 상자(D-205): 나무 상자 + 금빛 띠, 둘레가 반짝임
+			var bob := sin(b.t * 4) * 2
+			var q := p + Vector2(0, bob)
+			draw_circle(p + Vector2(0, 9), 11, Color(0, 0, 0, 0.2))
+			draw_arc(q, 17 + sin(b.t * 6) * 2, 0, TAU, 32, Color(0.94, 0.75, 0.25, 0.55), 2)
+			draw_rect(Rect2(q + Vector2(-11, -7), Vector2(22, 15)), Color("8a5a2a"))
+			draw_rect(Rect2(q + Vector2(-11, -10), Vector2(22, 5)), Color("a8743a"))
+			draw_rect(Rect2(q + Vector2(-11, -10), Vector2(22, 18)), Color("4a2a10"), false, 1.5)
+			draw_rect(Rect2(q + Vector2(-2, -10), Vector2(4, 18)), Color("f0c040"))
+			draw_rect(Rect2(q + Vector2(-3, -4), Vector2(6, 5)), Color("fff2c0"))
+			continue
 		draw_circle(p, 6, Color("f4ecd8"))
 		draw_circle(p, 6, Color("8a6a3a"), false, 1.5)
 		draw_line(p + Vector2(-3, -1), p + Vector2(3, -1), Color("c8a874"), 1.0)
@@ -110,8 +122,9 @@ func _camps(V: Rect2) -> void:
 		for d in [Vector2(-70, -40), Vector2(60, -45), Vector2(-60, 30), Vector2(70, 25)]:
 			_tent(p + d, Color("e8e0d0") if cap else Color("d8b860"), Color("4a7ab8") if cap else Color("a8782a"))
 		_flag(p + Vector2(0, -10), Color("4a7ab8") if cap else Color("d8b040"), b.hero_data.flag_glyph if cap else "黃")
-		var total: int = c.bks.size()
-		var what: String = String(c.ln) if c.lead != null else ("막사·탑 %d/%d" % [total - b.buildings_left(c), total])
+		var total: int = c.tws.size()
+		var left := b.towers_left(c)
+		var what: String = String(c.ln) if left == 0 else ("수비탑 %d/%d" % [total - left, total])
 		var txt: String = ("%s — 점령" % c.n) if cap else ("%s · %s" % [c.n, what])
 		_label(txt, Vector2(p.x, R.position.y - 14), Color("cfe2f4") if cap else Color("ffd8a0"))
 

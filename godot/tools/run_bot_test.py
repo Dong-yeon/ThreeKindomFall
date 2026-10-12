@@ -54,12 +54,12 @@ def main():
             out, _ = p.communicate()
         text = out.decode('utf-8', 'replace')
         res = None
-        extra = {'slots': '-', 'evos': '-', 'picks': '-', 'phases': '-', 'allies': '-', 'move': '-'}
+        extra = {'slots': '-', 'evos': '-', 'picks': '-', 'phases': '-', 'events': '-', 'allies': '-', 'move': '-'}
         logged, printed = [], []  # 봇의 Logger가 모은 것(파일:줄 포함) / 엔진 출력에서 찾은 것(봇이 붙기 전 오류도 잡힘)
         for line in text.splitlines():
             if line.startswith('[result]'):
                 res = dict(kv.split('=', 1) for kv in line[len('[result]'):].split())
-            elif line.startswith(('[slots]', '[evos]', '[picks]', '[phases]', '[allies]', '[move]')):
+            elif line.startswith(('[slots]', '[evos]', '[picks]', '[phases]', '[events]', '[allies]', '[move]')):
                 tag, _, rest = line.partition(' ')
                 extra[tag.strip('[]')] = rest.strip()
             elif line.startswith('[error]'):
@@ -90,8 +90,10 @@ def main():
         print('  '.join(c.ljust(w[i]) for i, c in enumerate(row)))
     for m, r, n_err, errs, ex in rows:
         print()
-        print('[%s] 칸: %s' % (MODE_NAME.get(m, m), ex['slots']))
+        print('[%s] 판 길이 %s (%s)' % (MODE_NAME.get(m, m), fmt_t(r['time']), STATUS_NAME.get(r['status'], r['status'])))
+        print('  사건: %s' % ex['events'])
         print('  구간: %s' % ex['phases'])
+        print('  칸: %s' % ex['slots'])
         print('  이동: %s' % ex['move'])
         print('  아군(30초마다): %s' % ex['allies'])
         print('  진화: %s' % ex['evos'])
