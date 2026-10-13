@@ -316,6 +316,35 @@ func _draw_overlay() -> void:
 	Perf.end()
 
 
+## 몰려오는 무리 예고(Stage1.SURGE): 그 방향 화면 가장자리에 깜빡이는 붉은 삼각형 + '!'
+func _draw_surge(c: Control, font: Font, sz: Vector2) -> void:
+	var W: Dictionary = b.surge_warn
+	if W.is_empty():
+		return
+	var hc := _w2s(b.hero.position)
+	var a: float = W.a
+	var x0 := 22.0
+	var x1 := sz.x - 22
+	var y0 := TOP_H + 22
+	var y1 := sz.y - 22
+	var k := INF
+	if cos(a) > 0.01:
+		k = minf(k, (x1 - hc.x) / cos(a))
+	if cos(a) < -0.01:
+		k = minf(k, (x0 - hc.x) / cos(a))
+	if sin(a) > 0.01:
+		k = minf(k, (y1 - hc.y) / sin(a))
+	if sin(a) < -0.01:
+		k = minf(k, (y0 - hc.y) / sin(a))
+	var ap := hc + Vector2.from_angle(a) * k
+	var al := 0.55 + 0.45 * sin(b.t * 16)
+	var tri := PackedVector2Array([ap + Vector2(16, 0).rotated(a), ap + Vector2(-10, -13).rotated(a), ap + Vector2(-10, 13).rotated(a)])
+	c.draw_colored_polygon(tri, Color(0.9, 0.25, 0.2, al))
+	tri.append(tri[0])
+	c.draw_polyline(tri, INK, 2)
+	_text(c, font, "!", ap - Vector2.from_angle(a) * 24, 18, Color(1, 0.85, 0.8, al))
+
+
 func _draw_overlay_impl() -> void:
 	var c := overlay
 	var sz := overlay.size
@@ -324,6 +353,7 @@ func _draw_overlay_impl() -> void:
 	if h.musou_t > 0:
 		c.draw_texture_rect(vignette, Rect2(Vector2.ZERO, sz), false)
 	_draw_lead_bar(c, font, sz)
+	_draw_surge(c, font, sz)
 	# 목표 화살표(화면 밖일 때)
 	var T := b.field_target()
 	var tp: Vector2 = T.pos

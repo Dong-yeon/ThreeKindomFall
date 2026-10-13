@@ -135,7 +135,7 @@ func musou_go() -> void:
 	Sound.play("win", 0.3)
 
 
-## 무쌍 중 무적인가(시작부터 musou_inv초, D-193)
+## 무쌍 중 무적인가(시작부터 musou_inv초, D-193 — 지금은 기본값이 무쌍 내내)
 func musou_guard() -> bool:
 	return musou_t > 0 and data.musou_time - musou_t < data.musou_inv
 

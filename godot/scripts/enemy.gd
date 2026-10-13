@@ -470,7 +470,8 @@ func _tower_tick(dt: float) -> void:
 	var T: Dictionary = Stage1.TOWER
 	var gap: float = T.gap
 	var hp_pos := b.hero.position
-	_aiming = position.distance_to(hp_pos) <= float(T.range) and b.in_view(position, -10)
+	# 보스 울타리 중엔 쏘지 않음(2026-10-13 — 울타리 곁 탑이 갇힌 장수를 계속 쏘았음)
+	_aiming = position.distance_to(hp_pos) <= float(T.range) and b.in_view(position, -10) and (b.arena.is_empty() or b.arena.st != "on")
 	if not _aiming:
 		t = minf(t + dt, gap - float(T.warn))
 		return

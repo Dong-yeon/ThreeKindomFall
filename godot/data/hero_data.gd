@@ -37,7 +37,8 @@ extends Resource
 @export var musou_name := "무쌍 난무"
 @export var musou_time := 2.3
 ## 무쌍을 시작하고 무적인 시간(초). musou_time보다 짧으면 그 뒤는 돌며 베기만 하고 맞음(D-193 — 처음엔 무쌍 내내 무적)
-@export var musou_inv := 1.0
+## 2026-10-13(사람 손맛 "무쌍일 때는 무적이어야"): 1.0 → 99 = 무쌍 내내 무적
+@export var musou_inv := 99.0
 @export var musou_tick := 0.16
 @export var musou_radius := 120.0
 @export var musou_mult := 2.2

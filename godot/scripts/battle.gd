@@ -108,6 +108,10 @@ var arena := {}
 var arena_log: Array[Dictionary] = []
 ## 카메라가 울타리 중심을 보는 정도(0 = 장수 · 1 = 울타리 중심)
 var cam_k := 0.0
+## 몰려오는 무리(Stage1.SURGE): 다음까지 · 예고 중인 무리 {a: 장수에서 본 방향, t: 남은 예고 초, at: 나올 자리} · 지금까지 온 수(봇 출력)
+var surge_t := 0.0
+var surge_warn := {}
+var surge_n := 0
 ## 장각(2 · 3장, Siege가 만듦 — 1장엔 없음)
 var boss: Enemy = null
 ## 2 · 3장용 진행(D-211): 성문 열림 · 장각의 요술 · 요술 제단 · 장각 · 사신수. 1장(Stage1.SIEGE = false)엔 없음
@@ -442,6 +446,7 @@ func _field_tick(dt: float) -> void:
 	_party_tick(dt)
 	_rein_tick(dt)
 	_wave_tick(dt)
+	_surge_tick(dt)
 	_army_tick(dt)
 	_cyz_tick(dt)
 	if siege != null:
@@ -830,6 +835,49 @@ func _wave_tick(dt: float) -> void:
 	if made > 0:
 		banner("황건 무리가 에워싸요!", "사방에서 %d명이 조여 와요" % made)
 		Sound.play("alert", 0.45)
+
+
+## 몰려오는 무리(Stage1.SURGE): gap초마다 화면 밖 한 방향(걸어올 수 있는 자리)을 정해 warn초 예고 → 그 자리에 무리가 모여 나와 장수를 쫓음
+func _surge_tick(dt: float) -> void:
+	var S: Dictionary = Stage1.SURGE
+	if won or boss != null or t < float(S.from):
+		return
+	if not surge_warn.is_empty():
+		surge_warn.t = float(surge_warn.t) - dt
+		if float(surge_warn.t) <= 0:
+			_surge_go(surge_warn.at)
+			surge_warn = {}
+		return
+	surge_t -= dt
+	if surge_t > 0:
+		return
+	surge_t = float(S.gap)
+	if not arena.is_empty() or enemies.size() >= int(S.cap):
+		return
+	for _i in 6:
+		var p := ring_pos(randf() * TAU)
+		if p != Vector2.INF:
+			surge_warn = {"a": (p - hero.position).angle(), "t": float(S.warn), "at": p}
+			Sound.play("alert", 0.25)
+			return
+
+
+func _surge_go(at: Vector2) -> void:
+	var S: Dictionary = Stage1.SURGE
+	var n := mini(int(S.max), int(S.n0) + int(float(S.per_min) * t / 60.0))
+	var m := mul_y(at.y) * float(S.hp)
+	var made := 0
+	for i in n:
+		var p := at + Vector2.from_angle(randf() * TAU) * randf_range(0, float(S.spread))
+		p = Vector2(clampf(p.x, 24, W - 24), clampf(p.y, 24, H - 24))
+		if hit_obs(p, 12):
+			continue
+		var e := spawn("ytdash" if i % int(S.dash_every) == int(S.dash_every) - 1 else "ytb", p, m)
+		e.xp_mul = REIN_XP
+		made += 1
+	if made > 0:
+		surge_n += 1
+		add_fx({"k": "ring", "pos": at, "t": 0.4, "r": float(S.spread) + 20.0, "c": Color("d9705e")})
 
 
 ## 정원지의 대군(D-214): 진영 ARMY.after곳을 점령하면 곧바로 출진 — 부대마다 ARMY.units[].at초에(앞 부대 부장이 쓰러지고 rest초 뒤가 더 이르면 그때) 관문 앞에서 나와 길을 따라 본진으로 진군.
@@ -1588,6 +1636,7 @@ func _tick_shots(dt: float) -> void:
 	var j := 0
 	for i in shots.size():
 		var s: Dictionary = shots[i]
+		var p0: Vector2 = s.pos
 		var p: Vector2 = s.pos + s.vel * dt
 		s.pos = p
 		s.life += dt
@@ -1595,6 +1644,10 @@ func _tick_shots(dt: float) -> void:
 		if p.x < -10 or p.y < -10 or p.x > W + 10 or p.y > H + 10 or p.distance_to(hero.position) > 700:
 			gone = true
 		elif in_wall(p, s.r * 0.5):
+			add_fx({"k": "puff", "pos": p, "t": 0.2})
+			gone = true
+		elif not arena.is_empty() and arena.st == "on" and p0.distance_to(arena.c) >= float(arena.r) and p.distance_to(arena.c) < float(arena.r):
+			# 보스 울타리(사람 손맛 2026-10-13 "울타리 안에 화살이 막 들어와 못 깸"): 밖에서 날아온 탄은 울타리에 막힘
 			add_fx({"k": "puff", "pos": p, "t": 0.2})
 			gone = true
 		elif p.distance_to(hero.position) < s.r + hero.r - 2:
