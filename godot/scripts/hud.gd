@@ -24,6 +24,12 @@ var pause_btn: PauseButton
 var pause_panel: PanelContainer
 ## 웹 첫 화면 '화면을 눌러 시작'(Battle.state == tap)
 var tap_panel: ColorRect
+## 프레임 표시(--fps, 웹은 fps.html): 0.5초마다 FPS · 프레임 간격 평균/최대 · 판 처리 시간 · 1/30초 넘은 프레임 수
+var fps_lbl: Label
+var _fps_last := 0
+var _fps_acc := []
+var _fps_t := 0.0
+var _fps_slow := 0
 var pause_info: Label
 var end_title: Label
 var end_stats: Label
@@ -206,7 +212,35 @@ func refresh() -> void:
 	Perf.end()
 
 
+func _fps_tick() -> void:
+	var now := Time.get_ticks_usec()
+	if _fps_last > 0:
+		var ms := (now - _fps_last) / 1000.0
+		_fps_acc.append(ms)
+		if ms > 34.0:
+			_fps_slow += 1
+	_fps_last = now
+	_fps_t += get_process_delta_time()
+	if _fps_t < 0.5 or _fps_acc.is_empty():
+		return
+	_fps_t = 0.0
+	var sum := 0.0
+	var mx := 0.0
+	for v in _fps_acc:
+		sum += v
+		mx = maxf(mx, v)
+	fps_lbl.text = "FPS %d · 간격 %.1f/최대 %.1fms · 처리 %.1fms · 끊김 %d · 적 %d" % [Engine.get_frames_per_second(), sum / _fps_acc.size(), mx,
+		Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, _fps_slow, b.enemies.size()]
+	_fps_acc.clear()
+
+
 func _refresh_impl() -> void:
+	if fps_lbl == null and "--fps" in OS.get_cmdline_user_args():
+		fps_lbl = _label(10, Color("ffffff"), 3)
+		fps_lbl.position = Vector2(4, TOP_H + 2)
+		add_child(fps_lbl)
+	if fps_lbl != null:
+		_fps_tick()
 	var h := b.hero
 	var T := b.field_target()
 	var title := "%s · %s · 공적 Lv %d" % [Stage1.NAME, _fmt_t(b.t), b.lvl]
