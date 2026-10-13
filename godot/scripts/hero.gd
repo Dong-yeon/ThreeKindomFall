@@ -173,6 +173,7 @@ func hurt(d: float, src := "기타") -> void:
 		return
 	d *= Units.HURT_MUL * (1.0 - data.damage_reduction) * battle.tactics.hurt_mul()
 	battle.hurt_log[src] = float(battle.hurt_log.get(src, 0.0)) + minf(d, hp)
+	battle.last_hurt = src
 	mg = minf(100.0, mg + d * 0.35 * battle.tactics.gauge_mul())
 	if cb_n > 0:
 		cb_n = cb_n / 2

@@ -201,7 +201,7 @@ func _bot_process() -> void:
 	if Perf.on:
 		var rid := get_viewport().get_viewport_rid()
 		var now_us := Time.get_ticks_usec()
-		Perf.frame({"en": b.enemies.size(), "al": b.allies.size(), "t": b.t, "ev": "Lv%d · 진영 %d/3%s" % [b.lvl, b.cap_n, " · 정원지 %d단계" % b.cyz_phase if b.cyz_on else ""],
+		Perf.frame({"en": b.enemies.size(), "al": b.allies.size(), "t": b.t, "arena": 1 if not b.arena.is_empty() and b.arena.st == "on" else 0, "ev": "Lv%d · 진영 %d/3%s" % [b.lvl, b.cap_n, " · 정원지 %d단계" % b.cyz_phase if b.cyz_on else ""],
 			"proc": float(Time.get_ticks_usec() - _last_us) / 1000.0 if _last_us > 0 else 0.0,
 			"rcpu": RenderingServer.viewport_get_measured_render_time_cpu(rid),
 			"rgpu": RenderingServer.viewport_get_measured_render_time_gpu(rid)})
@@ -221,13 +221,13 @@ func _bot_process() -> void:
 		goal = _vil_hold
 	# 보호막이 풀린 진영장이 목표 근처면 진영장을 쫓음(궁대장은 물러나며 쏨)
 	for c in b.camps:
-		if not c.cap and Unit.alive(c.lead) and not c.lead.shield and c.lead.position.distance_to(goal) < 220:
+		if not c.cap and Unit.alive(c.lead) and not c.lead.shield and c.lead.position.distance_to(goal) < 220 and _reach(c.lead.position):
 			goal = c.lead.position
 	# 보급 상자(D-205)가 가까우면 먼저 주움
 	var cd := 600.0
 	var chest := false
 	for dr in b.drops:
-		if dr.k == "chest" and h.position.distance_to(dr.pos) < cd:
+		if dr.k == "chest" and h.position.distance_to(dr.pos) < cd and _reach(dr.pos):
 			cd = h.position.distance_to(dr.pos)
 			goal = dr.pos
 			chest = true
@@ -235,7 +235,7 @@ func _bot_process() -> void:
 	if not chest and h.hp < h.max_hp * 0.6:
 		var bd := 400.0
 		for dr in b.drops:
-			if dr.k == "bun" and h.position.distance_to(dr.pos) < bd:
+			if dr.k == "bun" and h.position.distance_to(dr.pos) < bd and _reach(dr.pos):
 				bd = h.position.distance_to(dr.pos)
 				goal = dr.pos
 				chest = true
@@ -250,7 +250,7 @@ func _bot_process() -> void:
 		var od := 300.0
 		for o in b.orbs:
 			var d: float = h.position.distance_to(o.pos)
-			if d < od:
+			if d < od and _reach(o.pos):
 				od = d
 				_orb_pos = o.pos
 				_orb_until = b.t + 2.5
@@ -277,6 +277,8 @@ func _bot_process() -> void:
 		# 무적이면 피하지 않고 곧장(적이 몰린 장각 본진 문 앞에서 맴돌지 않게)
 		if d < FIGHT_R + e.r and not god:
 			v += dv / d * (FIGHT_R + e.r - d) / FIGHT_R * 2.2 * (2.5 if e.is_lead() else 1.0)
+		if not god and d < 420:
+			v += _dodge(e, h) * 3.0
 	for s in b.shots:
 		var dv: Vector2 = h.position - s.pos
 		var d := maxf(dv.length(), 1.0)
@@ -414,9 +416,16 @@ func _shot_events() -> void:
 		elif e.k == "ytdash" and e.st == 3 and not _lead_shots.has("dash_stun"):
 			_lead_shots["dash_stun"] = true
 			_shot("dash_stun")
-		elif e.army_lead and e.slam_w > 0 and e.slam_w < 0.4 and not _lead_shots.has("army_slam"):
-			_lead_shots["army_slam"] = true
-			_shot("army_slam")
+		elif e.army_lead and e.pat_w > 0 and e.pat_w < 0.4 and not _lead_shots.has("army_" + String(e.pat.kind)):
+			_lead_shots["army_" + String(e.pat.kind)] = true
+			_shot("army_" + String(e.pat.kind))
+	# 보스 울타리(D-216): 예고 · 선 울타리 처음 한 장씩
+	if not b.arena.is_empty() and not _lead_shots.has("arena_" + String(b.arena.st)):
+		if b.arena.st == "on" and b.t - float(b.arena.t0) < 1.0:
+			pass
+		else:
+			_lead_shots["arena_" + String(b.arena.st)] = true
+			_shot("arena_" + String(b.arena.st))
 	if not _lead_shots.has("arrows") and b.shots.filter(func(s): return s.arrow and b.in_view(s.pos, -10)).size() >= 2:
 		_lead_shots["arrows"] = true
 		_shot("arrows")
@@ -555,7 +564,26 @@ func _result(status: String) -> void:
 	ks.sort_custom(func(x, y): return float(b.hurt_log[x]) > float(b.hurt_log[y]))
 	for k in ks:
 		hl.append("%s %d(%d%%)" % [k, int(b.hurt_log[k]), roundi(float(b.hurt_log[k]) / maxf(tot, 1.0) * 100.0)])
-	print("[hurt] 합 %d · %s" % [int(tot), " · ".join(hl) if not hl.is_empty() else "-"])
+	print("[hurt] 합 %d · %s · 마지막 %s" % [int(tot), " · ".join(hl) if not hl.is_empty() else "-", b.last_hurt if b.last_hurt != "" else "-"])
+	# 보스 울타리(D-216): 부대 · 생긴 때 · 걸린 시간 · 중심에서 본진까지
+	var ar: Array[String] = []
+	for a in b.arena_log:
+		ar.append("%s %s(%ds · 본진까지 %dpx)" % [a.n, _fmt(float(a.t0)), int(float(a.t1) - float(a.t0)), int(a.d)])
+	if not b.arena.is_empty() and b.arena.st == "on":
+		ar.append("%s 진행 중(%ds)" % [String(b.arena.lead.ename), int(b.t - float(b.arena.t0))])
+	print("[arena] " + (" · ".join(ar) if not ar.is_empty() else "-"))
+	# 회복(D-216): 출처별 고기만두 · 마을 상자
+	var hs: Array[String] = []
+	var hn := 0
+	for k in b.heal_log:
+		hs.append("%s %d" % [k, int(b.heal_log[k])])
+		hn += int(b.heal_log[k])
+	var props_left := 0
+	var props_all := 0
+	for e in b.enemies:
+		if e.prop:
+			props_all += 1
+	print("[heals] 합 %d · %s · 남은 물체 %d" % [hn, " · ".join(hs) if not hs.is_empty() else "-", props_all])
 	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))
 	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 둘레 120px 적 평균 %.1f · 분당 피격 %.1f · 최저 체력 %d/%d · 구슬 주운 경험 %d%%" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0),
 		_near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(_min_hp), int(h.max_hp), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0)])
@@ -589,6 +617,54 @@ func _village_line() -> String:
 	return " · ".join(parts)
 
 
+## 보스 울타리(D-216)가 서 있으면 울타리 안만 갈 수 있음 — 밖의 상자 · 구슬 · 진영장을 노리면 울타리에 붙어 멈춤
+func _reach(p: Vector2) -> bool:
+	if b.arena.is_empty() or b.arena.st != "on":
+		return true
+	return p.distance_to(b.arena.c) < float(b.arena.r) - 14.0
+
+
+## 예고 피하기(D-216 — 사람처럼): 내려찍기 원 안이면 원 밖으로, 돌진 갈 길 위면 옆으로. 피할 쪽(길이 1) 또는 0
+## (전엔 날아오는 탄만 피해서 예고 있는 공격을 다 맞았음 — 일반 봇 피해의 절반 이상이 내려찍기)
+func _dodge(e: Enemy, h: Hero) -> Vector2:
+	var circ := Vector2.INF
+	var cr := 0.0
+	var ldir := Vector2.ZERO
+	var llen := 0.0
+	if e.pat_w > 0:
+		if e.pat.kind == "slam":
+			circ = e.sk_at
+			cr = float(e.pat.r)
+		else:
+			ldir = e.tdir
+			llen = float(e.pat.spd) * float(e.pat.dur)
+	elif e._ai == Enemy.AI_LEAD and e.st == 1:
+		var S: Dictionary = Stage1.LEAD_SKILL[e.skill]
+		if e.skill == "slam":
+			circ = e.sk_at
+			cr = float(S.r)
+		elif e.skill == "charge":
+			ldir = e.tdir
+			llen = float(S.spd) * float(S.dur)
+	elif e._ai == Enemy.AI_DASH and e.st == 1:
+		ldir = e.tdir
+		llen = float(e.def.dspd) * float(e.def.dur)
+	if circ != Vector2.INF:
+		var dc := h.position - circ
+		var dl := dc.length()
+		if dl < cr + 20:
+			return dc / dl if dl > 1 else Vector2.RIGHT
+	elif llen > 0:
+		var rel := h.position - e.position
+		var along := rel.dot(ldir)
+		if along > -10 and along < llen + 20:
+			var side := rel - ldir * along
+			var sd := side.length()
+			if sd < e.r + h.r + 16:
+				return side / sd if sd > 1 else ldir.orthogonal()
+	return Vector2.ZERO
+
+
 ## 성능 정리: 적이 가장 많던 순간(앞뒤 0.5초 평균) · 판 전체 평균 · 가장 무거운 프레임
 const PERF_KEYS := ["적 움직임", "길찾기", "충돌", "아군", "책략", "기본 공격", "생성", "판:기타", "HUD 갱신", "그리기 요청", "그리기:적", "그리기:아군", "그리기:바닥", "그리기:효과", "그리기:HUD"]
 
@@ -613,6 +689,11 @@ func _perf_report() -> void:
 	print("[perf]   " + _perf_line(win))
 	print("[perf] 판 전체 평균(%d프레임) · 적 평균 %d" % [fr.size(), int(_avg(fr, "en"))])
 	print("[perf]   " + _perf_line(fr))
+	# 보스 울타리가 서 있던 프레임만(D-216)
+	var fa: Array = fr.filter(func(f): return int(f.get("arena", 0)) == 1)
+	if fa.size() > 10:
+		print("[perf] 울타리 중(%d프레임) · 적 평균 %d" % [fa.size(), int(_avg(fa, "en"))])
+		print("[perf]   " + _perf_line(fa))
 	# 무거운 프레임(처음 2초 빼고) 위 5개: 그 프레임에서 큰 구간 셋 · 그때 판 상태
 	var idx: Array = []
 	for i in fr.size():

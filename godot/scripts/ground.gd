@@ -36,8 +36,18 @@ func _draw_impl() -> void:
 	# 2 · 3장: 요술 제단 빛줄기 · 장각의 요술 · 봉인된 사신수(D-211 — siege.gd)
 	if b.siege != null:
 		b.siege.draw_ground(self, V)
+	_arena(V)
 	for dr in b.drops:
 		var p: Vector2 = dr.pos
+		if dr.get("k", "bun") == "bomb":
+			# 폭탄(D-216): 검은 공 + 타는 심지
+			var bob := sin(b.t * 5) * 2
+			draw_circle(p + Vector2(0, 8), 7, Color(0, 0, 0, 0.2))
+			draw_circle(p + Vector2(0, bob), 8, Color("2a2a30"))
+			draw_circle(p + Vector2(-3, bob - 3), 2.5, Color("6a6a78"))
+			draw_line(p + Vector2(4, bob - 6), p + Vector2(8, bob - 11), Color("c8a874"), 2)
+			draw_circle(p + Vector2(8, bob - 12), 2.5 + sin(b.t * 20), Color("ffb040"))
+			continue
 		if dr.get("k", "bun") == "magnet":
 			# 자석: 빨강 말굽 + 은빛 끝
 			var bob := sin(b.t * 5) * 2
@@ -259,3 +269,31 @@ func _tactics_ground(V: Rect2) -> void:
 		var k := 1.0 - clampf(float(w.t) / float(w.T), 0, 1)
 		draw_circle(p, r, Color(0.85, 0.35, 0.25, 0.12 + 0.12 * k))
 		draw_arc(p, r * (1.0 - 0.6 * k) + 4, 0, TAU, 28, Color(0.9, 0.4, 0.3, 0.7), 1.5)
+
+
+## 보스 울타리(D-216): 예고 = 붉은 점선 원(깜빡임, 안쪽이 차오름) · 울타리 = 나무 말뚝 둘레 + 밧줄
+func _arena(V: Rect2) -> void:
+	var A: Dictionary = b.arena
+	if A.is_empty():
+		return
+	var c: Vector2 = A.c
+	var R: float = A.r
+	if A.st == "warn":
+		var k := 1.0 - clampf(float(A.t) / float(Stage1.ARENA.warn), 0.0, 1.0)
+		var al := 0.75 + 0.25 * sin(b.t * 12)
+		draw_circle(c, R, Color(0.9, 0.3, 0.22, 0.08))
+		draw_circle(c, R * k, Color(0.9, 0.3, 0.22, 0.14))
+		var n := 48
+		for i in n:
+			if i % 2 == 0:
+				draw_arc(c, R, TAU * i / n, TAU * (i + 1) / n, 4, Color(1, 0.3, 0.25, al), 6)
+		return
+	draw_arc(c, R + 2, 0, TAU, 96, Color(0, 0, 0, 0.18), 6)
+	draw_arc(c, R - 6, 0, TAU, 96, Color("c8a874"), 2)
+	var n := int(TAU * R / 18)
+	for i in n:
+		var q := c + Vector2.from_angle(TAU * i / n) * R
+		if not V.grow(20).has_point(q):
+			continue
+		draw_rect(Rect2(q + Vector2(-2.5, -12), Vector2(5, 14)), Color("6a4a20"))
+		draw_rect(Rect2(q + Vector2(-2.5, -12), Vector2(5, 3)), Color("a8743a"))

@@ -97,8 +97,17 @@ var army: Array[Dictionary] = []
 var cyz: Enemy = null
 ## 장수가 정원지 곁(260px)에 있던 시간(봇 출력)
 var cyz_eng := 0.0
-## 장수가 받은 피해 출처별 합(봇 출력 — Hero.hurt의 src)
+## 장수가 받은 피해 출처별 합(봇 출력 — Hero.hurt의 src) · 마지막으로 받은 피해의 출처(사망 원인)
 var hurt_log := {}
+var last_hurt := ""
+## 회복을 얻은 수 · 출처별(D-216 봇 출력): 물체 · 부장 · 처치 · 카드 · 마을
+var heal_log := {}
+## 보스 울타리(D-216 1단계): {} = 없음 / {st: warn · on, t: 예고 남은 초, lead: 부장 · 정원지, c: 중심, r, t0: 생긴 때, beat: 다음 북소리까지}
+var arena := {}
+## 끝난 울타리 기록(봇 출력): {n: 부대, ln: 이름, t0, t1, d: 중심에서 본진까지}
+var arena_log: Array[Dictionary] = []
+## 카메라가 울타리 중심을 보는 정도(0 = 장수 · 1 = 울타리 중심)
+var cam_k := 0.0
 ## 장각(2 · 3장, Siege가 만듦 — 1장엔 없음)
 var boss: Enemy = null
 ## 2 · 3장용 진행(D-211): 성문 열림 · 장각의 요술 · 요술 제단 · 장각 · 사신수. 1장(Stage1.SIEGE = false)엔 없음
@@ -187,6 +196,7 @@ func _ready() -> void:
 		siege = Siege.new(self)
 	_setup_allies()
 	_spawn_squads()
+	_spawn_props()
 	for i in start_march:
 		ally_spawn("sol", hero.position + Vector2(randf_range(-40, 40), randf_range(10, 40)), "march", "")
 	_place_camera()
@@ -443,6 +453,7 @@ func _field_tick(dt: float) -> void:
 		if not a.dead:
 			a.tick(dt)
 	Perf.end()
+	_arena_tick(dt)
 	Perf.begin(&"책략")
 	tactics.tick(dt)
 	Perf.end()
@@ -918,8 +929,8 @@ func _spawn_unit(u: Dictionary, U: Dictionary) -> void:
 	L.army_unit = u.i
 	L.army_lead = true
 	# 내려찍기(2026-10-13 적 역할)
-	L.pat_slam = A.slam
-	L.slam_cd = randf_range(2.0, 4.0)
+	L.pat = A[String(U.get("pat", "slam"))]
+	L.pat_cd = randf_range(2.0, 4.0)
 	u.lead = L
 	u.spawned = true
 	var m := float(A.smul) * (1.0 + minf(t, 600.0) / 600.0 * 0.25)
@@ -988,7 +999,10 @@ func _cyz_tick(_dt: float) -> void:
 			at = at.clamp(Vector2(40, 745), Vector2(W - 40, H - 40))
 			if hit_obs(at, 12):
 				at = cyz.position + Vector2(randf_range(-30, 30), 40)
-			spawn("ytbig" if i % 4 == 0 else ("ytdash" if i % 5 == 2 else "ytb"), at, 1.3)
+			var re := spawn("ytbig" if i % 4 == 0 else ("ytdash" if i % 5 == 2 else "ytb"), at, 1.3)
+			# 울타리 안에서 부른 군사는 울타리 안(D-216)
+			if not arena.is_empty() and arena.st == "on" and at.distance_to(arena.c) < float(arena.r):
+				re.arena_side = 1
 		note("정원지 2단계")
 		banner("정원지가 분노해요!", "남은 군사를 모두 불러요 — 돌진 · 땅 내려찍기를 피해요")
 		add_fx({"k": "ring", "pos": cyz.position, "t": 0.6, "r": 120.0, "c": Color("d9705e")})
@@ -1202,7 +1216,7 @@ func nearest_enemy(from: Vector2, max_d: float) -> Enemy:
 	var best: Enemy = null
 	var bd := max_d
 	for e in enemies:
-		if e.dead or e.shield:
+		if e.dead or e.shield or e.prop:
 			continue
 		var d := e.position.distance_to(from)
 		if d < bd:
@@ -1376,18 +1390,21 @@ func hurt_enemy(e: Enemy, d: float) -> void:
 		cur_camp = e.camp_id
 	e.hp -= d
 	e.flash = 0.1
-	if e.is_lead() or e.building:
+	if (e.is_lead() or e.building) and not e.prop:
 		add_fx({"k": "num", "pos": e.position + Vector2(randf_range(-6, 6), -e.r), "t": 0.7, "v": str(roundi(d)), "c": Color("fff2c0")})
 	if e.hp <= 0:
 		e.dead = true
 		kills += 1
 		add_fx({"k": "burst", "pos": e.position, "t": 0.3, "r": e.r * 0.6, "c": Color("f6e2a0")})
-		Sound.play("slam" if e.building else "kill", 0.45 if e.building else 0.12)
+		Sound.play("hit" if e.prop else ("slam" if e.building else "kill"), 0.3 if e.prop else (0.45 if e.building else 0.12))
 		_on_kill(e)
 
 
 ## 적이 쓰러지면: 진영 병력 · 진영장(점령) · 정원지(본진 문) · 장각(평정)
 func _on_kill(e: Enemy) -> void:
+	if e.prop:
+		_prop_loot(e)
+		return
 	if not e.boss:
 		drop_orb(e.position, TacticsData.xp_of(e.k, e.elite) * e.xp_mul)
 	# 2 · 3장: 장각 · 요술 제단(D-211 — siege.gd)
@@ -1475,7 +1492,7 @@ func _on_kill(e: Enemy) -> void:
 		drops.append({"k": "chest", "pos": e.position})
 		# 부장마다 고기만두 확정(2026-10-13 — 긴 대군전의 회복)
 		for j in int(Stage1.ARMY.bun):
-			drops.append({"k": "bun", "pos": e.position + Vector2(28, 0).rotated(j * 2.4 + 0.6)})
+			drops.append({"k": "bun", "pos": e.position + Vector2(28, 0).rotated(j * 2.4 + 0.6), "src": "부장"})
 		note("%s 격파" % U.n)
 		banner("%s 격파! %s%s 흩어져요" % [e.ename, U.n, jo(U.n, "이", "가")], "보급 상자를 주워요" if not U.get("boss", false) else "보급 상자를 줍고 정원지를 쓰러뜨려요")
 		hit_stop = 0.08
@@ -1505,7 +1522,7 @@ func _on_kill(e: Enemy) -> void:
 		return
 	var r := randf()
 	if r < 0.006:
-		drops.append({"k": "bun", "pos": e.position})
+		drops.append({"k": "bun", "pos": e.position, "src": "처치"})
 	elif r < 0.006 + MAGNET_CHANCE:
 		drops.append({"k": "magnet", "pos": e.position})
 
@@ -1650,6 +1667,7 @@ func _pickups() -> void:
 			# 마을 상자(D-209): 회복 + 경험
 			var V: Dictionary = Stage1.VILLAGE
 			hero.heal(hero.max_hp * float(V.heal))
+			heal_log["마을"] = int(heal_log.get("마을", 0)) + 1
 			gain_xp(float(V.xp))
 			banner("마을 사람들의 보급!", "체력 %d%% 회복 · 경험 +%d" % [roundi(float(V.heal) * 100), int(V.xp)])
 			note("마을 상자")
@@ -1661,8 +1679,12 @@ func _pickups() -> void:
 			note("보급 상자")
 			Sound.play("win", 0.4)
 			add_fx({"k": "ring", "pos": hero.position, "t": 0.6, "r": 90.0, "c": Color("f0c040")})
+		elif dr.k == "bomb":
+			_bomb_go()
 		else:
 			hero.heal(hero.max_hp * 0.3)
+			var src: String = dr.get("src", "처치")
+			heal_log[src] = int(heal_log.get(src, 0)) + 1
 			Sound.play("heal", 0.35)
 	drops = keep
 
@@ -1730,6 +1752,231 @@ func time_mul() -> float:
 ## 위(장각 쪽)로 갈수록 · 시간이 갈수록 단단해지는 배율(들판 증원)
 func mul_y(y: float) -> float:
 	return (0.75 + (1.0 - y / H) * 1.1) * (1.0 + minf(t, 600.0) / 600.0 * 0.4)
+
+
+## 부서지는 물체(D-216 2단계): 길가 · 진영 네 귀퉁이 바깥 · 마을 곁에 군량 수레 · 깃발 더미. 판마다 PROPS.skip 비율만큼 비움(--seed로 재현).
+## 벽 · 물 위 자리는 건너뜀. 움직이지 않는 적(Enemy.prop)이라 공격이 그대로 맞고, 자동 조준 · 아군 · 접촉에서는 빠짐
+func _spawn_props() -> void:
+	var P: Dictionary = Stage1.PROPS
+	var spots: Array[Vector2] = []
+	for v in P.road:
+		spots.append(v)
+	for c in camps:
+		var R := camp_rect(c).grow(float(P.camp_out))
+		for q in [R.position, Vector2(R.end.x, R.position.y), Vector2(R.position.x, R.end.y), R.end]:
+			spots.append(q)
+	for v in P.village:
+		spots.append(v)
+	var i := 0
+	for at in spots:
+		i += 1
+		if randf() < float(P.skip) or hit_obs(at, 16) or at.x < 24 or at.x > W - 24:
+			continue
+		var e := spawn("cart" if i % 2 == 0 else "flags", at, 1.0)
+		e.max_hp = float(P.hp)
+		e.hp = e.max_hp
+		e.xp_mul = 0.0
+
+
+## 부서진 물체가 떨어뜨리는 것(PROPS 확률): 고기만두 · 폭탄 · 자석 · 경험 구슬
+func _prop_loot(e: Enemy) -> void:
+	var P: Dictionary = Stage1.PROPS
+	var r := randf()
+	if r < float(P.bun):
+		drops.append({"k": "bun", "pos": e.position, "src": "물체"})
+	elif r < float(P.bun) + float(P.bomb):
+		drops.append({"k": "bomb", "pos": e.position})
+	elif r < float(P.bun) + float(P.bomb) + float(P.magnet):
+		drops.append({"k": "magnet", "pos": e.position})
+	else:
+		drop_orb(e.position, float(P.xp_v))
+	add_fx({"k": "puff", "pos": e.position, "t": 0.3})
+
+
+## 폭탄(D-216 2단계): 화면 안 졸병은 모두 쓰러지고, 장수급 · 건물은 최대 체력 × bomb_elite 피해(물체 · 보호막은 그대로)
+func _bomb_go() -> void:
+	var P: Dictionary = Stage1.PROPS
+	var V := view.grow(20)
+	var n := 0
+	var i := 0
+	while i < enemies.size():
+		var e := enemies[i]
+		i += 1
+		if e.dead or e.shield or e.prop or not V.has_point(e.position):
+			continue
+		if e.is_lead() or e.building or e.boss:
+			hurt_enemy(e, e.max_hp * float(P.bomb_elite))
+		else:
+			hurt_enemy(e, e.hp + 1.0)
+			n += 1
+	add_fx({"k": "ring", "pos": hero.position, "t": 0.6, "r": 260.0, "c": Color("ff9a4a")})
+	shake = maxf(shake, 0.4)
+	hit_stop = maxf(hit_stop, 0.08)
+	Sound.play("slam", 0.5)
+	banner("폭탄!", "화면 안 황건 %d명을 쓸어버렸어요" % n)
+
+
+## 보스 울타리(D-216 1단계, Survivor.io 방식). 대군 부장 · 정원지가 장수 ARENA.trigger 안에 오면 warn초 예고 → 울타리 → 부장이 쓰러지면 사라짐
+func _arena_tick(dt: float) -> void:
+	var A: Dictionary = Stage1.ARENA
+	if arena.is_empty():
+		if won or state != "play":
+			return
+		for L in _arena_cands():
+			if L.arena_done or hero.position.distance_to(L.position) > float(A.trigger):
+				continue
+			L.arena_done = true
+			note("울타리 예고 · %s" % L.ename)
+			arena = {"st": "warn", "t": float(A.warn), "lead": L, "c": hero.position, "r": float(A.r), "t0": t, "beat": 0.0}
+			banner("%s 접근!" % L.ename, "곧 울타리가 쳐져요 — 안에서 쓰러뜨려야 나갈 수 있어요")
+			Sound.play("alert", 0.5)
+			break
+		return
+	var L: Enemy = arena.lead
+	if not Unit.alive(L):
+		_arena_off()
+		return
+	if arena.st == "warn":
+		arena.t = float(arena.t) - dt
+		arena.c = _arena_center(L)
+		# 북소리(북 소리 파일이 없어 내려찍기 소리를 낮게): 0.5초마다 둥
+		arena.beat = float(arena.beat) - dt
+		if float(arena.beat) <= 0:
+			arena.beat = 0.5
+			Sound.play("slam", 0.3, 0.0)
+		if float(arena.t) <= 0:
+			_arena_on()
+		return
+	_arena_hold()
+
+
+## 울타리 후보: 살아 있는 대군 부장 · 정원지
+func _arena_cands() -> Array[Enemy]:
+	var out: Array[Enemy] = []
+	for u in army:
+		if u.spawned and Unit.alive(u.lead):
+			out.append(u.lead)
+	if Unit.alive(cyz):
+		out.append(cyz)
+	return out
+
+
+## 울타리 중심: 장수 자리(부장이 멀면 둘의 가운데 — 둘 다 안에 들게). 벽 · 물이면 걸을 수 있는 가까운 곳, 원이 지도 밖으로 크게 나가지 않게
+func _arena_center(L: Enemy) -> Vector2:
+	var R := float(Stage1.ARENA.r)
+	var c := hero.position
+	if hero.position.distance_to(L.position) > R - 50:
+		c = hero.position.lerp(L.position, 0.5)
+	if hit_obs(c, 30):
+		var found := false
+		for rr in range(20, 220, 20):
+			for k in 12:
+				var q := c + Vector2.from_angle(k * TAU / 12) * rr
+				if not hit_obs(q, 30):
+					c = q
+					found = true
+					break
+			if found:
+				break
+	return Vector2(clampf(c.x, R * 0.55, W - R * 0.55), clampf(c.y, R + 10, H - R - 10))
+
+
+## 울타리가 섬: 안의 졸병은 부장 호위 ARENA.keep명만 남기고 cull 비율만큼 사라지고 나머지는 밖으로. 그 부대의 밖 병사는 부장을 떠나 본진으로 진군
+func _arena_on() -> void:
+	var A: Dictionary = Stage1.ARENA
+	var L: Enemy = arena.lead
+	var c: Vector2 = arena.c
+	var R: float = arena.r
+	arena.st = "on"
+	arena.t0 = t
+	# 울타리 안에선 부장이 진군하지 않고 장수에게 덤빔(전엔 본진 쪽 울타리에 붙어 서 있었음)
+	L.aggro = 99999.0
+	# 장수가 원 밖이면 안으로(예고 동안 원이 장수를 따라다녀서 거의 없음)
+	if hero.position.distance_to(c) > R - hero.r:
+		hero.position = c + (hero.position - c).normalized() * (R - hero.r - 4)
+	var kept := 0
+	for e in enemies:
+		if e.dead or e.building:
+			continue
+		var d := e.position.distance_to(c)
+		if e == L or (e == cyz and d < R):
+			e.arena_side = 1
+			if d > R - e.r:
+				e.position = c + (e.position - c).normalized() * (R - e.r - 4)
+			continue
+		if d >= R + e.r:
+			e.arena_side = -1
+			if e.guard_of == L:
+				# 부장 곁을 따르던 병사: 울타리 밖이면 부장을 두고 본진으로 계속 진군
+				e.guard_of = null
+				e.has_post = false
+				e.goal_home = true
+				e.aggro = 200
+			continue
+		if e.guard_of == L and kept < int(A.keep):
+			kept += 1
+			e.arena_side = 1
+			continue
+		if randf() < float(A.cull):
+			e.dead = true
+			add_fx({"k": "puff", "pos": e.position, "t": 0.25})
+		else:
+			e.arena_side = -1
+			e.position = c + (e.position - c).normalized() * (R + e.r + 10)
+			if e.guard_of == L:
+				e.guard_of = null
+				e.has_post = false
+				e.goal_home = true
+	for a in allies:
+		a.arena_side = 1 if a.position.distance_to(c) < R else -1
+	note("울타리 · %s" % L.ename)
+	banner("울타리!", "%s%s 쓰러뜨려야 나갈 수 있어요" % [L.ename, eul(L.ename)])
+	add_fx({"k": "ring", "pos": c, "t": 0.5, "r": R, "c": Color("e8c060")})
+	shake = maxf(shake, 0.25)
+	Sound.play("slam", 0.5)
+
+
+## 울타리가 서 있는 동안: 안(1)은 못 나가고, 밖(-1) · 새로 나온 것(0)은 못 들어옴. 장수는 늘 안
+func _arena_hold() -> void:
+	var c: Vector2 = arena.c
+	var R: float = arena.r
+	var dh := hero.position - c
+	if dh.length() > R - hero.r:
+		hero.position = c + dh.normalized() * (R - hero.r)
+	for e in enemies:
+		if e.dead or e.building:
+			continue
+		_arena_keep(e, c, R)
+	for a in allies:
+		if not a.dead:
+			_arena_keep(a, c, R)
+
+
+func _arena_keep(u: Unit, c: Vector2, R: float) -> void:
+	var d := u.position - c
+	var dl := d.length()
+	if u.arena_side > 0:
+		if dl > R - u.r:
+			u.position = c + d / maxf(dl, 0.01) * (R - u.r)
+	elif dl < R + u.r:
+		u.arena_side = -1
+		u.position = c + (d / dl if dl > 0.01 else Vector2(0, 1)) * (R + u.r)
+
+
+func _arena_off() -> void:
+	var L: Enemy = arena.lead
+	if arena.st == "on":
+		var unit := "정원지"
+		if L != null and is_instance_valid(L) and L.army_unit >= 0 and L != cyz:
+			unit = String(Stage1.ARMY.units[L.army_unit].n)
+		var ln: String = L.ename if L != null and is_instance_valid(L) else "?"
+		arena_log.append({"n": unit, "ln": ln, "t0": arena.t0, "t1": t, "d": (arena.c as Vector2).distance_to(home_pos)})
+		note("울타리 끝")
+	arena = {}
+	for e in enemies:
+		e.arena_side = 0
+	for a in allies:
+		a.arena_side = 0
 
 
 ## 길목의 황건 부대(가까이 가면 덤빔) · 진영 병력
@@ -1972,6 +2219,10 @@ func _path_for_impl(u: Unit, key: String, aim: Vector2) -> Vector2:
 
 ## 지금 가야 할 곳(화살표 · 작은 지도 · 목표 글)
 func field_target() -> Dictionary:
+	# 보스 울타리(D-216): 예고 · 울타리 중엔 그 부장(울타리 밖으로는 못 나감)
+	if not arena.is_empty() and Unit.alive(arena.lead):
+		var AL: Enemy = arena.lead
+		return {"pos": AL.position, "n": "%s 격파 — 울타리 안%s" % [AL.ename, " (곧 생겨요)" if arena.st == "warn" else ""], "warn": true}
 	# 유비가 절반 아래로 다쳤고 둘레에 적이 있으면(D-208 — 쓰러지면 짐)
 	if Unit.alive(liubei) and liubei.hp < liubei.max_hp * 0.5:
 		for e in enemies:
@@ -2058,6 +2309,11 @@ func _place_camera() -> void:
 	var vs := get_viewport_rect().size
 	# 장수를 화면 위에서 60% 자리에(앞쪽이 더 보이게)
 	var c := hero.position + Vector2(0, -vs.y * 0.1)
+	# 보스 울타리(D-216): 울타리가 서 있는 동안 카메라가 울타리 중심으로 옮겨 원 전체가 보이게(부드럽게)
+	var want := 1.0 if not arena.is_empty() and arena.st == "on" else 0.0
+	cam_k = move_toward(cam_k, want, get_process_delta_time() * 2.5)
+	if cam_k > 0 and not arena.is_empty():
+		c = c.lerp(arena.c, cam_k)
 	c.x = clampf(c.x, vs.x / 2, W - vs.x / 2)
 	c.y = clampf(c.y, vs.y / 2, H - vs.y / 2)
 	view = Rect2(c - vs / 2, vs)

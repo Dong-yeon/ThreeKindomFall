@@ -87,12 +87,28 @@ const CYZ := {"m": 40.0, "phase2": 0.5, "leads2": 2, "aggro2": 600.0, "gap2": 0.
 const ARMY := {"after": 2, "road_x": 420.0, "y0": 790.0, "march": 16.5, "slow": 0.4, "slow_r": 220.0, "reach": 30.0, "smul": 1.3,
 	"danger": 1300.0, "hunt_far": 12.0, "hunt_near": 3.0, "hunt_n": 2, "rest": 100.0, "engage": 1500.0,
 	# 부장의 내려찍기(2026-10-13 적 역할): 장수가 range px 안이고 화면에 보이면 cd0~cd1초마다 — 장수 자리에 반지름 r 원을 warn초 예고한 뒤 피해 dmg
-	"slam": {"r": 80.0, "dmg": 22.0, "warn": 0.8, "cd0": 6.0, "cd1": 8.0, "range": 200.0}, "bun": 1, "pause_camps": true,
+	"slam": {"kind": "slam", "r": 80.0, "dmg": 22.0, "warn": 0.8, "cd0": 6.0, "cd1": 8.0, "range": 200.0},
+	# 부장의 돌진(D-216 1단계): 장수가 range 안이면 cd0~cd1초마다 warn초 멈칫(바닥에 갈 길) → spd px/초로 dur초 일직선(닿으면 부장 닿기 피해 + 밀려남)
+	"charge": {"kind": "charge", "warn": 0.6, "spd": 340.0, "dur": 0.55, "cd0": 5.0, "cd1": 7.0, "range": 230.0}, "bun": 1, "pause_camps": true,
 	"units": [
-		{"n": "선봉", "lk": "ytbig", "ln": "황건 선봉장 조홍", "lm": 100.0, "count": 60, "at": 0.0},
-		{"n": "중군", "lk": "ytbig", "ln": "황건 부장 손중", "lm": 140.0, "count": 82, "at": 180.0},
-		{"n": "본대", "lk": "ytbig", "ln": "황건 부장 배원소", "lm": 120.0, "count": 90, "at": 360.0, "boss": true},
+		# pat = 부장의 패턴(D-216 1단계): charge = 돌진(ARMY.charge, 직선 예고) · slam = 내려찍기(ARMY.slam, 원형 예고)
+		{"n": "선봉", "lk": "ytbig", "ln": "황건 선봉장 조홍", "lm": 100.0, "count": 60, "at": 0.0, "pat": "charge"},
+		{"n": "중군", "lk": "ytbig", "ln": "황건 부장 손중", "lm": 140.0, "count": 82, "at": 180.0, "pat": "slam"},
+		{"n": "본대", "lk": "ytbig", "ln": "황건 부장 배원소", "lm": 120.0, "count": 90, "at": 360.0, "boss": true, "pat": "charge"},
 	]}
+## 보스 울타리(D-216 1단계, Survivor.io 방식): 대군 부장 · 정원지가 장수 trigger px 안에 오면 warn초 예고(부장 이름 알림 · 북소리 · 땅에 원) →
+## 장수 둘레(부장도 들어오게)에 반지름 r 원형 울타리. 장수 · 안의 적은 못 나가고 밖의 적은 못 들어옴. 안에 있던 졸병 중 부장 호위 keep명만 남기고
+## 나머지는 cull 비율만큼 사라지고 남은 것은 밖으로 밀려남. 부장이 쓰러지면 울타리가 사라짐. 습격대 장수 · 진영장에는 안 씀.
+## r: 요청은 약 360px이었지만 세로 화면 폭이 360(게임 단위)이라 원 전체가 거의 보이게 190으로(지름 380 — 양옆 10씩만 잘림)
+const ARENA := {"trigger": 400.0, "warn": 2.0, "r": 190.0, "keep": 6, "cull": 0.5}
+## 부서지는 물체(D-216 2단계, Survivor.io 방식): 군량 수레(cart) · 깃발 더미(flags). 기본 공격 · 책략에 맞으면 부서지고(적은 못 부숨) 한 판에 한 번.
+## 자리는 road(길가) + 진영마다 네 귀퉁이 바깥(camp_out px) + 마을 곁. 판마다 skip 비율만큼 자리가 빔(--seed로 재현).
+## 떨어지는 것(합 1): 고기만두 bun · 폭탄 bomb(화면 안 졸병 처치, 장수급 · 건물은 최대 체력 × bomb_elite 피해) · 자석 magnet · 경험 xp(구슬 xp_v)
+const PROPS := {"hp": 24.0, "skip": 0.25, "camp_out": 34.0, "bun": 0.5, "bomb": 0.15, "magnet": 0.15, "xp": 0.2, "xp_v": 30.0, "bomb_elite": 0.08,
+	"road": [Vector2(372, 920), Vector2(468, 1080), Vector2(372, 1240), Vector2(468, 1420), Vector2(372, 1600), Vector2(468, 1760),
+		Vector2(372, 1930), Vector2(468, 2110), Vector2(372, 2270), Vector2(468, 2470), Vector2(372, 2610), Vector2(468, 2740), Vector2(372, 2800)],
+	"village": [Vector2(620, 2670), Vector2(760, 2520)]}
+
 ## 장각 본진 자리(지도 · 2 · 3장용 — 장각은 SiegeData.BOSS)
 const KEEP := {"pos": Vector2(420, 300), "size": Vector2(440, 300)}
 ## 길목의 황건 부대: [x, y, 수, 체력 배율] — 수는 1.5배로 깔림. 가까이 가면 덤빔.

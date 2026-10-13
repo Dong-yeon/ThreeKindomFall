@@ -42,6 +42,12 @@ def parse(text):
             rows[mode]['ev'] = ev
         if mode and line.startswith('  대군: '):
             rows[mode]['army'] = line[len('  대군: '):]
+        if mode and line.startswith('  울타리: '):
+            rows[mode]['arena'] = line[len('  울타리: '):]
+        if mode and line.startswith('  회복: '):
+            rows[mode]['heals'] = line[len('  회복: '):]
+        if mode and line.startswith('  받은 피해: ') and ' · 마지막 ' in line:
+            rows[mode]['last'] = line.rsplit(' · 마지막 ', 1)[1].strip()
         if mode and line.startswith('  받은 피해: '):
             hurt = {}
             for part in line[len('  받은 피해: '):].split(' · ')[1:]:
@@ -114,6 +120,13 @@ def main():
             m = metrics(r)
             g = agg.setdefault(mode, {'len': [], 'd': [], 'kd': [], 'war': [], 'kill': [], 'dead': [], 'clear': 0})
             g['kd'] += m['kill_d']
+            for dur, dist in re.findall(r'\S+ \d+:\d\d\((\d+)s · 본진까지 (\d+)px\)', r.get('arena', '')):
+                g.setdefault('ar', []).append(int(dur))
+                g.setdefault('ard', []).append(int(dist))
+            for k, v in re.findall(r'(물체|부장|처치|마을|카드) (\d+)', r.get('heals', '')):
+                g.setdefault('heal', {})[k] = g.setdefault('heal', {}).get(k, 0) + int(v)
+            if r['status'] != '클리어':
+                g.setdefault('why', []).append('%d %s(마지막 피해 %s)' % (s, r['status'], r.get('last', '-')))
             hs = g.setdefault('hurt', {})
             for k, v in r.get('hurt', {}).items():
                 hs[k] = hs.get(k, 0) + v
@@ -143,6 +156,12 @@ def main():
             for d in g['d']:
                 bins[d // 300 * 300] = bins.get(d // 300 * 300, 0) + 1
             print('    첫 만남 분포(300px 칸): ' + ' · '.join('%d~%d: %d' % (k, k + 299, v) for k, v in sorted(bins.items())))
+        if g.get('ar'):
+            print('    울타리 %d번 · 걸린 시간 %s초(20~40초 %d/%d) · 중심 본진까지 %spx' % (len(g['ar']), st(g['ar']), sum(1 for v in g['ar'] if 20 <= v <= 40), len(g['ar']), st(g['ard'])))
+        if g.get('heal'):
+            print('    회복(10판 합): ' + ' · '.join('%s %d' % kv for kv in sorted(g['heal'].items(), key=lambda kv: -kv[1])))
+        if g.get('why'):
+            print('    실패 원인: ' + ' / '.join(g['why']))
         if g.get('hurt'):
             tot = sum(g['hurt'].values())
             ranged = sum(v for k, v in g['hurt'].items() if '화살' in k)

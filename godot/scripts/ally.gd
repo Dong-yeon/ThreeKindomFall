@@ -58,7 +58,7 @@ func tick(dt: float) -> void:
 		var best: Enemy = null
 		var bd := INF
 		for e in b.enemies:
-			if e.dead or e.shield or e.air > 0 or e.position.distance_to(center) > rad:
+			if e.dead or e.shield or e.prop or e.air > 0 or e.position.distance_to(center) > rad:
 				continue
 			var dd := e.position.distance_to(position)
 			if dd < bd:

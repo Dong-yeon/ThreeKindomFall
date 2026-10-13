@@ -215,6 +215,7 @@ func apply(o: Dictionary) -> void:
 	var tag := ""
 	if k == "bun":
 		b.hero.heal(b.hero.max_hp * 0.3)
+		b.heal_log["카드"] = int(b.heal_log.get("카드", 0)) + 1
 		tag = "고기만두"
 	elif o.get("evo", false):
 		evo[k] = true
@@ -302,7 +303,7 @@ func tick(dt: float) -> void:
 func _in_view() -> Array[Enemy]:
 	var out: Array[Enemy] = []
 	for e in b.enemies:
-		if not e.dead and not e.shield and b.in_view(e.position, 0):
+		if not e.dead and not e.shield and not e.prop and b.in_view(e.position, 0):
 			out.append(e)
 	return out
 
@@ -311,7 +312,7 @@ func _nearest(n: int, max_d: float) -> Array[Enemy]:
 	var p := b.hero.position
 	var c: Array = []
 	for e in b.enemies:
-		if not e.dead and not e.shield:
+		if not e.dead and not e.shield and not e.prop:
 			var d := e.position.distance_to(p)
 			if d < max_d:
 				c.append([d, e])

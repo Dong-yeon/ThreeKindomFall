@@ -17,6 +17,8 @@ var pth := Vector2.ZERO
 var has_pth := false
 var pth_t := -1.0
 var pth_k := ""
+## 보스 울타리(D-216): 0 = 아직 모름 · 1 = 안(못 나감) · -1 = 밖(못 들어옴). 울타리가 없으면 0
+var arena_side := 0
 
 
 var _anim_last := Vector2.INF
