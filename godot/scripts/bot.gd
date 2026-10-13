@@ -507,6 +507,7 @@ func _on_finished(win: bool) -> void:
 ## 소리를 멈추고 두 프레임 뒤에 끔(재생 중인 소리가 남으면 종료 경고)
 func _quit(code: int) -> void:
 	Sound.stop_all()
+	Sprites.release()
 	await get_tree().process_frame
 	await get_tree().process_frame
 	get_tree().quit(code)

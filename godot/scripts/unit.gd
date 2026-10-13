@@ -55,7 +55,14 @@ func draw_body(dir: String, step: int, size: float, alpha := 1.0, lift := 0.0, g
 	draw_texture_rect_region(tex, rect, Sprites.region(dir, step), mod)
 
 
+## 타원(발밑 고리 · 그림자). 아틀라스가 있으면 흰 타원 그림을 늘여 그림(다각형은 그릴 때마다 GPU 버퍼를 만들어 웹에서 비쌈 —
+## 고리 두께는 크기에 따라 조금 달라짐), 없으면 다각형
 func draw_oval(center: Vector2, rx: float, ry: float, col: Color, filled := true, width := 2.0) -> void:
+	Sprites.sheet("")
+	var ot: Texture2D = Sprites.disc_tex if filled else Sprites.oval_tex
+	if ot != null:
+		draw_texture_rect(ot, Rect2(center - Vector2(rx, ry), Vector2(rx, ry) * 2), false, col)
+		return
 	var pts := PackedVector2Array()
 	for i in 33:
 		var a := TAU * i / 32.0

@@ -197,6 +197,7 @@ func _ready() -> void:
 	_setup_allies()
 	_spawn_squads()
 	_spawn_props()
+	_make_terrain()
 	for i in start_march:
 		ally_spawn("sol", hero.position + Vector2(randf_range(-40, 40), randf_range(10, 40)), "march", "")
 	_place_camera()
@@ -308,7 +309,9 @@ func move_vec() -> Vector2:
 # ─────────── 매 프레임 ───────────
 
 func _process(delta: float) -> void:
-	var dt := minf(delta, 0.033)  # 웹판과 같은 상한(프레임이 끊겨도 한 번에 0.033초까지만)
+	# 한 프레임에 나아가는 판 시간 상한(2026-10-13: 0.033 → 0.066). 전엔 웹판과 같은 0.033이라 30fps 아래에선 판 전체가 슬로모션이 됐음
+	# (저사양 태블릿 웹 13fps면 실제 속도의 약 45%). 이제 15fps까지는 제 속도, 그보다 끊기면 그만큼만 느려짐
+	var dt := minf(delta, 0.066)
 	if state == "play":
 		_update(dt)
 	# 장수가 들어선 칸의 흐름장을 미리 넓혀 둠 — 'p'는 0.2초마다만 새로 만들어서 대개 몇 프레임 뒤에 이어받음
@@ -321,6 +324,7 @@ func _process(delta: float) -> void:
 	Perf.begin(&"그리기 요청")
 	_redraw_units()
 	Perf.end()
+	_terrain_check()
 	ground.queue_redraw()
 	fx_layer.queue_redraw()
 	hud.refresh()
@@ -1752,6 +1756,37 @@ func time_mul() -> float:
 ## 위(장각 쪽)로 갈수록 · 시간이 갈수록 단단해지는 배율(들판 증원)
 func mul_y(y: float) -> float:
 	return (0.75 + (1.0 - y / H) * 1.1) * (1.0 + minf(t, 600.0) / 600.0 * 0.4)
+
+
+## 움직이지 않는 지형(terrain.gd): 지도를 세로로 나눈 조각마다 한 번 그림. 바닥(ground)보다 먼저 그려지게 맨 앞에
+var _terrain: Array[Terrain] = []
+var _terrain_sig := -1
+
+
+func _make_terrain() -> void:
+	var y := 0.0
+	var i := 0
+	while y < H:
+		var tr := Terrain.new()
+		tr.setup(self, y)
+		add_child(tr)
+		move_child(tr, i)
+		_terrain.append(tr)
+		y += Terrain.CHUNK
+		i += 1
+
+
+## 지형이 바뀌었으면(진영 점령 · 수비탑 파괴 · 마을 상태 · 장각 본진 열림) 조각들을 다시 그림
+func _terrain_check() -> void:
+	var sig := cap_n * 1000 + ["wait", "raid", "saved", "lost"].find(vil_st) * 100
+	for c in camps:
+		sig += towers_left(c) * 7 + (1 if c.cap else 0)
+	if siege != null and siege.keep_open:
+		sig += 50000
+	if sig != _terrain_sig:
+		_terrain_sig = sig
+		for tr in _terrain:
+			tr.queue_redraw()
 
 
 ## 부서지는 물체(D-216 2단계): 길가 · 진영 네 귀퉁이 바깥 · 마을 곁에 군량 수레 · 깃발 더미. 판마다 PROPS.skip 비율만큼 비움(--seed로 재현).

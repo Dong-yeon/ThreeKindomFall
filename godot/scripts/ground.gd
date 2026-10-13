@@ -1,5 +1,6 @@
 extends Node2D
-## 바닥 · 강 · 다리 · 본진 · 진영 · 장각 본진 담 · 관문 · 주울 것. 바닥은 일단 단색(B.B.Bits 타일셋을 사면 바꿈, D-169).
+## 매 프레임 바뀌는 바닥 그림: 강 물결 · 본진 체력 · 마을 습격 불길 · 책략 바닥 · 보스 울타리 · 주울 것 · 경험 구슬.
+## 움직이지 않는 지형(풀 · 길 · 강 · 다리 · 본진 · 진영 · 담 · 마을 집)은 terrain.gd. 바닥은 일단 단색(B.B.Bits 타일셋을 사면 바꿈, D-169).
 
 const GRASS := Color("5b7a3e")
 const INK := Color(0.11, 0.09, 0.07, 0.85)
@@ -14,24 +15,17 @@ func _draw() -> void:
 
 
 func _draw_impl() -> void:
+	# 움직이지 않는 지형은 terrain.gd(조각마다 한 번 그림) — 여긴 매 프레임 바뀌는 것만
 	var V := b.view.grow(40)
-	draw_rect(Rect2(0, 0, Stage1.W, Stage1.H), GRASS)
-	_road(V)
-	_river(V)
-	_home(V)
-	_village(V)
-	_camps(V)
-	for o in b.obs:
-		var rc: Rect2 = o.rect
-		if o.k == "water" or not V.intersects(rc):
-			continue
-		# 성문이 열리는 중(2 · 3장, siege.gd)이면 문짝을 그 쪽에서 그림
-		if not (o.door == "gate" and b.siege != null and b.siege.draw_gate(self, rc)):
-			_stone(rc, o.door != "")
-	var K := b.keep_rect()
-	if V.intersects(K.grow(30)):
-		draw_rect(K.grow(-12), Color(0.85, 0.44, 0.37, 0.12))
-		_label("장각 본진" if b.siege != null and b.siege.keep_open else "장각 본진(닫힘)", Vector2(K.get_center().x, K.position.y - 14), Color("ffb0a0"))
+	_river_waves(V)
+	_home_bar(V)
+	_village_fx(V)
+	# 2 · 3장: 성문(열리는 연출은 siege.gd)
+	if b.siege != null:
+		for o in b.obs:
+			var rc: Rect2 = o.rect
+			if o.door == "gate" and V.intersects(rc) and not b.siege.draw_gate(self, rc):
+				_stone(rc, true)
 	_tactics_ground(V)
 	# 2 · 3장: 요술 제단 빛줄기 · 장각의 요술 · 봉인된 사신수(D-211 — siege.gd)
 	if b.siege != null:
@@ -81,139 +75,57 @@ func _draw_impl() -> void:
 		var v: float = o.v
 		var s := 3.0 if v < 2 else (4.0 if v < 10 else 6.0)
 		var c := Color("6ac0e0") if v < 2 else (Color("7ad870") if v < 10 else Color("f0c040"))
-		var dia := PackedVector2Array([p + Vector2(0, -s - 1), p + Vector2(s, 0), p + Vector2(0, s), p + Vector2(-s, 0)])
-		draw_colored_polygon(dia, c)
-		dia.append(dia[0])
-		draw_polyline(dia, Color(0.11, 0.09, 0.07, 0.7), 1.0)
+		# 45° 돌린 사각형 = 마름모(다각형은 그릴 때마다 GPU 버퍼를 만들어 웹에서 비쌈 — 사각형은 묶어서 그림)
+		draw_set_transform(p, PI / 4)
+		var h := s * 0.75
+		draw_rect(Rect2(-h - 1, -h - 1, h * 2 + 2, h * 2 + 2), Color(0.11, 0.09, 0.07, 0.7))
+		draw_rect(Rect2(-h, -h, h * 2, h * 2), c)
+	draw_set_transform(Vector2.ZERO)
 
 
-## 관문 → 가운데 다리 → 본진 흙길(D-214 — 정원지의 대군이 이 길로 진군). 강은 다리가 덮음
-func _road(V: Rect2) -> void:
-	var A: Dictionary = Stage1.ARMY
-	var x := float(A.road_x)
-	var R := Rect2(x - 18, float(Stage1.GATE.y) + 10, 36, Stage1.HOME.pos.y - float(Stage1.GATE.y) - 10)
-	if not V.intersects(R):
-		return
-	var top := maxf(R.position.y, V.position.y)
-	var bot := minf(R.end.y, V.end.y)
-	draw_rect(Rect2(R.position.x, top, R.size.x, bot - top), Color(0.55, 0.45, 0.3, 0.55))
-	var y := floorf(top / 40.0) * 40.0
-	while y < bot:
-		draw_line(Vector2(x - 12, y), Vector2(x - 12, y + 14), Color(0.42, 0.33, 0.2, 0.5), 2)
-		draw_line(Vector2(x + 12, y + 20), Vector2(x + 12, y + 34), Color(0.42, 0.33, 0.2, 0.5), 2)
-		y += 40.0
-
-
-func _river(V: Rect2) -> void:
+## 강 물결(흐름): 얇은 선이라 버퍼를 만들지 않음
+func _river_waves(V: Rect2) -> void:
 	var R: Dictionary = Stage1.RIVER
 	var y0: float = R.y0
 	var y1: float = R.y1
 	if y1 < V.position.y or y0 > V.end.y:
 		return
-	draw_rect(Rect2(0, y0, Stage1.W, y1 - y0), Color("4a7ab8"))
 	for i in 40:
 		var x := fmod(i * 97 + b.t * 18, Stage1.W)
 		var y := y0 + 10 + (i * 37) % int(y1 - y0 - 20)
-		draw_line(Vector2(x, y), Vector2(x + 14, y), Color(0.81, 0.89, 0.96, 0.6), 1.5)
-	draw_rect(Rect2(0, y0, Stage1.W, 3), Color("3a5a90"))
-	for br in R.bridges:
-		var a: float = br.x
-		var c: float = br.y
-		draw_rect(Rect2(a, y0 - 6, c - a, y1 - y0 + 12), Color("8a6a3a"))
-		var y := y0 - 4
-		while y < y1 + 4:
-			draw_rect(Rect2(a + 3, y, c - a - 6, 5), Color("a8845a"))
-			y += 8
-		draw_rect(Rect2(a, y0 - 6, 4, y1 - y0 + 12), Color("5a3a1a"))
-		draw_rect(Rect2(c - 4, y0 - 6, 4, y1 - y0 + 12), Color("5a3a1a"))
+		var inb := false
+		for br in R.bridges:
+			if x + 14 > br.x and x < br.y:
+				inb = true
+		if not inb:
+			draw_line(Vector2(x, y), Vector2(x + 14, y), Color(0.81, 0.89, 0.96, 0.6), -1)
 
 
-func _home(V: Rect2) -> void:
+func _home_bar(V: Rect2) -> void:
 	var H := b.home_pos
-	if H.y - 120 > V.end.y:
+	if H.y - 120 > V.end.y or b.home_hp >= b.home_max:
 		return
-	var pts := PackedVector2Array()
-	for i in 32:
-		var a := TAU * i / 32.0
-		pts.append(H + Vector2(cos(a) * (b.home_r + 30), sin(a) * (b.home_r + 6)))
-	draw_colored_polygon(pts, Color(0.78, 0.66, 0.45, 0.55))
-	for d in [Vector2(-48, -6), Vector2(0, -20), Vector2(48, -6)]:
-		_tent(H + d, Color("e8e0d0"), Color("4a7ab8"))
-	_flag(H + Vector2(-70, -30), Color("4a7ab8"), "劉")
-	_flag(H + Vector2(70, -30), Color("4a7ab8"), b.hero_data.flag_glyph)
-	_label(Stage1.HOME.n, H + Vector2(0, 30), Color("cfe2f4"))
-	if b.home_hp < b.home_max:
-		_bar(H + Vector2(0, -50), 80, b.home_hp / b.home_max, Color("4a7ab8"))
+	_bar(H + Vector2(0, -50), 80, b.home_hp / b.home_max, Color("4a7ab8"))
 
 
-func _camps(V: Rect2) -> void:
-	for c in b.camps:
-		var R := b.camp_rect(c)
-		if not V.intersects(R.grow(40)):
-			continue
-		var cap: bool = c.cap
-		draw_rect(R, Color(0.63, 0.75, 0.86, 0.25) if cap else Color(0.59, 0.43, 0.24, 0.3))
-		var p: Vector2 = c.pos
-		for d in [Vector2(-70, -40), Vector2(60, -45), Vector2(-60, 30), Vector2(70, 25)]:
-			_tent(p + d, Color("e8e0d0") if cap else Color("d8b860"), Color("4a7ab8") if cap else Color("a8782a"))
-		_flag(p + Vector2(0, -10), Color("4a7ab8") if cap else Color("d8b040"), b.hero_data.flag_glyph if cap else "黃")
-		var total: int = c.tws.size()
-		var left := b.towers_left(c)
-		var what: String = String(c.ln) if left == 0 else ("수비탑 %d/%d" % [total - left, total])
-		var txt: String = ("%s — 점령" % c.n) if cap else ("%s · %s" % [c.n, what])
-		_label(txt, Vector2(p.x, R.position.y - 14), Color("cfe2f4") if cap else Color("ffd8a0"))
-
-
-## 탁현 마을(D-208): 초가집 셋. 습격 중엔 지붕에 불길 · 빨간 고리가 깜빡이고 남은 시간 막대, 불타면 검게 그을림
-func _village(V: Rect2) -> void:
+## 탁현 마을 습격 중(D-208): 지붕 불길 · 빨간 고리 깜빡임 · 남은 시간 막대(집은 terrain.gd)
+func _village_fx(V: Rect2) -> void:
+	if b.vil_st != "raid":
+		return
 	var VL: Dictionary = Stage1.VILLAGE
 	var p: Vector2 = VL.pos
 	if not V.intersects(Rect2(p - Vector2(90, 90), Vector2(180, 180))):
 		return
-	var raid := b.vil_st == "raid"
-	var lost := b.vil_st == "lost"
 	var i := 0
 	for d in [Vector2(-26, -14), Vector2(22, -20), Vector2(0, 18)]:
 		var q: Vector2 = p + d
-		draw_rect(Rect2(q.x - 13, q.y + 8, 26, 4), Color(0, 0, 0, 0.2))
-		draw_rect(Rect2(q.x - 12, q.y - 4, 24, 13), Color("4a4038") if lost else Color("d8c8a0"))
-		draw_rect(Rect2(q.x - 12, q.y - 4, 24, 13), INK, false, 1.0)
-		draw_rect(Rect2(q.x - 3, q.y + 1, 6, 8), Color("3a2a1a"))
-		var roof := PackedVector2Array([q + Vector2(-16, -3), q + Vector2(16, -3), q + Vector2(10, -14), q + Vector2(-10, -14)])
-		draw_colored_polygon(roof, Color("2a2420") if lost else Color("c8a050"))
-		roof.append(roof[0])
-		draw_polyline(roof, INK, 1.0)
-		if raid:
-			var fl := sin(b.t * 9 + i * 2.1) * 2
-			draw_colored_polygon(PackedVector2Array([q + Vector2(-6, -12), q + Vector2(6, -12), q + Vector2(fl, -26)]), Color(0.95, 0.5, 0.15, 0.85))
-			draw_colored_polygon(PackedVector2Array([q + Vector2(-3, -12), q + Vector2(3, -12), q + Vector2(fl * 0.5, -19)]), Color(1, 0.9, 0.45))
+		var fl := sin(b.t * 9 + i * 2.1) * 2
+		draw_colored_polygon(PackedVector2Array([q + Vector2(-6, -12), q + Vector2(6, -12), q + Vector2(fl, -26)]), Color(0.95, 0.5, 0.15, 0.85))
+		draw_colored_polygon(PackedVector2Array([q + Vector2(-3, -12), q + Vector2(3, -12), q + Vector2(fl * 0.5, -19)]), Color(1, 0.9, 0.45))
 		i += 1
-	if raid:
-		if int(b.t * 3) % 2 == 1:
-			draw_arc(p, float(VL.r) + 10, 0, TAU, 40, Color(0.85, 0.31, 0.24, 0.8), 2)
-		_bar(p + Vector2(0, -48), 70, b.vil_t / float(VL.limit), Color("d9705e"))
-	var txt: String = VL.n
-	if lost:
-		txt += "(불탐)"
-	elif b.vil_st == "saved":
-		txt += " — 구함"
-	_label(txt, p + Vector2(0, 40), Color("ffb0a0") if raid else (Color("a8a098") if lost else Color("fff2c0")))
-
-
-func _tent(p: Vector2, cl: Color, rf: Color) -> void:
-	draw_rect(Rect2(p.x - 15, p.y + 10, 30, 4), Color(0, 0, 0, 0.2))
-	var tri := PackedVector2Array([p + Vector2(0, -16), p + Vector2(16, 10), p + Vector2(-16, 10)])
-	draw_colored_polygon(tri, cl)
-	tri.append(tri[0])
-	draw_polyline(tri, rf, 2)
-	draw_colored_polygon(PackedVector2Array([p + Vector2(0, -2), p + Vector2(5, 10), p + Vector2(-5, 10)]), Color("3a2a1a"))
-
-
-func _flag(p: Vector2, col: Color, glyph: String) -> void:
-	draw_rect(Rect2(p.x - 1.5, p.y - 34, 3, 40), Color("5a3a1a"))
-	var wv := sin(b.t * 4 + p.x) * 2
-	draw_colored_polygon(PackedVector2Array([p + Vector2(1.5, -34), p + Vector2(24, -31 + wv), p + Vector2(24, -15 + wv), p + Vector2(1.5, -18)]), col)
-	draw_string(Fonts.small(), p + Vector2(2, -21 + wv * 0.5), glyph, HORIZONTAL_ALIGNMENT_CENTER, 20, 10, Color("fffaf0"))
+	if int(b.t * 3) % 2 == 1:
+		draw_arc(p, float(VL.r) + 10, 0, TAU, 40, Color(0.85, 0.31, 0.24, 0.8), 2)
+	_bar(p + Vector2(0, -48), 70, b.vil_t / float(VL.limit), Color("d9705e"))
 
 
 func _stone(o: Rect2, door: bool) -> void:
