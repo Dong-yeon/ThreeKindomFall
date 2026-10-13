@@ -89,11 +89,16 @@ func setup(battle: Battle) -> void:
 	# 무쌍 버튼(오른쪽 아래)
 	musou_btn = MusouButton.new()
 	musou_btn.b = b
-	musou_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	musou_btn.offset_left = -96
-	musou_btn.offset_top = -108
-	musou_btn.offset_right = -16
-	musou_btn.offset_bottom = -28
+	# 오른쪽 가장자리, 화면 높이 68% 자리(장수는 60% 자리라 그 아래, 2026-10-13 — 전엔 오른쪽 아래 구석이라 엄지로 끌기 시작하는 자리와 겹쳤음).
+	# 끌기는 아래쪽에서 자유롭게, 무쌍은 엄지를 조금 올려 누름. 크기 80 → 70
+	musou_btn.anchor_left = 1.0
+	musou_btn.anchor_right = 1.0
+	musou_btn.anchor_top = 0.68
+	musou_btn.anchor_bottom = 0.68
+	musou_btn.offset_left = -82
+	musou_btn.offset_right = -12
+	musou_btn.offset_top = -35
+	musou_btn.offset_bottom = 35
 	add_child(musou_btn)
 	# 결과
 	end_panel = PanelContainer.new()
