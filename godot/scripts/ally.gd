@@ -16,6 +16,11 @@ var anchor := ""
 var tg: Enemy = null
 var slot := 0.0
 var size := 24.0
+## 지키는 아군이 적이 없을 때 자리 둘레를 천천히 거닒(2026-10-13): 다음에 자리를 바꿀 때까지 · 자리 거리.
+## 판의 다른 난수(--seed 재현)에 영향이 없게 따로 된 난수
+var stroll_t := 0.0
+var stroll_r := 1.0
+static var _rng := RandomNumberGenerator.new()
 
 
 func setup(b: Battle, key: String, at: Vector2, m: String, anchor_id: String) -> void:
@@ -71,8 +76,13 @@ func tick(dt: float) -> void:
 		var G := b.march_goal(position)
 		g = G.pos + Vector2(cos(slot) * 34, sin(slot) * 26)
 	else:
+		stroll_t -= dt
+		if stroll_t <= 0:
+			stroll_t = _rng.randf_range(2.5, 5.5)
+			slot = _rng.randf() * TAU
+			stroll_r = _rng.randf_range(0.3, 1.3)
 		var ap: Vector2 = anc.get("pos", position)
-		g = ap + Vector2(cos(slot) * 50, sin(slot) * 36)
+		g = ap + Vector2(cos(slot) * 50, sin(slot) * 36) * stroll_r
 	var d := g.distance_to(position)
 	last_pos = position
 	if d > reach:
@@ -84,7 +94,8 @@ func tick(dt: float) -> void:
 		var md := m.length()
 		if md == 0.0:
 			md = 1.0
-		var sp := spd * (1.25 if march and tg == null else 1.0)
+		# 진군 부대는 빨리, 지키는 아군이 자리 둘레를 거닐 땐 천천히(멀리서 돌아올 땐 제 빠르기)
+		var sp := spd * (1.25 if march and tg == null else (0.4 if tg == null and d < 90 else 1.0))
 		position += m / md * minf(md, sp * dt)
 		b.push_out(self)
 	elif tg != null and cd <= 0:
