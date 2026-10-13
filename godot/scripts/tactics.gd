@@ -303,7 +303,7 @@ func tick(dt: float) -> void:
 func _in_view() -> Array[Enemy]:
 	var out: Array[Enemy] = []
 	for e in b.enemies:
-		if not e.dead and not e.shield and not e.prop and b.in_view(e.position, 0):
+		if not e.dead and not e.shield and not e.prop and not (e.arena_side < 0 and b.duel()) and b.in_view(e.position, 0):
 			out.append(e)
 	return out
 
@@ -312,7 +312,7 @@ func _nearest(n: int, max_d: float) -> Array[Enemy]:
 	var p := b.hero.position
 	var c: Array = []
 	for e in b.enemies:
-		if not e.dead and not e.shield and not e.prop:
+		if not e.dead and not e.shield and not e.prop and not (e.arena_side < 0 and b.duel()):
 			var d := e.position.distance_to(p)
 			if d < max_d:
 				c.append([d, e])

@@ -33,6 +33,7 @@ def parse(text):
         m = re.match(r'^\[(일반|무적)\] 판 길이', line)
         if m:
             mode = m.group(1)
+            rows.setdefault(mode, {'status': '?', 'len': 0})
         if mode and line.startswith('  사건: '):
             ev = []
             for part in line[len('  사건: '):].split(' | ')[0].split(' · '):

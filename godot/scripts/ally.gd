@@ -77,7 +77,8 @@ func tick(dt: float) -> void:
 		g = G.pos + Vector2(cos(slot) * 34, sin(slot) * 26)
 	else:
 		stroll_t -= dt
-		if stroll_t <= 0:
+		# 유비(총대장)는 거닐지 않고 본진 가운데를 지킴
+		if stroll_t <= 0 and k != "liubei":
 			stroll_t = _rng.randf_range(2.5, 5.5)
 			slot = _rng.randf() * TAU
 			stroll_r = _rng.randf_range(0.3, 1.3)

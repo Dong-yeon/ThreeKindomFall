@@ -374,8 +374,9 @@ func _update_impl(dt: float) -> void:
 	hero.vel = (hero.position - hero.last_pos) / dt
 	hero.still = 0.0 if moving else hero.still + dt
 	Perf.begin(&"적 움직임")
+	var dl := duel()
 	for e in enemies:
-		if not e.dead:
+		if not e.dead and (not dl or e.arena_side > 0):
 			e.tick(dt)
 	Perf.end()
 	# 장수가 쓰러졌으면(적에게 닿음) 이 프레임의 나머지(날아가던 참격 등)를 멈춤 — 안 그러면 진영장을 잡아 점령 회복이 들어갔음
@@ -413,14 +414,14 @@ func _field_tick(dt: float) -> void:
 	if turret_t <= 0:
 		turret_t = 0.7
 		var tg := nearest_enemy(home_pos, home_r + 110)
-		if tg != null:
+		if tg != null and not duel():
 			hurt_enemy(tg, 16)
 			add_fx({"k": "shot", "pos": home_pos + Vector2(0, -20), "pos2": tg.position, "t": 0.15})
 	var K := keep_rect()
 	for e in enemies:
 		if e.dead:
 			continue
-		if e.goal_home and not Unit.alive(e.engage) and e.position.distance_to(home_pos) < home_r + e.r:
+		if e.goal_home and not duel() and not Unit.alive(e.engage) and e.position.distance_to(home_pos) < home_r + e.r:
 			home_hp -= 1.2 * dt
 		if e.boss:
 			# 요술 제단이 남아 있는 동안(보호막) 장각은 본진 안쪽 절반에서만 — 문을 막아서 장수가 못 들어왔음(D-207)
@@ -439,15 +440,17 @@ func _field_tick(dt: float) -> void:
 		finish(false, "home")
 		return
 	Perf.begin(&"생성")
-	_village_tick(dt)
-	_pack_tick()
-	_home_raid_tick()
-	_camps_tick(dt)
-	_party_tick(dt)
-	_rein_tick(dt)
-	_wave_tick(dt)
-	_surge_tick(dt)
-	_army_tick(dt)
+	# 일기토 중엔 시간표 · 생성 · 대군이 멈춤(끝나면 이어짐 — 정해진 시각이 지났으면 그때 일어남)
+	if not duel():
+		_village_tick(dt)
+		_pack_tick()
+		_home_raid_tick()
+		_camps_tick(dt)
+		_party_tick(dt)
+		_rein_tick(dt)
+		_wave_tick(dt)
+		_surge_tick(dt)
+		_army_tick(dt)
 	_cyz_tick(dt)
 	if siege != null:
 		siege.tick(dt)
@@ -458,8 +461,9 @@ func _field_tick(dt: float) -> void:
 	Perf.begin(&"아군")
 	_ally_timers(dt)
 	_engage_tick(dt)
+	var dla := duel()
 	for a in allies:
-		if not a.dead:
+		if not a.dead and not dla:
 			a.tick(dt)
 	Perf.end()
 	_arena_tick(dt)
@@ -1039,6 +1043,7 @@ func _cyz_tick(_dt: float) -> void:
 		return
 	var Z: Dictionary = Stage1.CYZ
 	if cyz_phase == 1 and Unit.alive(cyz) and (cyz.hp <= cyz.max_hp * float(Z.phase2) or _army_leads_down() >= int(Z.leads2)):
+		var in_duel := duel()
 		cyz_phase = 2
 		# 혼자 버티지 않고 장수에게 달려듦(2026-10-13)
 		cyz.aggro = float(Z.aggro2)
@@ -1046,7 +1051,8 @@ func _cyz_tick(_dt: float) -> void:
 		cyz.sk_i = 0
 		cyz.gap_mul = float(Z.gap2)
 		cyz.spd0 *= float(Z.spd2)
-		for i in int(Z.rally):
+		# 일기토 중엔 부하를 부르지 않음(1:1)
+		for i in (0 if in_duel else int(Z.rally)):
 			var at: Vector2 = cyz.position + Vector2.from_angle(randf() * TAU) * randf_range(60, 160)
 			at = at.clamp(Vector2(40, 745), Vector2(W - 40, H - 40))
 			if hit_obs(at, 12):
@@ -1056,7 +1062,7 @@ func _cyz_tick(_dt: float) -> void:
 			if not arena.is_empty() and arena.st == "on" and at.distance_to(arena.c) < float(arena.r):
 				re.arena_side = 1
 		note("정원지 2단계")
-		banner("정원지가 분노해요!", "남은 군사를 모두 불러요 — 돌진 · 땅 내려찍기를 피해요")
+		banner("정원지가 분노해요!", "돌진 · 땅 내려찍기를 피해요" if in_duel else "남은 군사를 모두 불러요 — 돌진 · 땅 내려찍기를 피해요")
 		add_fx({"k": "ring", "pos": cyz.position, "t": 0.6, "r": 120.0, "c": Color("d9705e")})
 		shake = maxf(shake, 0.3)
 		Sound.play("alert", 0.6)
@@ -1268,7 +1274,7 @@ func nearest_enemy(from: Vector2, max_d: float) -> Enemy:
 	var best: Enemy = null
 	var bd := max_d
 	for e in enemies:
-		if e.dead or e.shield or e.prop:
+		if e.dead or e.shield or e.prop or (e.arena_side < 0 and duel()):
 			continue
 		var d := e.position.distance_to(from)
 		if d < bd:
@@ -1434,8 +1440,8 @@ func push_away(at: Vector2, rad: float, amount: float) -> void:
 
 
 func hurt_enemy(e: Enemy, d: float) -> void:
-	# 수비탑이 남은 진영의 진영장은 피해를 받지 않음(D-205)
-	if e.dead or e.shield:
+	# 수비탑이 남은 진영의 진영장은 피해를 받지 않음(D-205) · 일기토를 지켜보는 울타리 밖 적은 다치지 않음
+	if e.dead or e.shield or (e.arena_side < 0 and duel()):
 		return
 	# 수비탑을 처음 친 진영 = 진행 중인 진영(D-209)
 	if cur_camp == "" and e.tower_id != "":
@@ -1913,10 +1919,15 @@ func _arena_tick(dt: float) -> void:
 		for L in _arena_cands():
 			if L.arena_done or hero.position.distance_to(L.position) > float(A.trigger):
 				continue
+			# 장수와 적장 사이가 벽 · 물로 막혀 있으면 아직 열지 않음(담을 사이에 두고 갇히면 서로 못 닿음)
+			if flow.ver != obs_ver:
+				flow.build(obs, W, H, obs_ver)
+			if not flow.clear(hero.position, L.position):
+				continue
 			L.arena_done = true
-			note("울타리 예고 · %s" % L.ename)
+			note("일기토 예고 · %s" % L.ename)
 			arena = {"st": "warn", "t": float(A.warn), "lead": L, "c": hero.position, "r": float(A.r), "t0": t, "beat": 0.0}
-			banner("%s 접근!" % L.ename, "곧 울타리가 쳐져요 — 안에서 쓰러뜨려야 나갈 수 있어요")
+			banner("%s%s 일기토를 청해요!" % [L.ename, jo(L.ename, "이", "가")], "곧 울타리가 쳐져요 — 1:1로 쓰러뜨려야 나갈 수 있어요")
 			Sound.play("alert", 0.5)
 			break
 		return
@@ -1936,6 +1947,11 @@ func _arena_tick(dt: float) -> void:
 			_arena_on()
 		return
 	_arena_hold()
+
+
+## 일기토 중인가(울타리가 서 있음): 밖의 적 · 아군은 멈춰 지켜보고(움직임 · 공격 · 피해 없음), 판의 시간표 · 생성도 멈춤
+func duel() -> bool:
+	return not arena.is_empty() and arena.st == "on"
 
 
 ## 울타리 후보: 살아 있는 대군 부장 · 정원지
@@ -1987,41 +2003,53 @@ func _arena_on() -> void:
 		if e.dead or e.building:
 			continue
 		var d := e.position.distance_to(c)
-		if e == L or (e == cyz and d < R):
+		if e == L:
 			e.arena_side = 1
 			if d > R - e.r:
 				e.position = c + (e.position - c).normalized() * (R - e.r - 4)
 			continue
+		if e.guard_of == L:
+			# 부장 곁을 따르던 병사: 부장을 두고(일기토가 끝나면) 본진으로 진군
+			e.guard_of = null
+			e.has_post = false
+			e.goal_home = true
+			e.aggro = 200
 		if d >= R + e.r:
 			e.arena_side = -1
-			if e.guard_of == L:
-				# 부장 곁을 따르던 병사: 울타리 밖이면 부장을 두고 본진으로 계속 진군
-				e.guard_of = null
-				e.has_post = false
-				e.goal_home = true
-				e.aggro = 200
 			continue
-		if e.guard_of == L and kept < int(A.keep):
+		if e.army_unit == L.army_unit and not e.elite and kept < int(A.keep):
 			kept += 1
 			e.arena_side = 1
 			continue
-		if randf() < float(A.cull):
+		e.arena_side = -1
+		# 지우는 건 보통 졸병만 — 진영장 · 다른 장수급 · 습격대 장수는 지우지 않고 밖으로(전엔 진영장도 지워져 그 진영을 영영 점령 못 했음)
+		if not e.elite and not e.boss and randf() < float(A.cull):
 			e.dead = true
 			add_fx({"k": "puff", "pos": e.position, "t": 0.25})
 		else:
-			e.arena_side = -1
-			e.position = c + (e.position - c).normalized() * (R + e.r + 10)
-			if e.guard_of == L:
-				e.guard_of = null
-				e.has_post = false
-				e.goal_home = true
+			e.position = _arena_out_spot(c, R + e.r + 10, e.position)
+	# 일기토: 아군도 모두 울타리 밖에서 지켜봄
 	for a in allies:
-		a.arena_side = 1 if a.position.distance_to(c) < R else -1
-	note("울타리 · %s" % L.ename)
-	banner("울타리!", "%s%s 쓰러뜨려야 나갈 수 있어요" % [L.ename, eul(L.ename)])
+		a.arena_side = -1
+		var ad := a.position - c
+		if ad.length() < R + a.r:
+			a.position = c + (ad.normalized() if ad.length() > 0.01 else Vector2(0, 1)) * (R + a.r + 10)
+	note("일기토 · %s" % L.ename)
+	banner("일기토!", "%s%s 쓰러뜨려야 울타리가 걷혀요" % [L.ename, eul(L.ename)])
 	add_fx({"k": "ring", "pos": c, "t": 0.5, "r": R, "c": Color("e8c060")})
 	shake = maxf(shake, 0.25)
 	Sound.play("slam", 0.5)
+
+
+## 울타리 밖으로 밀 자리: 원 둘레(반지름 rr)에서 원래 방향에 가까운 걸을 수 있는 곳(벽 · 물 너머 금지). 없으면 그대로
+func _arena_out_spot(c: Vector2, rr: float, from: Vector2) -> Vector2:
+	var a0 := (from - c).angle() if from != c else 0.0
+	for k in 13:
+		var a := a0 + (k + 1) / 2 * 0.24 * (1.0 if k % 2 == 0 else -1.0)
+		var q := c + Vector2.from_angle(a) * rr
+		if q.x > 20 and q.x < W - 20 and q.y > 20 and q.y < H - 20 and not hit_obs(q, 14) and flow.clear(c, q):
+			return q
+	return from
 
 
 ## 울타리가 서 있는 동안: 안(1)은 못 나가고, 밖(-1) · 새로 나온 것(0)은 못 들어옴. 장수는 늘 안
@@ -2059,7 +2087,7 @@ func _arena_off() -> void:
 			unit = String(Stage1.ARMY.units[L.army_unit].n)
 		var ln: String = L.ename if L != null and is_instance_valid(L) else "?"
 		arena_log.append({"n": unit, "ln": ln, "t0": arena.t0, "t1": t, "d": (arena.c as Vector2).distance_to(home_pos)})
-		note("울타리 끝")
+		note("일기토 끝")
 	arena = {}
 	for e in enemies:
 		e.arena_side = 0
@@ -2310,7 +2338,7 @@ func field_target() -> Dictionary:
 	# 보스 울타리(D-216): 예고 · 울타리 중엔 그 부장(울타리 밖으로는 못 나감)
 	if not arena.is_empty() and Unit.alive(arena.lead):
 		var AL: Enemy = arena.lead
-		return {"pos": AL.position, "n": "%s 격파 — 울타리 안%s" % [AL.ename, " (곧 생겨요)" if arena.st == "warn" else ""], "warn": true}
+		return {"pos": AL.position, "n": "일기토 — %s 격파%s" % [AL.ename, " (곧 울타리)" if arena.st == "warn" else ""], "warn": true}
 	# 유비가 절반 아래로 다쳤고 둘레에 적이 있으면(D-208 — 쓰러지면 짐)
 	if Unit.alive(liubei) and liubei.hp < liubei.max_hp * 0.5:
 		for e in enemies:
