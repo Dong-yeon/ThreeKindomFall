@@ -56,6 +56,8 @@ var _lb_min := 1.0
 var _tl_t := 60.0
 var _tl_near := 0.0
 var _tl_dt := 0.0
+## 그 1분 동안 장수가 움직인 거리(D-214)
+var _tl_dist := 0.0
 var _timeline: Array[String] = []
 var _phase_t0 := 0.0
 var _phase_d0 := 0.0
@@ -213,6 +215,14 @@ func _bot_process() -> void:
 			cd = h.position.distance_to(dr.pos)
 			goal = dr.pos
 			chest = true
+	# 고기만두(D-214): 체력이 60% 아래면 400px 안 고기만두를 주우러 감 — 사람처럼(판이 길어져 깎인 체력이 쌓임)
+	if not chest and h.hp < h.max_hp * 0.6:
+		var bd := 400.0
+		for dr in b.drops:
+			if dr.k == "bun" and h.position.distance_to(dr.pos) < bd:
+				bd = h.position.distance_to(dr.pos)
+				goal = dr.pos
+				chest = true
 	# 구슬 줍기(D-209): 목표 가까이(150px 안)에 와 있으면 둘레 300px 안 가장 가까운 구슬로 — 사람처럼
 	# (전엔 목표에 서 있기만 해서 멀리서 쓰러뜨린 적의 구슬을 못 주웠음, 기다리는 시간이 생기며 레벨이 멈춤).
 	# 정한 구슬은 닿거나 2.5초가 지날 때까지 쫓고, 상자 · 사신수가 있으면 줍지 않음
@@ -386,6 +396,7 @@ func _measure() -> void:
 	if _last_pos != Vector2.INF:
 		var d := h.position.distance_to(_last_pos)
 		_dist += d
+		_tl_dist += d
 		if d < 0.5:
 			_still += get_process_delta_time() if b.hit_stop <= 0 else 0.0
 	_last_pos = h.position
@@ -404,7 +415,8 @@ func _measure() -> void:
 	_tl_near += near * dt
 	_tl_dt += dt
 	if b.t >= _tl_t:
-		_timeline.append("%s Lv%d(둘레 %.1f · 적 %d)" % [_fmt(_tl_t), b.lvl, _tl_near / maxf(_tl_dt, 0.01), b.enemies.size()])
+		_timeline.append("%s Lv%d(이동 %d · 둘레 %.1f · 적 %d)" % [_fmt(_tl_t), b.lvl, int(_tl_dist), _tl_near / maxf(_tl_dt, 0.01), b.enemies.size()])
+		_tl_dist = 0.0
 		_tl_near = 0.0
 		_tl_dt = 0.0
 		_tl_t += 60.0
@@ -489,6 +501,15 @@ func _result(status: String) -> void:
 		if String(e.n).begins_with("진화 "):
 			ev_t.append("%s %s" % [_fmt(e.t), String(e.n).substr(3)])
 	print("[evo_t] " + (" · ".join(ev_t) if not ev_t.is_empty() else "-"))
+	# 정원지의 대군(D-214): 진영 셋 점령 시각 · 부대마다 처음 만난 시각과 그때 본진까지 거리(직선)
+	var am: Array[String] = ["진영 셋 점령 %s" % (_fmt(b.cap3_t) if b.cap3_t >= 0 else "-")]
+	for u in b.army:
+		var U: Dictionary = Stage1.ARMY.units[u.i]
+		if u.met_t >= 0:
+			am.append("%s %s 만남(본진까지 %dpx)" % [U.n, _fmt(u.met_t), int(u.met_d)])
+		elif u.spawned:
+			am.append("%s 못 만남" % U.n)
+	print("[army] " + " · ".join(am))
 	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))
 	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 둘레 120px 적 평균 %.1f · 분당 피격 %.1f · 최저 체력 %d/%d · 구슬 주운 경험 %d%%" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0),
 		_near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(_min_hp), int(h.max_hp), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0)])

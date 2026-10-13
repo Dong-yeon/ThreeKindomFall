@@ -46,6 +46,15 @@ var wander := Vector2.ZERO
 var wander_t := 0.0
 var sk_t := 0.0
 var sk_at := Vector2.ZERO
+## 정원지의 대군(D-214): 진군 빠르기(본진으로 걸을 때, 0이면 제 빠르기) · 부대 번호(-1 = 아님) · 부대의 부장인가 ·
+## 진영장 방식(AI lead)으로 움직이는 장수가 돌아다니는 대신 본진으로 진군하는가(정원지)
+var march_spd := 0.0
+## 장수가 이 거리 안이면 진군이 × march_slow(부장, D-214 — 0이면 안 느려짐)
+var march_slow_r := 0.0
+var march_slow := 1.0
+var army_unit := -1
+var army_lead := false
+var march_home := false
 ## 공격을 번갈아 쓸 때(정원지 2단계, D-211): 차례대로 고를 공격 · 다음 차례 · 공격 간격 배율
 var skill_list: Array[String] = []
 var sk_i := 0
@@ -229,7 +238,11 @@ func tick(dt: float) -> void:
 				var s := slide if slide != 0.0 else 1.0
 				v = Vector2(-v.y * s, v.x * s)
 			last_pos = p
-			p += v * spd * dt
+			# 대군(D-214)은 본진으로 걸을 땐 천천히 진군, 장수 · 아군과 싸울 땐 제 빠르기
+			var sp := spd
+			if march_spd > 0.0 and key == "h":
+				sp = march_spd * spd / spd0 * (march_slow if hp.distance_to(p) < march_slow_r else 1.0)
+			p += v * sp * dt
 			position = p
 	elif _ai == AI_DASH:
 		if st == 0:
@@ -339,6 +352,9 @@ func _lead_tick(dt: float) -> void:
 			if skill == "fan" and dh < 150:
 				aim = p + (p - hp) / maxf(dh, 1.0) * 60
 			aim = aim.clamp(lead_rect.position, lead_rect.end)
+		elif march_home:
+			# 정원지(D-214): 장수가 멀면 길찾기로 본진 쪽으로 진군
+			aim = b.path_for(self, "h", b.home_pos)
 		else:
 			wander_t -= dt
 			if wander_t <= 0 or p.distance_to(wander) < 6:
@@ -347,7 +363,8 @@ func _lead_tick(dt: float) -> void:
 		var dv := aim - p
 		var d := dv.length()
 		if d > 4:
-			p += dv / d * minf(spd0 * sm * dt, d)
+			var sp := march_spd if march_home and dh >= aggro else spd0
+			p += dv / d * minf(sp * sm * dt, d)
 		sk_t += dt
 		if sk_t >= float(L.gap) * gap_mul and dh < float(L.range) and b.in_view(p, -10):
 			sk_t = 0.0

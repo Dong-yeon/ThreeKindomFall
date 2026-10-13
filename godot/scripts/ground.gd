@@ -16,6 +16,7 @@ func _draw() -> void:
 func _draw_impl() -> void:
 	var V := b.view.grow(40)
 	draw_rect(Rect2(0, 0, Stage1.W, Stage1.H), GRASS)
+	_road(V)
 	_river(V)
 	_home(V)
 	_village(V)
@@ -74,6 +75,23 @@ func _draw_impl() -> void:
 		draw_colored_polygon(dia, c)
 		dia.append(dia[0])
 		draw_polyline(dia, Color(0.11, 0.09, 0.07, 0.7), 1.0)
+
+
+## 관문 → 가운데 다리 → 본진 흙길(D-214 — 정원지의 대군이 이 길로 진군). 강은 다리가 덮음
+func _road(V: Rect2) -> void:
+	var A: Dictionary = Stage1.ARMY
+	var x := float(A.road_x)
+	var R := Rect2(x - 18, float(Stage1.GATE.y) + 10, 36, Stage1.HOME.pos.y - float(Stage1.GATE.y) - 10)
+	if not V.intersects(R):
+		return
+	var top := maxf(R.position.y, V.position.y)
+	var bot := minf(R.end.y, V.end.y)
+	draw_rect(Rect2(R.position.x, top, R.size.x, bot - top), Color(0.55, 0.45, 0.3, 0.55))
+	var y := floorf(top / 40.0) * 40.0
+	while y < bot:
+		draw_line(Vector2(x - 12, y), Vector2(x - 12, y + 14), Color(0.42, 0.33, 0.2, 0.5), 2)
+		draw_line(Vector2(x + 12, y + 20), Vector2(x + 12, y + 34), Color(0.42, 0.33, 0.2, 0.5), 2)
+		y += 40.0
 
 
 func _river(V: Rect2) -> void:

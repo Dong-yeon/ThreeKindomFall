@@ -203,6 +203,8 @@ func show_end() -> void:
 		end_title.text = "아군 본진이 함락됐어요"
 	elif b.end_why == "liubei":
 		end_title.text = "유비가 쓰러졌어요"
+	elif b.end_why == "army":
+		end_title.text = "정원지의 대군이 본진에 닿았어요"
 	else:
 		end_title.text = "%s가 쓰러졌어요" % hn if Battle.eul(hn) == "를" else "%s이 쓰러졌어요" % hn
 	var T := b.tactics
@@ -371,8 +373,24 @@ func _draw_minimap(c: Control, sz: Vector2) -> void:
 	var hp: Vector2 = P.call(b.home_pos)
 	var blink := b.home_hp < b.home_max * 0.5 and int(b.t * 4) % 2 == 1
 	c.draw_rect(Rect2(hp - Vector2(3, 3), Vector2(6, 6)), Color("ff6a4a") if blink else Color("6a9ad8"))
+	# 정원지의 대군(D-214): 길(점선) · 부대마다 부장(빨간 마름모, 본진에 가까우면 깜빡) · 정원지(빨간 원)
+	var A: Dictionary = Stage1.ARMY
+	var ry := float(Stage1.GATE.y) + 10
+	while ry < Stage1.HOME.pos.y:
+		c.draw_line(P.call(Vector2(float(A.road_x), ry)), P.call(Vector2(float(A.road_x), ry + 40)), Color(0.75, 0.62, 0.42, 0.7), 1)
+		ry += 80
+	for u in b.army:
+		if u.spawned and Unit.alive(u.lead):
+			var q: Vector2 = P.call(u.lead.position)
+			var near: bool = u.lead.position.distance_to(b.home_pos) < float(A.danger)
+			var col := Color("ffd34a") if near and int(b.t * 4) % 2 == 1 else Color("ff4a3a")
+			var dia := PackedVector2Array([q + Vector2(0, -4), q + Vector2(4, 0), q + Vector2(0, 4), q + Vector2(-4, 0)])
+			c.draw_colored_polygon(dia, col)
+			dia.append(dia[0])
+			c.draw_polyline(dia, INK, 1.0)
 	if Unit.alive(b.cyz):
-		c.draw_circle(P.call(b.cyz.position), 2.5, Color("ff6a4a"))
+		c.draw_circle(P.call(b.cyz.position), 3.5, Color("ff6a4a"))
+		c.draw_arc(P.call(b.cyz.position), 3.5, 0, TAU, 12, INK, 1.0)
 	if Unit.alive(b.boss):
 		c.draw_circle(P.call(b.boss.position), 3, Color("ff6a4a"))
 	for e in b.enemies:

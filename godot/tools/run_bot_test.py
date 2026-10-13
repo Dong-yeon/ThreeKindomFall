@@ -11,7 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PROJ = os.path.abspath(os.path.join(HERE, '..'))
 DEFAULT_GODOT = r'C:\Tools\Godot-4.7.2\Godot_v4.7.2-stable_win64_console.exe'
 MODE_NAME = {'normal': '일반', 'god': '무적'}
-STATUS_NAME = {'clear': '클리어', 'lose_hero': '실패(장수 쓰러짐)', 'lose_home': '실패(본진 함락)', 'lose_liubei': '실패(유비 쓰러짐)', 'timeout': '시간 초과'}
+STATUS_NAME = {'clear': '클리어', 'lose_hero': '실패(장수 쓰러짐)', 'lose_home': '실패(본진 함락)', 'lose_liubei': '실패(유비 쓰러짐)', 'lose_army': '실패(대군이 본진에 닿음)', 'timeout': '시간 초과'}
 # 엔진이 끝날 때 내는 소리(오류 아님)
 NOISE = ('Unreferenced static string', 'leaked at exit', 'PagedAllocator', 'ObjectDB instances leaked')
 
@@ -54,12 +54,12 @@ def main():
             out, _ = p.communicate()
         text = out.decode('utf-8', 'replace')
         res = None
-        extra = {'slots': '-', 'evos': '-', 'picks': '-', 'phases': '-', 'events': '-', 'timeline': '-', 'evo_t': '-', 'allies': '-', 'move': '-'}
+        extra = {'slots': '-', 'evos': '-', 'picks': '-', 'phases': '-', 'events': '-', 'timeline': '-', 'evo_t': '-', 'army': '-', 'allies': '-', 'move': '-'}
         logged, printed = [], []  # 봇의 Logger가 모은 것(파일:줄 포함) / 엔진 출력에서 찾은 것(봇이 붙기 전 오류도 잡힘)
         for line in text.splitlines():
             if line.startswith('[result]'):
                 res = dict(kv.split('=', 1) for kv in line[len('[result]'):].split())
-            elif line.startswith(('[slots]', '[evos]', '[picks]', '[phases]', '[events]', '[timeline]', '[evo_t]', '[allies]', '[move]')):
+            elif line.startswith(('[slots]', '[evos]', '[picks]', '[phases]', '[events]', '[timeline]', '[evo_t]', '[army]', '[allies]', '[move]')):
                 tag, _, rest = line.partition(' ')
                 extra[tag.strip('[]')] = rest.strip()
             elif line.startswith('[error]'):
@@ -91,6 +91,7 @@ def main():
     for m, r, n_err, errs, ex in rows:
         print()
         print('[%s] 판 길이 %s (%s)' % (MODE_NAME.get(m, m), fmt_t(r['time']), STATUS_NAME.get(r['status'], r['status'])))
+        print('  대군: %s' % ex['army'])
         print('  사건: %s' % ex['events'])
         print('  시각별 Lv: %s' % ex['timeline'])
         print('  진화 시각: %s' % ex['evo_t'])

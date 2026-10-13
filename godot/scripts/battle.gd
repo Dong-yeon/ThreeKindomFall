@@ -1,8 +1,9 @@
 class_name Battle
 extends Node2D
 ## 1장 전장(웹판 n_field.js 이식, D-170: 말 없이). 판의 상태 · 매 프레임 진행 · 목표 · 적·아군 생성 · 충돌.
-## 1장 탁현 싸움(D-210 · D-211): 황건 진영 3곳(수비탑 2개 → 진영장 격파 · 보급 상자)을 자유롭게 점령 → 관문 앞 정원지 대군 결전(1장 최종 보스, 2단계).
-## 사건은 시간표로(Stage1): 2:30 탁현 마을 습격 · 4:00 늑대 · 들개 · 5:00 본진 기습 · 정원지 출진(진영 셋 점령 + 8:00).
+## 1장 탁현 싸움(D-210 · D-211 · D-214): 황건 진영 3곳(수비탑 2개 → 진영장 격파 · 보급 상자)을 자유롭게 점령 → 곧바로 정원지의 대군
+## (선봉 → 중군 → 정원지 본대)이 길을 따라 본진으로 진군 — 정원지(1장 최종 보스, 2단계)를 쓰러뜨리면 이기고 대군이 본진에 닿으면 짐.
+## 사건 시간표(Stage1): 2:30 탁현 마을 습격 · 4:00 늑대 · 들개 · 5:00 본진 기습.
 ## 2 · 3장용(성문 열림 · 장각의 요술 · 요술 제단 · 장각 · 첫 사신수 해방)은 siege.gd(Siege)로 떼어 둠 — 1장에선 siege = null.
 
 signal finished(win: bool)
@@ -88,6 +89,11 @@ var cyz_dead := false
 ## 정원지 단계(1 · 2, D-211) · 1장을 이겨 끝나는 중(증원이 멈춤)
 var cyz_phase := 1
 var won := false
+## 정원지의 대군(D-214): 첫 부대 출진 시각(-1 = 아직) · 진영 셋을 점령한 시각 ·
+## 부대 {i, spawned, lead(부장), met_t · met_d(장수가 처음 만난 시각 · 그때 본진까지 거리), hunt_t(유비에게 돌격병까지), warned}
+var army_t0 := -1.0
+var cap3_t := -1.0
+var army: Array[Dictionary] = []
 var cyz: Enemy = null
 ## 장각(2 · 3장, Siege가 만듦 — 1장엔 없음)
 var boss: Enemy = null
@@ -116,7 +122,6 @@ var wave_n := 0
 var WAVE_HP := 0.6
 var turret_t := 0.0
 var home_t := 8.0
-var cyz_t := 4.0
 var alert_home := false
 ## 지금 화면에 보이는 전장 범위
 var view := Rect2(0, 0, 360, 640)
@@ -392,6 +397,7 @@ func _field_tick(dt: float) -> void:
 	_party_tick(dt)
 	_rein_tick(dt)
 	_wave_tick(dt)
+	_army_tick(dt)
 	_cyz_tick(dt)
 	if siege != null:
 		siege.tick(dt)
@@ -724,58 +730,167 @@ func _wave_tick(dt: float) -> void:
 		Sound.play("alert", 0.45)
 
 
-## 정원지 대군 결전(D-211 — 1장 최종 보스): 진영 셋을 점령하고 CYZ.at초가 지나면 관문 앞에 대군과 함께 나옴(전엔 셋째 진영을 점령하자마자).
-## 1단계: 관문 앞을 지키며 부채꼴 화살 · rein_gap초마다 관문 앞으로 황건 rein_n명.
-## 2단계(체력 phase2 아래): 분노 — 돌진 · 땅 내려찍기를 번갈아(공격 간격 × gap2), 더 넓게 움직이고(rect2 · 빠르기 × spd2) 남은 군사 rally명을 한 번에 부름
-func _cyz_tick(dt: float) -> void:
+## 정원지의 대군(D-214): 진영 셋을 점령하면 곧바로 출진 — 부대마다 ARMY.units[].at초에(앞 부대 부장이 쓰러지면 곧바로) 관문 앞에서 나와 길을 따라 본진으로 진군.
+## 부대의 대장(부장 · 본대는 정원지도)이 본진에 닿으면 짐. 본진에서 danger px 안에 들어오면 가까울수록 자주 돌격병을 유비에게 보냄.
+## 장수가 부대 대장을 처음 260px 안에서 만난 때 · 그때 본진까지 거리를 적어 둠(봇 출력)
+func _army_tick(dt: float) -> void:
+	if won or cap_n < 3:
+		return
+	var A: Dictionary = Stage1.ARMY
+	if army_t0 < 0:
+		army_t0 = t
+		for i in A.units.size():
+			army.append({"i": i, "spawned": false, "lead": null, "met_t": -1.0, "met_d": -1.0, "hunt_t": 0.0, "warned": false})
+		note("정원지 대군 출진")
+		banner("정원지의 대군이 출진해요!", "선봉 · 중군 · 본대가 길을 따라 본진으로 — 본진에 닿기 전에 막아요")
+		Sound.play("alert", 0.6)
+	for u in army:
+		var U: Dictionary = A.units[u.i]
+		if not u.spawned:
+			# 정한 때가 되었거나, 앞 부대의 부장이 쓰러졌으면 곧바로(빨리 깨면 기다리지 않음)
+			var prev_done: bool = u.i > 0 and army[u.i - 1].spawned and not Unit.alive(army[u.i - 1].lead)
+			if t >= army_t0 + float(U.at) or prev_done:
+				_spawn_unit(u, U)
+			continue
+		var head := _army_head(u)
+		if head == null:
+			continue
+		var dh := head.position.distance_to(home_pos)
+		if u.met_t < 0 and hero.position.distance_to(head.position) < 260:
+			u.met_t = t
+			u.met_d = dh
+			note("%s%s 만남(본진까지 %dpx)" % [U.n, jo(U.n, "과", "와"), int(dh)])
+		if dh < home_r + float(A.reach):
+			finish(false, "army")
+			return
+		if dh < float(A.danger):
+			if not u.warned:
+				u.warned = true
+				banner("%s%s 본진에 다가와요!" % [U.n, jo(U.n, "이", "가")], "돌격병이 유비를 노려요 — 막으러 가요")
+				Sound.play("alert", 0.5)
+			u.hunt_t -= dt
+			if u.hunt_t <= 0:
+				var k := clampf((dh - home_r) / (float(A.danger) - home_r), 0.0, 1.0)
+				u.hunt_t = lerpf(float(A.hunt_near), float(A.hunt_far), k)
+				for j in int(A.hunt_n):
+					var e := spawn("ytdash", head.position + Vector2(randf_range(-30, 30), randf_range(10, 40)), float(A.smul))
+					e.hunt_lb = true
+					e.no_eng = true
+					e.aggro = 160
+
+
+## 부대의 대장 중 본진에 가장 가까운 것(부장 · 본대는 정원지도). 없으면 null
+func _army_head(u: Dictionary) -> Enemy:
+	var best: Enemy = null
+	var cands: Array = [u.lead]
+	if Stage1.ARMY.units[u.i].get("boss", false):
+		cands.append(cyz)
+	for e in cands:
+		if Unit.alive(e) and (best == null or e.position.distance_to(home_pos) < best.position.distance_to(home_pos)):
+			best = e
+	return best
+
+
+## 지금 본진에 가장 가까운 부대 {u, head, d}(나와 있고 대장이 살아 있는 것 중). 없으면 {}
+func army_front() -> Dictionary:
+	var out := {}
+	for u in army:
+		if not u.spawned:
+			continue
+		var head := _army_head(u)
+		if head == null:
+			continue
+		var d := head.position.distance_to(home_pos)
+		if out.is_empty() or d < float(out.d):
+			out = {"u": u, "head": head, "d": d}
+	return out
+
+
+## 부대 하나가 관문 앞에서 출진: 부장 + 병사(부장 곁을 따라 걷는 대열). 본대면 정원지도
+func _spawn_unit(u: Dictionary, U: Dictionary) -> void:
+	var A: Dictionary = Stage1.ARMY
+	var at := Vector2(float(A.road_x), float(A.y0))
+	var lk: String = U.lk
+	var L := spawn(lk, at, float(U.lm))
+	L.elite = true
+	L.ename = U.ln
+	L.touch = Units.ENEMY[lk].touch
+	L.r *= 1.4
+	L.goal_home = true
+	L.march_spd = float(A.march)
+	L.march_slow = float(A.slow)
+	L.march_slow_r = float(A.slow_r)
+	# 장수를 쫓지 않고 계속 진군(D-214)
+	L.aggro = 0.0
+	L.army_unit = u.i
+	L.army_lead = true
+	u.lead = L
+	u.spawned = true
+	var m := float(A.smul) * (1.0 + minf(t, 600.0) / 600.0 * 0.25)
+	for j in int(U.count):
+		var k := "ytb"
+		if j % 5 == 0:
+			k = "ytbig"
+		elif j % 6 == 1:
+			k = "ytarch"
+		elif j % 9 == 2:
+			k = "ytdash"
+		var off := Vector2(randf_range(-110, 110), randf_range(-40, 90))
+		var e := spawn(k, at + off, m)
+		e.army_unit = u.i
+		e.set_post(at + off)
+		e.guard_of = L
+		e.guard_off = off
+		e.aggro = 200
+	note("%s 출진" % U.n)
+	if U.get("boss", false):
+		_spawn_cyz(at + Vector2(0, -20), u.i)
+	else:
+		banner("정원지 대군 · %s 출진!" % U.n, "%s%s 이끌어요 — 쓰러뜨리면 부대가 흩어지고 보급 상자" % [U.ln, jo(U.ln, "이", "가")])
+		Sound.play("alert", 0.4)
+
+
+## 받침이 있으면 a, 없으면 b(과/와 · 이/가)
+static func jo(s: String, a: String, b: String) -> String:
+	return a if eul(s) == "을" else b
+
+
+## 정원지 2단계(D-211): 체력 phase2 아래에서 분노 — 돌진 · 땅 내려찍기를 번갈아(공격 간격 × gap2), 싸울 때 빠르기 × spd2, 남은 군사 rally명을 부름
+func _cyz_tick(_dt: float) -> void:
+	if not cyz_on or cyz_dead:
+		return
 	var Z: Dictionary = Stage1.CYZ
-	if not cyz_on:
-		if cap_n >= 3 and t >= float(Z.at):
-			_spawn_cyz()
-		return
-	if cyz_dead:
-		return
 	if cyz_phase == 1 and Unit.alive(cyz) and cyz.hp <= cyz.max_hp * float(Z.phase2):
 		cyz_phase = 2
 		cyz.skill_list = ["charge", "slam"]
 		cyz.sk_i = 0
 		cyz.gap_mul = float(Z.gap2)
-		cyz.lead_rect = Z.rect2
 		cyz.spd0 *= float(Z.spd2)
 		for i in int(Z.rally):
 			var at: Vector2 = cyz.position + Vector2.from_angle(randf() * TAU) * randf_range(60, 160)
 			at = at.clamp(Vector2(40, 745), Vector2(W - 40, H - 40))
+			if hit_obs(at, 12):
+				at = cyz.position + Vector2(randf_range(-30, 30), 40)
 			spawn("ytbig" if i % 4 == 0 else ("ytdash" if i % 5 == 2 else "ytb"), at, 1.3)
 		note("정원지 2단계")
 		banner("정원지가 분노해요!", "남은 군사를 모두 불러요 — 돌진 · 땅 내려찍기를 피해요")
 		add_fx({"k": "ring", "pos": cyz.position, "t": 0.6, "r": 120.0, "c": Color("d9705e")})
 		shake = maxf(shake, 0.3)
 		Sound.play("alert", 0.6)
-	cyz_t -= dt
-	if cyz_t > 0:
-		return
-	cyz_t = float(Z.rein_gap)
-	if enemies.size() >= 260:
-		return
-	for i in int(Z.rein_n):
-		var k := "ytbig" if i % 5 == 0 else ("ytarch" if i % 4 == 1 else "ytb")
-		spawn(k, Vector2(randf_range(80, W - 80), randf_range(745, 790)), 1.3 * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
 
 
-## 관문 앞에 정원지 + 대군(D-206 · D-211). 진영장처럼 정해진 사각형 안을 움직이며 예고 있는 공격을 씀(Enemy.make_lead)
-func _spawn_cyz() -> void:
+## 정원지(D-211 · D-214): 본대와 함께 출진해 본진으로 진군. 진영장처럼 예고 있는 공격을 쓰고(Enemy.make_lead), 장수가 가까우면 맞서 싸움
+func _spawn_cyz(at: Vector2, unit_i: int) -> void:
 	cyz_on = true
 	note("정원지 등장")
 	var Z: Dictionary = Stage1.CYZ
-	cyz = spawn("cyz", Z.pos, Z.m)
-	cyz.make_lead({"ln": "황건 장수 정원지", "id": "", "skill": "fan"}, Z.rect)
+	cyz = spawn("cyz", at, Z.m)
+	cyz.make_lead({"ln": "황건 장수 정원지", "id": "", "skill": "fan"}, Rect2(0, 0, W, H))
+	cyz.march_home = true
+	cyz.march_spd = float(Stage1.ARMY.march)
+	cyz.army_unit = unit_i
 	cyz.touch = 22
-	for i in int(Z.guards):
-		var at: Vector2 = Z.pos + Vector2(randf_range(-170, 170), randf_range(-50, 110))
-		var g := spawn("ytbig" if i % 4 == 0 else ("ytarch" if i % 5 == 2 else "ytb"), at, 1.3)
-		g.set_post(at)
-		g.aggro = 260
-	banner("정원지의 대군이 관문 앞에 나왔어요!", "1장 최종 결전 — 황건 장수 정원지를 쓰러뜨려요")
+	banner("정원지가 본대를 이끌고 나왔어요!", "1장 최종 결전 — 정원지를 쓰러뜨리면 이겨요")
 	Sound.play("alert", 0.6)
 
 
@@ -1177,9 +1292,8 @@ func _on_kill(e: Enemy) -> void:
 		add_fx({"k": "ring", "pos": c.pos, "t": 0.6, "r": 150.0, "c": Color("4a7ab8")})
 		Sound.play("win", 0.35)
 		if cap_n >= 3:
-			# 정원지는 CYZ.at초 뒤에 나옴(D-209 — _cyz_tick)
-			var za := float(Stage1.CYZ.at)
-			banner("%s 점령! 진영 셋을 다 점령했어요" % c.n, ("보급 상자를 줍고 관문 앞으로 — %s에 정원지가 나와요" % mmss(za)) if t < za else "보급 상자를 줍고 관문 앞으로")
+			# 곧바로 정원지의 대군이 출진(D-214 — _army_tick)
+			cap3_t = t
 		else:
 			banner("%s 점령! (%d/3)" % [c.n, cap_n], "보급 상자를 주워요 — 진군 부대 %d명이 다음 진영으로 먼저 가요" % MARCH_ON_CAPTURE)
 		return
@@ -1200,6 +1314,21 @@ func _on_kill(e: Enemy) -> void:
 			Sound.play("win", 0.35)
 		else:
 			banner("%s%s 쓰러뜨렸어요" % [e.ename, eul(e.ename)], "")
+		return
+	if e.army_lead:
+		# 부장 격파(D-214): 그 부대는 흩어지고 보급 상자
+		var U: Dictionary = Stage1.ARMY.units[e.army_unit]
+		for o in enemies:
+			if not o.dead and o.army_unit == e.army_unit and o != cyz:
+				o.dead = true
+				kills += 1
+				add_fx({"k": "burst", "pos": o.position, "t": 0.3, "r": o.r * 0.6, "c": Color("f6e2a0")})
+		drops.append({"k": "chest", "pos": e.position})
+		note("%s 격파" % U.n)
+		banner("%s 격파! %s%s 흩어져요" % [e.ename, U.n, jo(U.n, "이", "가")], "보급 상자를 주워요" if not U.get("boss", false) else "보급 상자를 줍고 정원지를 쓰러뜨려요")
+		hit_stop = 0.08
+		shake = maxf(shake, 0.3)
+		Sound.play("win", 0.35)
 		return
 	if e == cyz:
 		note("정원지 격파")
@@ -1691,14 +1820,24 @@ func field_target() -> Dictionary:
 				bd2 = hero.position.distance_to(tw.pos)
 				tp = tw.pos
 		return {"pos": tp, "n": "%s · 수비탑 부수기 %d/%d" % [best.n, total - left, total]}
-	if not cyz_on:
-		return {"pos": Stage1.CYZ.pos, "n": "관문 앞 — 정원지 출진까지 %s" % mmss(float(Stage1.CYZ.at) - t)}
-	var zp: Vector2 = cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos
+	# 정원지의 대군(D-214): 본진에 가장 가까운 부대의 대장 — 아직 아무 부대도 안 나왔으면 관문 앞
+	var A: Dictionary = Stage1.ARMY
+	var gp := Vector2(float(A.road_x), float(A.y0))
 	if not cyz_dead:
-		return {"pos": zp, "n": "정원지 대군 결전%s — 정원지 격파" % (" (분노)" if cyz_phase == 2 else "")}
+		var F := army_front()
+		if not F.is_empty():
+			var U: Dictionary = A.units[F.u.i]
+			var head: Enemy = F.head
+			var who := "정원지" if head == cyz else String(U.ln).get_slice(" ", String(U.ln).get_slice_count(" ") - 1)
+			return {"pos": head.position, "n": "%s · %s 격파%s (본진까지 %d)" % [U.n, who, " (분노)" if head == cyz and cyz_phase == 2 else "", int(F.d)],
+				"warn": float(F.d) < float(A.danger)}
+		for u in army:
+			if not u.spawned:
+				return {"pos": gp, "n": "관문 앞 — 대군 %s 출진까지 %s" % [A.units[u.i].n, mmss(army_t0 + float(A.units[u.i].at) - t)]}
+		return {"pos": gp, "n": "정원지 대군"}
 	if siege != null:
 		return siege.target()
-	return {"pos": zp, "n": "탁현 싸움 승리"}
+	return {"pos": cyz.position if cyz != null else gp, "n": "탁현 싸움 승리"}
 
 
 ## 진군 부대(D-180)가 갈 곳과 길찾기 키
@@ -1717,7 +1856,11 @@ func march_goal(from: Vector2) -> Dictionary:
 			return {"key": "m_" + String(best.id), "pos": best.pos}
 		return {"key": "m_lead_" + c.id, "pos": c.lead.position if Unit.alive(c.lead) else c.pos}
 	if not cyz_dead or siege == null:
-		return {"key": "m_cyz", "pos": cyz.position if Unit.alive(cyz) else Stage1.CYZ.pos}
+		# 정원지의 대군(D-214): 본진에 가장 가까운 부대의 대장
+		var F := army_front()
+		if not F.is_empty():
+			return {"key": "m_army_%d" % F.u.i, "pos": F.head.position}
+		return {"key": "m_gate", "pos": Vector2(float(Stage1.ARMY.road_x), float(Stage1.ARMY.y0))}
 	return siege.march()
 
 
