@@ -35,7 +35,7 @@ const MARCH_ON_CAPTURE := 4
 @onready var hud: Hud = $Hud
 
 var t := 0.0
-## play · pick(레벨업 책략 고르기 — 판이 멈춤) · pause(일시정지, D-197) · end(이김) · dead(짐)
+## tap(웹에서 첫 터치 전 '화면을 눌러 시작' — 판이 멈춤) · play · pick(레벨업 책략 고르기 — 판이 멈춤) · pause(일시정지, D-197) · end(이김) · dead(짐)
 var state := "play"
 var end_why := ""
 var hit_stop := 0.0
@@ -191,16 +191,35 @@ func _ready() -> void:
 		ally_spawn("sol", hero.position + Vector2(randf_range(-40, 40), randf_range(10, 40)), "march", "")
 	_place_camera()
 	hud.setup(self)
-	Sound.music("fight", 0.3)
-	banner(Stage1.NAME, "황건 진영 3곳: 수비탑을 부숴야 진영장을 칠 수 있어요")
-	if "--bot" in OS.get_cmdline_user_args():
+	var args := OS.get_cmdline_user_args()
+	if "--bot" in args:
 		var bot: Node = load("res://scripts/bot.gd").new()
 		add_child(bot)
+	# 웹(iOS Safari 등)은 사용자가 화면을 누르기 전엔 소리를 낼 수 없어서, 첫 터치까지 '화면을 눌러 시작'으로 판을 멈춰 둠.
+	# PC에서 확인할 땐 --tap-start
+	if (OS.has_feature("web") or "--tap-start" in args) and not "--bot" in args:
+		state = "tap"
+		hud.show_tap()
+	else:
+		_start()
+
+
+## 판 시작: 배경음 · 첫 알림(웹은 첫 터치 때 — 사용자 동작 안에서 소리를 켜야 브라우저가 허락함)
+func _start() -> void:
+	state = "play"
+	hud.hide_tap()
+	Sound.music("fight", 0.3)
+	banner(Stage1.NAME, "황건 진영 3곳: 수비탑을 부숴야 진영장을 칠 수 있어요")
 
 
 # ─────────── 입력: 끌어서 이동 · 무쌍(스페이스) ───────────
 
 func _unhandled_input(event: InputEvent) -> void:
+	if state == "tap":
+		if (event is InputEventScreenTouch and event.pressed) or (event is InputEventKey and event.pressed) or (event is InputEventMouseButton and event.pressed):
+			_start()
+			get_viewport().set_input_as_handled()
+		return
 	if event is InputEventScreenTouch:
 		var ev := event as InputEventScreenTouch
 		# 무쌍 버튼은 몇 번째 손가락이든 받음(끌면서 다른 손가락으로 누름). 마우스는 터치로 바뀌어 여기로 옴

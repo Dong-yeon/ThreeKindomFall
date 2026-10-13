@@ -22,6 +22,8 @@ var musou_btn: MusouButton
 var end_panel: PanelContainer
 var pause_btn: PauseButton
 var pause_panel: PanelContainer
+## 웹 첫 화면 '화면을 눌러 시작'(Battle.state == tap)
+var tap_panel: ColorRect
 var pause_info: Label
 var end_title: Label
 var end_stats: Label
@@ -151,7 +153,42 @@ func pause_hit(p: Vector2) -> bool:
 
 
 func blocks(p: Vector2) -> bool:
-	return musou_hit(p) or pause_hit(p) or end_panel.visible or pick_panel.visible or pause_panel.visible
+	return musou_hit(p) or pause_hit(p) or end_panel.visible or pick_panel.visible or pause_panel.visible or (tap_panel != null and tap_panel.visible)
+
+
+## '화면을 눌러 시작'(웹): 화면 전체를 어둡게 덮고 장 이름 · 안내. 누르기는 Battle._unhandled_input이 받음(여긴 입력을 막지 않음)
+func show_tap() -> void:
+	if tap_panel == null:
+		tap_panel = ColorRect.new()
+		tap_panel.color = Color(0.08, 0.07, 0.05, 0.82)
+		tap_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+		tap_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var vb := VBoxContainer.new()
+		vb.set_anchors_preset(Control.PRESET_CENTER)
+		vb.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		vb.grow_vertical = Control.GROW_DIRECTION_BOTH
+		vb.add_theme_constant_override("separation", 14)
+		vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tap_panel.add_child(vb)
+		var t1 := _label(22, Color("fff2c0"), 0)
+		t1.text = Stage1.NAME
+		t1.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vb.add_child(t1)
+		var t2 := _label(14, Color("e8c060"), 0)
+		t2.text = "화면을 눌러 시작"
+		t2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vb.add_child(t2)
+		var t3 := _label(11, Color("c8b890"), 0)
+		t3.text = "끌어서 이동 · 오른쪽 아래 무쌍"
+		t3.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vb.add_child(t3)
+		add_child(tap_panel)
+	tap_panel.visible = true
+
+
+func hide_tap() -> void:
+	if tap_panel != null:
+		tap_panel.visible = false
 
 
 func banner(title: String, sub: String) -> void:
