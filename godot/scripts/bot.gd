@@ -54,6 +54,8 @@ var _min_hp := INF
 var _lb_min := 1.0
 ## 마을 늦게 가기(D-215 시험용): 습격 뒤 이 초 동안은 마을로 가지 않고 습격이 시작된 자리에 머묾(동료 혼자 버티는지 보려고)
 var late_vil := 0.0
+## 대군 부대 사이에 기다릴 자리(본진에서 길 따라 px, -1 = 아직 안 정함)
+var _wait_d := -1.0
 var _vil_hold := Vector2.INF
 ## 1분마다(D-209): 공적 Lv · 그 1분 동안 둘레 120px 평균 적 · 적 수
 var _tl_t := 60.0
@@ -208,6 +210,11 @@ func _bot_process() -> void:
 	var h := b.hero
 	var T := b.field_target()
 	var goal: Vector2 = T.pos
+	# 대군 부대 사이(2026-10-13): 게임은 가리킬 곳을 주지 않음 — 봇은 사람처럼 판마다 다른 자리(길 위, 본진에서 _wait_d px)에서 다음 부대를 기다림
+	if T.get("between", false):
+		if _wait_d < 0:
+			_wait_d = randf_range(900.0, 1600.0)
+		goal = Vector2(float(Stage1.ARMY.road_x), b.home_pos.y - _wait_d)
 	if late_vil > 0 and b.vil_st == "raid" and b.t - b.vil_t0 < late_vil:
 		if _vil_hold == Vector2.INF:
 			_vil_hold = h.position
@@ -515,9 +522,12 @@ func _result(status: String) -> void:
 	for u in b.army:
 		var U: Dictionary = Stage1.ARMY.units[u.i]
 		if u.met_t >= 0:
-			am.append("%s %s 만남(본진까지 %dpx)" % [U.n, _fmt(u.met_t), int(u.met_d)])
+			am.append("%s %s 만남(본진까지 %dpx)%s" % [U.n, _fmt(u.met_t), int(u.met_d),
+				" → %s 격파(본진까지 %dpx · 곁에서 싸운 %ds)" % [_fmt(u.kill_t), int(u.kill_d), int(u.eng)] if float(u.get("kill_t", -1.0)) >= 0 else ""])
 		elif u.spawned:
 			am.append("%s 못 만남" % U.n)
+	if b.cyz_dead:
+		am.append("정원지 격파(곁에서 싸운 %ds)" % int(b.cyz_eng))
 	print("[army] " + " · ".join(am))
 	print("[village] " + _village_line())
 	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))

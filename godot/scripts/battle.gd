@@ -95,6 +95,8 @@ var army_t0 := -1.0
 var cap3_t := -1.0
 var army: Array[Dictionary] = []
 var cyz: Enemy = null
+## 장수가 정원지 곁(260px)에 있던 시간(봇 출력)
+var cyz_eng := 0.0
 ## 장각(2 · 3장, Siege가 만듦 — 1장엔 없음)
 var boss: Enemy = null
 ## 2 · 3장용 진행(D-211): 성문 열림 · 장각의 요술 · 요술 제단 · 장각 · 사신수. 1장(Stage1.SIEGE = false)엔 없음
@@ -598,6 +600,8 @@ func _home_raid_tick() -> void:
 ## 진영(D-205): 진영장이 처음부터 진영 안에서 호위병을 부름(장수가 가까우면 자주 · 진영 병력 상한 — 전엔 막사가 냄, D-202).
 ## 수비탑이 하나라도 서 있으면 진영장은 보호막 → 탑을 다 부수고 진영장을 쓰러뜨리면 점령
 func _camps_tick(dt: float) -> void:
+	if camps_paused():
+		return
 	var L: Dictionary = Stage1.LEAD
 	for c in camps:
 		if c.cap or not Unit.alive(c.lead):
@@ -614,6 +618,11 @@ func _camps_tick(dt: float) -> void:
 			_guard(c, float(c.mul) * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
 		if in_view(lp, 40):
 			add_fx({"k": "ring", "pos": lp, "t": 0.35, "r": 46.0, "c": Color("e8c060")})
+
+
+## 대군이 나와 있는 동안 남은 진영이 병력을 내지 않음(ARMY.pause_camps — 대군과 진영을 한꺼번에 상대하지 않게)
+func camps_paused() -> bool:
+	return bool(Stage1.ARMY.pause_camps) and army_t0 >= 0 and not cyz_dead
 
 
 ## 진영장 곁에 호위병 하나(벽 · 물이면 진영장 앞). 장수가 멀면 진영장을 따라다님
@@ -678,7 +687,7 @@ func note(n: String) -> void:
 ## 황건 부대가 본진으로(45초마다, 점령 안 된 진영 하나의 진영장 곁에서)
 func _party_tick(dt: float) -> void:
 	party_t -= dt
-	if party_t > 0:
+	if party_t > 0 or camps_paused():
 		return
 	var src: Array[Dictionary] = []
 	for c in camps:
@@ -786,25 +795,28 @@ func _wave_tick(dt: float) -> void:
 		Sound.play("alert", 0.45)
 
 
-## 정원지의 대군(D-214): 진영 셋을 점령하면 곧바로 출진 — 부대마다 ARMY.units[].at초에(앞 부대 부장이 쓰러지면 곧바로) 관문 앞에서 나와 길을 따라 본진으로 진군.
+## 정원지의 대군(D-214): 진영 ARMY.after곳을 점령하면 곧바로 출진 — 부대마다 ARMY.units[].at초에(앞 부대 부장이 쓰러지고 rest초 뒤가 더 이르면 그때) 관문 앞에서 나와 길을 따라 본진으로 진군.
 ## 부대의 대장(부장 · 본대는 정원지도)이 본진에 닿으면 짐. 본진에서 danger px 안에 들어오면 가까울수록 자주 돌격병을 유비에게 보냄.
 ## 장수가 부대 대장을 처음 260px 안에서 만난 때 · 그때 본진까지 거리를 적어 둠(봇 출력)
 func _army_tick(dt: float) -> void:
-	if won or cap_n < 3:
-		return
 	var A: Dictionary = Stage1.ARMY
+	if won or cap_n < int(A.after):
+		return
 	if army_t0 < 0:
 		army_t0 = t
 		for i in A.units.size():
-			army.append({"i": i, "spawned": false, "lead": null, "met_t": -1.0, "met_d": -1.0, "hunt_t": 0.0, "warned": false})
+			army.append({"i": i, "spawned": false, "lead": null, "met_t": -1.0, "met_d": -1.0, "kill_t": -1.0, "kill_d": -1.0, "eng": 0.0, "hunt_t": 0.0, "warned": false})
 		note("정원지 대군 출진")
 		banner("정원지의 대군이 출진해요!", "선봉 · 중군 · 본대가 길을 따라 본진으로 — 본진에 닿기 전에 막아요")
 		Sound.play("alert", 0.6)
+	if Unit.alive(cyz) and hero.position.distance_to(cyz.position) < 260:
+		cyz_eng += dt
 	for u in army:
 		var U: Dictionary = A.units[u.i]
 		if not u.spawned:
-			# 정한 때가 되었거나, 앞 부대의 부장이 쓰러졌으면 곧바로(빨리 깨면 기다리지 않음)
-			var prev_done: bool = u.i > 0 and army[u.i - 1].spawned and not Unit.alive(army[u.i - 1].lead)
+			# 정한 때가 되었거나, 앞 부대의 부장이 쓰러지고 ARMY.rest초가 지났으면(빨리 깨면 덜 기다림 — 2026-10-13: 전엔 곧바로)
+			var pk: float = army[u.i - 1].kill_t if u.i > 0 else -1.0
+			var prev_done: bool = pk >= 0 and t >= pk + float(A.rest)
 			if t >= army_t0 + float(U.at) or prev_done:
 				_spawn_unit(u, U)
 			continue
@@ -812,6 +824,9 @@ func _army_tick(dt: float) -> void:
 		if head == null:
 			continue
 		var dh := head.position.distance_to(home_pos)
+		# 장수가 부장 곁(260px)에 있던 시간 = 실제로 싸운 시간(봇 출력 — 지나가다 스친 '만남'과 구별)
+		if Unit.alive(u.lead) and hero.position.distance_to(u.lead.position) < 260:
+			u.eng += dt
 		if u.met_t < 0 and hero.position.distance_to(head.position) < 260:
 			u.met_t = t
 			u.met_d = dh
@@ -911,13 +926,34 @@ static func jo(s: String, a: String, b: String) -> String:
 	return a if eul(s) == "을" else b
 
 
-## 정원지 2단계(D-211): 체력 phase2 아래에서 분노 — 돌진 · 땅 내려찍기를 번갈아(공격 간격 × gap2), 싸울 때 빠르기 × spd2, 남은 군사 rally명을 부름
+## 아직 안 나온 부대가 나오기까지 남은 초(정한 때와 앞 부장이 쓰러지고 rest초 뒤 중 먼저 오는 쪽)
+func _unit_eta(u: Dictionary) -> float:
+	var A: Dictionary = Stage1.ARMY
+	var at := army_t0 + float(A.units[u.i].at)
+	var pk: float = army[u.i - 1].kill_t if u.i > 0 else -1.0
+	if pk >= 0:
+		at = minf(at, pk + float(A.rest))
+	return at - t
+
+
+## 쓰러진 대군 부장 수
+func _army_leads_down() -> int:
+	var n := 0
+	for u in army:
+		if u.spawned and not Unit.alive(u.lead):
+			n += 1
+	return n
+
+
+## 정원지 2단계(D-211): 체력 phase2 아래 또는 부장 CYZ.leads2명이 쓰러지면 분노 — 돌진 · 땅 내려찍기를 번갈아(공격 간격 × gap2), 싸울 때 빠르기 × spd2, 남은 군사 rally명을 부름
 func _cyz_tick(_dt: float) -> void:
 	if not cyz_on or cyz_dead:
 		return
 	var Z: Dictionary = Stage1.CYZ
-	if cyz_phase == 1 and Unit.alive(cyz) and cyz.hp <= cyz.max_hp * float(Z.phase2):
+	if cyz_phase == 1 and Unit.alive(cyz) and (cyz.hp <= cyz.max_hp * float(Z.phase2) or _army_leads_down() >= int(Z.leads2)):
 		cyz_phase = 2
+		# 혼자 버티지 않고 장수에게 달려듦(2026-10-13)
+		cyz.aggro = float(Z.aggro2)
 		cyz.skill_list = ["charge", "slam"]
 		cyz.sk_i = 0
 		cyz.gap_mul = float(Z.gap2)
@@ -984,7 +1020,8 @@ func _separate() -> void:
 		_sep_cy[i] = cy
 		_sep_pos[i] = p
 		_sep_r[i] = e.r
-		_sep_mv[i] = 1 if e.boss or e.building or e.air > 0 else 2
+		# 대군 부장 · 정원지는 밀리지 않음(2026-10-13 — 자기 병사들에게 떠밀려 진군 빠르기의 약 5배로 본진에 닿았음)
+		_sep_mv[i] = 1 if e.boss or e.building or e.air > 0 or e.army_lead or e.march_home else 2
 		x0 = mini(x0, cx)
 		x1 = maxi(x1, cx)
 		y0 = mini(y0, cy)
@@ -1405,7 +1442,13 @@ func _on_kill(e: Enemy) -> void:
 				o.dead = true
 				kills += 1
 				add_fx({"k": "burst", "pos": o.position, "t": 0.3, "r": o.r * 0.6, "c": Color("f6e2a0")})
+		var au: Dictionary = army[e.army_unit]
+		au.kill_t = t
+		au.kill_d = e.position.distance_to(home_pos)
 		drops.append({"k": "chest", "pos": e.position})
+		# 부장마다 고기만두 확정(2026-10-13 — 긴 대군전의 회복)
+		for j in int(Stage1.ARMY.bun):
+			drops.append({"k": "bun", "pos": e.position + Vector2(28, 0).rotated(j * 2.4 + 0.6)})
 		note("%s 격파" % U.n)
 		banner("%s 격파! %s%s 흩어져요" % [e.ename, U.n, jo(U.n, "이", "가")], "보급 상자를 주워요" if not U.get("boss", false) else "보급 상자를 줍고 정원지를 쓰러뜨려요")
 		hit_stop = 0.08
@@ -1907,15 +1950,22 @@ func field_target() -> Dictionary:
 	var gp := Vector2(float(A.road_x), float(A.y0))
 	if not cyz_dead:
 		var F := army_front()
-		if not F.is_empty():
+		# 부대가 본진에서 ARMY.engage px 밖이고 장수가 곁(400px)에 없으면 아직 가리키지 않음(2026-10-13 — 관문에서 갓 나온 부대를 곧바로 쫓지 않게)
+		var far := not F.is_empty() and float(F.d) > float(A.engage) and hero.position.distance_to(F.head.position) > 400
+		if not F.is_empty() and not far:
 			var U: Dictionary = A.units[F.u.i]
 			var head: Enemy = F.head
 			var who := "정원지" if head == cyz else String(U.ln).get_slice(" ", String(U.ln).get_slice_count(" ") - 1)
 			return {"pos": head.position, "n": "%s · %s 격파%s (본진까지 %d)" % [U.n, who, " (분노)" if head == cyz and cyz_phase == 2 else "", int(F.d)],
 				"warn": float(F.d) < float(A.danger)}
+		# 부대와 부대 사이 · 부대가 아직 멀 때(2026-10-13): 관문 앞을 가리키지 않음(전엔 관문 앞을 가리켜 갓 나온 부대를 늘 그 자리에서 잡았음).
+		# 가리킬 곳 없이(between) 장수가 고른 곳에서 싸우다, 부대가 내려와 engage 안에 들거나 장수 곁에 오면 그 부대를 가리킴.
+		# (본진 쪽 · 본진으로 가는 황건을 가리켜 봤더니 장수를 쫓는 들판 무리가 본진까지 따라와 유비가 쓰러짐 — 봇 각 20판)
 		for u in army:
-			if not u.spawned:
-				return {"pos": gp, "n": "관문 앞 — 대군 %s 출진까지 %s" % [A.units[u.i].n, mmss(army_t0 + float(A.units[u.i].at) - t)]}
+			if far or not u.spawned:
+				var eta := "대군 %s%s 내려와요 (본진까지 %d)" % [A.units[F.u.i].n, jo(A.units[F.u.i].n, "이", "가"), int(F.d)] if far \
+					else "대군 %s 출진까지 %s" % [A.units[u.i].n, mmss(_unit_eta(u))]
+				return {"pos": hero.position, "n": eta, "between": true}
 		return {"pos": gp, "n": "정원지 대군"}
 	if siege != null:
 		return siege.target()
