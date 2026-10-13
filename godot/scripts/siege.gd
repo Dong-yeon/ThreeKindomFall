@@ -104,7 +104,7 @@ func _sorcery_tick(dt: float) -> void:
 		b.add_fx({"k": "sky", "pos": bo.pos, "t": 0.25})
 		b.add_fx({"k": "ring", "pos": bo.pos, "t": 0.3, "r": float(S.bolt_r), "c": Color("fff2b0")})
 		if hero.position.distance_to(bo.pos) < float(S.bolt_r) + hero.r * 0.5:
-			hero.hurt(float(S.bolt_dmg))
+			hero.hurt(float(S.bolt_dmg), "요술")
 	bolts = keep
 	if struck:
 		Sound.play("slam", 0.25)
@@ -128,7 +128,7 @@ func _sorcery_tick(dt: float) -> void:
 			sm.hit -= dt
 			if sm.hit <= 0:
 				sm.hit = 1.0
-				hero.hurt(float(S.storm_dmg))
+				hero.hurt(float(S.storm_dmg), "요술")
 		keep2.append(sm)
 	storms = keep2
 

@@ -404,6 +404,22 @@ func _shot_events() -> void:
 		if L.st == 1 and L.t >= float(Stage1.LEAD.warn) * 0.7 and not _lead_shots.has(L.skill):
 			_lead_shots[L.skill] = true
 			_shot("lead_" + L.skill)
+	# 적 역할(2026-10-13): 돌격병 예고선 · 경직, 궁수 화살, 대군 부장 내려찍기 예고 — 처음 한 장씩
+	for e in b.enemies:
+		if e.dead or not b.in_view(e.position, -30):
+			continue
+		if e.k == "ytdash" and e.st == 1 and e.t > 0.3 and not _lead_shots.has("dash_warn"):
+			_lead_shots["dash_warn"] = true
+			_shot("dash_warn")
+		elif e.k == "ytdash" and e.st == 3 and not _lead_shots.has("dash_stun"):
+			_lead_shots["dash_stun"] = true
+			_shot("dash_stun")
+		elif e.army_lead and e.slam_w > 0 and e.slam_w < 0.4 and not _lead_shots.has("army_slam"):
+			_lead_shots["army_slam"] = true
+			_shot("army_slam")
+	if not _lead_shots.has("arrows") and b.shots.filter(func(s): return s.arrow and b.in_view(s.pos, -10)).size() >= 2:
+		_lead_shots["arrows"] = true
+		_shot("arrows")
 
 
 ## 매 프레임 측정. 구간이 끝나면(진영 점령 · 정원지 · 장각) 걸린 시간 · 이동 · 멈춘 비율을 한 줄로
@@ -530,6 +546,16 @@ func _result(status: String) -> void:
 		am.append("정원지 격파(곁에서 싸운 %ds)" % int(b.cyz_eng))
 	print("[army] " + " · ".join(am))
 	print("[village] " + _village_line())
+	# 장수가 받은 피해 출처별(적 역할 다양화 확인용)
+	var hl: Array[String] = []
+	var tot := 0.0
+	for k in b.hurt_log:
+		tot += float(b.hurt_log[k])
+	var ks: Array = b.hurt_log.keys()
+	ks.sort_custom(func(x, y): return float(b.hurt_log[x]) > float(b.hurt_log[y]))
+	for k in ks:
+		hl.append("%s %d(%d%%)" % [k, int(b.hurt_log[k]), roundi(float(b.hurt_log[k]) / maxf(tot, 1.0) * 100.0)])
+	print("[hurt] 합 %d · %s" % [int(tot), " · ".join(hl) if not hl.is_empty() else "-"])
 	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))
 	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 둘레 120px 적 평균 %.1f · 분당 피격 %.1f · 최저 체력 %d/%d · 구슬 주운 경험 %d%%" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0),
 		_near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(_min_hp), int(h.max_hp), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0)])

@@ -16,8 +16,18 @@ func _draw_impl() -> void:
 		var p: Vector2 = s.pos
 		if not V.has_point(p):
 			continue
-		draw_circle(p, s.r, s.c)
-		draw_circle(p, s.r, Color("7a1a0a"), false, 1.5)
+		if s.arrow:
+			# 궁수 화살(2026-10-13): 느리고 잘 보이게 — 짙은 테두리를 두른 밝은 화살(길이 18) + 둘레 옅은 빛
+			var dir: Vector2 = (s.vel as Vector2).normalized()
+			var tail := p - dir * 18
+			draw_circle(p - dir * 6, 9, Color(1, 0.9, 0.5, 0.18))
+			draw_line(tail, p, Color("4a1a08"), 5)
+			draw_line(tail, p, s.c, 2.5)
+			draw_colored_polygon(PackedVector2Array([p + dir * 6, p - dir * 2 + dir.orthogonal() * 5, p - dir * 2 - dir.orthogonal() * 5]), s.c)
+			draw_polyline(PackedVector2Array([p + dir * 6, p - dir * 2 + dir.orthogonal() * 5, p - dir * 2 - dir.orthogonal() * 5, p + dir * 6]), Color("4a1a08"), 1.5)
+		else:
+			draw_circle(p, s.r, s.c)
+			draw_circle(p, s.r, Color("7a1a0a"), false, 1.5)
 	for bl in b.blades:
 		var p: Vector2 = bl.pos
 		if V.has_point(p):

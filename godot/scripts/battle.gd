@@ -97,6 +97,8 @@ var army: Array[Dictionary] = []
 var cyz: Enemy = null
 ## 장수가 정원지 곁(260px)에 있던 시간(봇 출력)
 var cyz_eng := 0.0
+## 장수가 받은 피해 출처별 합(봇 출력 — Hero.hurt의 src)
+var hurt_log := {}
 ## 장각(2 · 3장, Siege가 만듦 — 1장엔 없음)
 var boss: Enemy = null
 ## 2 · 3장용 진행(D-211): 성문 열림 · 장각의 요술 · 요술 제단 · 장각 · 사신수. 1장(Stage1.SIEGE = false)엔 없음
@@ -632,7 +634,7 @@ func _guard(c: Dictionary, mul: float) -> Enemy:
 	var at := lp + Vector2.from_angle(randf() * TAU) * randf_range(30, 55)
 	if hit_obs(at, 12):
 		at = lp + Vector2(randf_range(-20, 20), 34)
-	var e := spawn("ytarch" if randf() < 0.2 else "ytb", at, mul)
+	var e := spawn("ytarch" if randf() < 0.12 else "ytb", at, mul)
 	e.camp_id = c.id
 	e.set_post(at)
 	e.guard_of = L
@@ -743,9 +745,10 @@ func _rein_tick(dt: float) -> void:
 			var k := "ytb"
 			if py < 1300 and rein_i % 6 == 5:
 				k = "ytbig"
-			elif py < 2300 and rein_i % 5 == 4:
+			# 궁수 약 12% · 돌격병 약 7%(2026-10-13 적 역할 — 전엔 20% · 3%)
+			elif py < 2300 and rein_i % 8 == 4:
 				k = "ytarch"
-			elif rein_i % 30 == 0:
+			elif rein_i % 14 == 0:
 				k = "ytdash"
 			var at := Vector2(clampf(o.x + randf_range(-30, 30), 30, W - 30), clampf(o.y + randf_range(-30, 30), 30, H - 30))
 			spawn(k, at, m).xp_mul = REIN_XP
@@ -782,7 +785,7 @@ func _wave_tick(dt: float) -> void:
 		if hit_obs(at, 14) or not flow.reach(f, flow.cell_of(at)):
 			continue
 		var k := "ytb"
-		if wave_n >= 2 and i % 6 == 3:
+		if wave_n >= 2 and i % 12 == 3:
 			k = "ytdash"
 		elif wave_n >= 3 and i % 8 == 7:
 			k = "ytbig"
@@ -895,6 +898,9 @@ func _spawn_unit(u: Dictionary, U: Dictionary) -> void:
 	L.aggro = 0.0
 	L.army_unit = u.i
 	L.army_lead = true
+	# 내려찍기(2026-10-13 적 역할)
+	L.pat_slam = A.slam
+	L.slam_cd = randf_range(2.0, 4.0)
 	u.lead = L
 	u.spawned = true
 	var m := float(A.smul) * (1.0 + minf(t, 600.0) / 600.0 * 0.25)
@@ -902,9 +908,9 @@ func _spawn_unit(u: Dictionary, U: Dictionary) -> void:
 		var k := "ytb"
 		if j % 5 == 0:
 			k = "ytbig"
-		elif j % 6 == 1:
+		elif j % 8 == 1:
 			k = "ytarch"
-		elif j % 9 == 2:
+		elif j % 12 == 2:
 			k = "ytdash"
 		var off := Vector2(randf_range(-110, 110), randf_range(-40, 90))
 		var e := spawn(k, at + off, m)
@@ -978,6 +984,8 @@ func _spawn_cyz(at: Vector2, unit_i: int) -> void:
 	var Z: Dictionary = Stage1.CYZ
 	cyz = spawn("cyz", at, Z.m)
 	cyz.make_lead({"ln": "황건 장수 정원지", "id": "", "skill": "fan"}, Rect2(0, 0, W, H))
+	# 1단계: 부채꼴 화살 · 내려찍기를 번갈아(2026-10-13 — 공격 간격 LEAD.gap 3초라 내려찍기는 6초마다)
+	cyz.skill_list = ["fan", "slam"]
 	cyz.march_home = true
 	cyz.march_spd = float(Stage1.ARMY.march)
 	cyz.army_unit = unit_i
@@ -1511,26 +1519,55 @@ func boss_volley(e: Enemy) -> void:
 		shoot(e.position, Vector2.from_angle(a + s) * 200, 10, 5, Color("d8b040"))
 
 
-func shoot(at: Vector2, vel: Vector2, dmg: float, rad: float, col: Color) -> void:
-	shots.append({"pos": at, "vel": vel, "dmg": dmg, "r": rad, "c": col, "life": 0.0})
+## 적 탄(2026-10-13): 풀에서 꺼내 씀(다 쓴 것은 _shot_free로 돌려놓음). 동시에 SHOT_CAP개 · 궁수 화살(arrow)은 ARROW_CAP개까지 — 넘으면 쏘지 않음
+const SHOT_CAP := 120
+const ARROW_CAP := 40
+var _shot_free: Array[Dictionary] = []
+var _arrow_n := 0
+
+
+func shoot(at: Vector2, vel: Vector2, dmg: float, rad: float, col: Color, src := "장수 화살", arrow := false) -> void:
+	if shots.size() >= SHOT_CAP or (arrow and _arrow_n >= ARROW_CAP):
+		return
+	var s: Dictionary = _shot_free.pop_back() if not _shot_free.is_empty() else {}
+	s.pos = at
+	s.vel = vel
+	s.dmg = dmg
+	s.r = rad
+	s.c = col
+	s.life = 0.0
+	s.src = src
+	s.arrow = arrow
+	if arrow:
+		_arrow_n += 1
+	shots.append(s)
 
 
 func _tick_shots(dt: float) -> void:
-	var keep: Array[Dictionary] = []
-	for s in shots:
+	# 제자리에서 앞으로 당겨 담음(새 배열을 만들지 않음) — 빠진 것은 풀로
+	var j := 0
+	for i in shots.size():
+		var s: Dictionary = shots[i]
 		var p: Vector2 = s.pos + s.vel * dt
 		s.pos = p
 		s.life += dt
+		var gone := false
 		if p.x < -10 or p.y < -10 or p.x > W + 10 or p.y > H + 10 or p.distance_to(hero.position) > 700:
-			continue
-		if in_wall(p, s.r * 0.5):
+			gone = true
+		elif in_wall(p, s.r * 0.5):
 			add_fx({"k": "puff", "pos": p, "t": 0.2})
-			continue
-		if p.distance_to(hero.position) < s.r + hero.r - 2:
-			hero.hurt(s.dmg)
-			continue
-		keep.append(s)
-	shots = keep
+			gone = true
+		elif p.distance_to(hero.position) < s.r + hero.r - 2:
+			hero.hurt(s.dmg, s.src)
+			gone = true
+		if gone:
+			if s.arrow:
+				_arrow_n -= 1
+			_shot_free.append(s)
+		else:
+			shots[j] = s
+			j += 1
+	shots.resize(j)
 
 
 ## 쓰러진 것 치우기. 장수급(진영장 · 정원지 · 장각)과 건물(요술 제단 — altars가 붙잡음, D-207)은 다른 곳이 붙잡고 있어 숨기기만 한다.
@@ -1685,7 +1722,7 @@ func _spawn_squads() -> void:
 			var k := "ytb"
 			if i == 0 and n >= 10:
 				k = "ytdash"
-			elif y < 2300 and i % 4 == 3:
+			elif y < 2300 and i % 8 == 3:
 				k = "ytarch"
 			elif y < 1400 and i % 6 == 1:
 				k = "ytbig"

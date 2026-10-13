@@ -42,6 +42,13 @@ def parse(text):
             rows[mode]['ev'] = ev
         if mode and line.startswith('  대군: '):
             rows[mode]['army'] = line[len('  대군: '):]
+        if mode and line.startswith('  받은 피해: '):
+            hurt = {}
+            for part in line[len('  받은 피해: '):].split(' · ')[1:]:
+                mm = re.match(r'(.+) (\d+)\(\d+%\)$', part.strip())
+                if mm:
+                    hurt[mm.group(1)] = int(mm.group(2))
+            rows[mode]['hurt'] = hurt
     return rows
 
 
@@ -107,6 +114,9 @@ def main():
             m = metrics(r)
             g = agg.setdefault(mode, {'len': [], 'd': [], 'kd': [], 'war': [], 'kill': [], 'dead': [], 'clear': 0})
             g['kd'] += m['kill_d']
+            hs = g.setdefault('hurt', {})
+            for k, v in r.get('hurt', {}).items():
+                hs[k] = hs.get(k, 0) + v
             g['len'].append(r['len'])
             if r['status'] == '클리어':
                 g['clear'] += 1
@@ -133,6 +143,12 @@ def main():
             for d in g['d']:
                 bins[d // 300 * 300] = bins.get(d // 300 * 300, 0) + 1
             print('    첫 만남 분포(300px 칸): ' + ' · '.join('%d~%d: %d' % (k, k + 299, v) for k, v in sorted(bins.items())))
+        if g.get('hurt'):
+            tot = sum(g['hurt'].values())
+            ranged = sum(v for k, v in g['hurt'].items() if '화살' in k)
+            dash = sum(v for k, v in g['hurt'].items() if '돌진' in k)
+            print('    받은 피해(10판 합 %d): 원거리 %d%% · 돌진 %d%% | ' % (tot, round(ranged * 100 / max(tot, 1)), round(dash * 100 / max(tot, 1)))
+                  + ' · '.join('%s %d%%' % (k, round(v * 100 / max(tot, 1))) for k, v in sorted(g['hurt'].items(), key=lambda kv: -kv[1])))
         if g['kd']:
             bins = {}
             for d in g['kd']:

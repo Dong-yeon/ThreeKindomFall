@@ -87,6 +87,15 @@ var slide := 0.0
 var slide_t := 0.0
 # 돌진
 var tdir := Vector2.ZERO
+## 돌격병(2026-10-13): 이번 돌진이 맞았나 — 빗맞으면 경직(st 3)
+var dash_hit := false
+## 궁수(2026-10-13): 거리 판단(0.25초마다) — 다가감 1 · 그대로 0 · 물러남 -1
+var keep_t := 0.0
+var keep_want := 0.0
+## 장수급 내려찍기(2026-10-13 — 대군 부장, Stage1.ARMY.slam): 패턴 수치(비어 있으면 없음) · 다음까지 · 예고 남은 초(0 = 예고 아님)
+var pat_slam := {}
+var slam_cd := 0.0
+var slam_w := 0.0
 ## 장각이 예고 중인 다음 공격(-1 = 아직). 0 탄막 · 1 세 갈래 연사 · 2 무리 부르기 · 3 돌진
 var next_kind := -1
 var _moving := false
@@ -97,6 +106,7 @@ var _dk_face := ""
 var _dk_step := -1
 var _dk_lift := -1.0
 var _dk_warn := false
+var _dk_stun := false
 var _dk_flash := false
 var _dk_hp := -1.0
 ## 수비탑이 장수를 노리는 중(사거리 안 · 화면 안, D-202)
@@ -180,6 +190,9 @@ func tick(dt: float) -> void:
 	if _ai == AI_LEAD:
 		_lead_tick(dt)
 		return
+	# 내려찍기 예고 중엔 제자리(대군 부장)
+	if not pat_slam.is_empty() and _slam_tick(dt):
+		return
 	# 호위병은 장수가 멀면 진영장 곁(진영장을 따라다님)
 	if guard_of != null:
 		post = guard_of.position + guard_off
@@ -245,29 +258,58 @@ func tick(dt: float) -> void:
 			p += v * sp * dt
 			position = p
 	elif _ai == AI_DASH:
+		# 2026-10-13: 걸어서 다가옴 → range 안이면 warn초 멈칫(바닥 예고) → 일직선 돌진 → 빗맞으면 stun초 경직 (전엔 1.6초 흔들림 → 0.4초 → 짧은 돌진, 예고선 · 경직 없음)
+		var sm := 0.55 if slow_t > 0 else 1.0
 		if st == 0:
-			position.x += sin(t * 2) * 20 * dt
-			if t > 1.6:
+			if at_hero or key != "" or aim.distance_to(p) >= 4.0:
+				last_pos = p
+				position += dv / d * spd * dt
+			if t > float(def.rest) and aim.distance_to(p) < float(def.range):
 				st = 1
 				t = 0
-				tdir = dv / d
+				tdir = (aim - p).normalized() if aim != p else Vector2(0, 1)
 		elif st == 1:
-			if t > 0.4:
+			if t >= float(def.warn):
 				st = 2
 				t = 0
-		else:
-			position += tdir * 300 * dt * (0.55 if slow_t > 0 else 1.0)
-			if t > 0.35:
-				st = 0
+				dash_hit = false
+		elif st == 2:
+			position += tdir * float(def.dspd) * dt * sm
+			if t > float(def.dur):
+				# 아군 · 유비를 노린 돌진은 끝났을 때 붙어 있으면 맞은 것으로
+				if not at_hero and position.distance_to(aim) < r + 18:
+					dash_hit = true
+				st = 0 if dash_hit else 3
 				t = 0
+		elif t >= float(def.stun):
+			st = 0
+			t = 0
 		p = position
 	elif _ai == AI_SHOOTER:
-		var want := 1.0 if d > 150 else (-1.0 if d < 110 else 0.0)
-		position += dv / d * spd * want * dt
-		if t > (1.8 if elite else 3.0):
+		# 2026-10-13: 장수와 keep0~keep1 px를 지킴(판단은 0.25초마다 — 매 프레임 하지 않음). 화면 밖이면 쏠 수 없어 화면 안으로
+		keep_t -= dt
+		if keep_t <= 0:
+			keep_t = 0.25
+			var dh := hp.distance_to(p)
+			if not at_hero:
+				keep_want = 1.0
+			elif dh > float(def.get("keep1", 150.0)) or not b.in_view(p, 12):
+				keep_want = 1.0
+			elif dh < float(def.get("keep0", 110.0)):
+				keep_want = -1.0
+			else:
+				keep_want = 0.0
+		if keep_want > 0:
+			position += dv / d * spd * dt
+		elif keep_want < 0:
+			# 물러남: 장수 반대쪽으로(빠르기 spd — 장수보다 느려 잡을 수 있음)
+			var away := p - hp
+			position += away / maxf(away.length(), 1.0) * spd * dt
+		if t > float(def.get("gap", 3.0)) * (0.6 if elite else 1.0):
 			t = 0
 			if b.in_view(position, -10) and at_hero:
-				b.shoot(position, dv / d * 170, 6, 5, Color("d8b040"))
+				var to := hp - position
+				b.shoot(position, to / maxf(to.length(), 1.0) * float(def.get("arrow", 170.0)), float(def.get("dmg", 6.0)), 6, Color("ffe08a"), "궁병 화살", true)
 		p = position
 	elif _ai == AI_BOSS:
 		_boss_tick(dt, dv, d)
@@ -312,7 +354,15 @@ func _touch_hero() -> void:
 	var b := battle
 	var hero := b.hero
 	var iv0 := hero.inv
-	hero.hurt(touch)
+	var src := "근접"
+	if _ai == AI_DASH and st == 2:
+		dash_hit = true
+		src = "늑대 돌진" if k == "wolf" else "돌진"
+	elif _ai == AI_LEAD and st == 2:
+		src = "장수 돌진"
+	elif is_lead():
+		src = "장수 근접"
+	hero.hurt(touch, src)
 	if is_lead() and hero.inv > iv0:
 		# 34px 밀려남. 한 번에 밀면 12px 벽을 뚫고 닫힌 본진 안으로 들어가서(웹판도 같음) 네 번에 나눠 벽 검사
 		var kd := (hero.position - position).normalized() if hero.position != position else Vector2(0, 1)
@@ -342,7 +392,7 @@ func _lead_tick(dt: float) -> void:
 			st = 0
 			t = 0.0
 	elif st == 1:
-		if t >= float(L.warn):
+		if t >= float(S.get("warn", L.warn)):
 			_lead_act(S)
 	else:
 		var dh := p.distance_to(hp)
@@ -392,7 +442,7 @@ func _lead_act(S: Dictionary) -> void:
 	elif skill == "slam":
 		var R := float(S.r)
 		if b.hero.position.distance_to(sk_at) < R + b.hero.r * 0.5:
-			b.hero.hurt(float(S.dmg))
+			b.hero.hurt(float(S.dmg), "장수 내려찍기")
 		b.add_fx({"k": "ring", "pos": sk_at, "t": 0.35, "r": R, "c": Color("d9705e")})
 		b.add_fx({"k": "puff", "pos": sk_at, "t": 0.3})
 		b.shake = maxf(b.shake, 0.12)
@@ -421,7 +471,7 @@ func _tower_tick(dt: float) -> void:
 	if t >= gap:
 		t = 0.0
 		var at := position + Vector2(0, -34)
-		b.shoot(at, (hp_pos - at).normalized() * float(T.spd), float(T.dmg), 5, Color("e07040"))
+		b.shoot(at, (hp_pos - at).normalized() * float(T.spd), float(T.dmg), 5, Color("e07040"), "탑 화살")
 
 
 ## 장각: 거리를 두며 탄막 · 세 갈래 연사 · 무리 부르기 · 누런 바람 돌진(체력 절반 아래에선 넷 다)
@@ -492,8 +542,8 @@ func refresh_look() -> void:
 	var lift := 0.0
 	if air > 0 and air0 > 0:
 		lift = sin(minf(1.0, (air0 - air) / air0) * PI) * 22
-	var warn := (_ai == AI_DASH and st == 1) or (_ai == AI_SHOOTER and t > 1.4)
-	if face_dir != _dk_face or step != _dk_step or lift != _dk_lift or warn != _dk_warn \
+	var warn := _warn_now()
+	if face_dir != _dk_face or step != _dk_step or lift != _dk_lift or warn != _dk_warn or (st == 3 and _ai == AI_DASH) != _dk_stun \
 			or (flash > 0) != _dk_flash or hp / max_hp != _dk_hp:
 		queue_redraw()
 
@@ -536,9 +586,13 @@ func _draw_impl() -> void:
 				draw_line(tip, tip - tdir.rotated(-0.5) * 18, Color(0.9, 0.3, 0.25, 0.8), 3)
 	if _ai == AI_LEAD and st >= 1:
 		_draw_lead_warn()
-	var warn := (_ai == AI_DASH and st == 1) or (_ai == AI_SHOOTER and t > 1.4)
+	var warn := _warn_now()
 	if warn:
-		draw_arc(Vector2.ZERO, r + 4, 0, TAU, 24, Color("d9705e"), 1.5)
+		draw_arc(Vector2.ZERO, r + 4, 0, TAU, 24, Color("d9705e"), 2)
+	if _ai == AI_DASH and st == 1:
+		_draw_dash_line()
+	if slam_w > 0:
+		_draw_slam_warn(sk_at - position, float(pat_slam.r), 1.0 - slam_w / float(pat_slam.warn))
 	var size := r * (2.6 if boss else 2.5)
 	var step := Sprites.walk_step(_moving, b.t + _anim_off, 6)
 	draw_body(face_dir, step, size, 1.0, lift, _glyph)
@@ -555,6 +609,12 @@ func _draw_impl() -> void:
 	_dk_step = step
 	_dk_lift = lift
 	_dk_warn = warn
+	_dk_stun = st == 3 and _ai == AI_DASH
+	if _dk_stun:
+		# 경직(빗맞은 돌진 — 때릴 틈): 머리 위에 노란 별 셋
+		for i in 3:
+			var a := float(i) * TAU / 3
+			draw_circle(Vector2(cos(a) * 9, -r * 2.2 - lift + sin(a) * 3), 2.5, Color("ffe060"))
 
 
 ## 수비탑: 나무 망루 + 황건 깃발 + 체력 막대(맞으면 번쩍). 노리는 중엔 사거리 원, 쏘기 직전엔 망대에 빨간 고리
@@ -602,11 +662,69 @@ func _draw_altar() -> void:
 	draw_bar(0, -38, 40, 4, hp / max_hp, Color("d9705e"))
 
 
+## 경고 테두리를 그릴 때인가: 돌격병 = 멈칫(예고) 중, 궁수 = 쏘기 0.5초 전
+func _warn_now() -> bool:
+	if _ai == AI_DASH:
+		return st == 1
+	if _ai == AI_SHOOTER:
+		return t > float(def.get("gap", 3.0)) * (0.6 if elite else 1.0) - 0.5
+	return false
+
+
+## 돌격병 예고(2026-10-13): 발밑에서 돌진할 길(dspd × dur)을 바닥에 — 붉은 띠 + 테두리 + 화살촉. 휴대폰에서도 보이게 진하게
+func _draw_dash_line() -> void:
+	var len := float(def.dspd) * float(def.dur)
+	var side := tdir.orthogonal() * r * 0.75
+	var tip := tdir * len
+	var band := PackedVector2Array([side, tip + side, tip - side, -side])
+	draw_colored_polygon(band, Color(0.9, 0.25, 0.2, 0.32))
+	draw_line(side, tip + side, Color(0.95, 0.3, 0.25, 0.9), 2)
+	draw_line(-side, tip - side, Color(0.95, 0.3, 0.25, 0.9), 2)
+	draw_line(tip, tip - tdir.rotated(0.55) * 16, Color(1, 0.35, 0.3), 3)
+	draw_line(tip, tip - tdir.rotated(-0.55) * 16, Color(1, 0.35, 0.3), 3)
+
+
+## 내려찍기 예고(진영장 · 정원지 · 대군 부장 공통): 떨어질 원 + 안쪽에서 차오르는 원(k = 0 → 1). 휴대폰에서도 보이게 굵고 진하게
+func _draw_slam_warn(c: Vector2, R: float, k: float) -> void:
+	var red := Color(0.9, 0.28, 0.22)
+	draw_circle(c, R, Color(red, 0.14 + 0.22 * k))
+	draw_circle(c, R * k, Color(red, 0.22))
+	draw_arc(c, R, 0, TAU, 48, Color(1, 0.35, 0.28, 0.95), 3)
+	draw_arc(c, R * k, 0, TAU, 48, Color(1, 0.6, 0.5, 0.8), 2)
+
+
+## 장수급 내려찍기(2026-10-13 — 대군 부장, pat_slam = Stage1.ARMY.slam): 장수가 range 안이고 화면에 보이면 cd0~cd1초마다,
+## 장수 자리에 반지름 r 원을 warn초 예고(그동안 제자리) → 그 안이면 피해 dmg. 예고 중이면 true(움직이지 않음)
+func _slam_tick(dt: float) -> bool:
+	var b := battle
+	var S := pat_slam
+	if slam_w > 0:
+		slam_w -= dt
+		flash = maxf(0.0, flash - dt)
+		if slam_w <= 0:
+			slam_w = 0.0
+			slam_cd = randf_range(float(S.cd0), float(S.cd1))
+			var R := float(S.r)
+			if b.hero.position.distance_to(sk_at) < R + b.hero.r * 0.5:
+				b.hero.hurt(float(S.dmg), "장수 내려찍기")
+			b.add_fx({"k": "ring", "pos": sk_at, "t": 0.35, "r": R, "c": Color("d9705e")})
+			b.add_fx({"k": "puff", "pos": sk_at, "t": 0.3})
+			b.shake = maxf(b.shake, 0.15)
+			Sound.play("slam", 0.35)
+		return true
+	slam_cd -= dt
+	if slam_cd <= 0 and b.hero.position.distance_to(position) < float(S.range) and b.in_view(position, -10):
+		slam_w = float(S.warn)
+		sk_at = b.hero.position
+		return true
+	return false
+
+
 ## 진영장 공격 예고(D-205): 예고가 끝에 가까울수록 테두리가 굵고 진해짐. 돌진 = 갈 길(남은 길) · 땅 내려찍기 = 떨어질 원(안쪽 원이 차오름) ·
 ## 부채꼴 = 화살이 갈 방향
 func _draw_lead_warn() -> void:
 	var S: Dictionary = Stage1.LEAD_SKILL[skill]
-	var k := 1.0 if st == 2 else clampf(t / float(Stage1.LEAD.warn), 0.0, 1.0)
+	var k := 1.0 if st == 2 else clampf(t / float(S.get("warn", Stage1.LEAD.warn)), 0.0, 1.0)
 	var red := Color(0.85, 0.3, 0.25)
 	draw_oval(Vector2.ZERO, r * 1.35, r * 1.2, Color(0.85, 0.44, 0.37, 0.5 + 0.5 * k), false, 2 + 3 * k)
 	if skill == "charge":
@@ -617,11 +735,7 @@ func _draw_lead_warn() -> void:
 			draw_line(tip, tip - tdir.rotated(0.5) * 18, Color(red, 0.8), 3)
 			draw_line(tip, tip - tdir.rotated(-0.5) * 18, Color(red, 0.8), 3)
 	elif skill == "slam":
-		var c := sk_at - position
-		var R := float(S.r)
-		draw_circle(c, R, Color(red, 0.1 + 0.18 * k))
-		draw_arc(c, R, 0, TAU, 40, Color(red, 0.8), 2)
-		draw_arc(c, R * k, 0, TAU, 40, Color(red, 0.6), 1.5)
+		_draw_slam_warn(sk_at - position, float(S.r), k)
 	else:
 		var n := int(S.shots)
 		for i in n:

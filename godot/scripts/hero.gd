@@ -165,12 +165,14 @@ func musou_tick(dt: float) -> void:
 
 
 ## 맞음: 무쌍 무적 중엔 안 맞음, 맞으면 무쌍 게이지가 차고 연격 수는 절반.
-func hurt(d: float) -> void:
+## src = 피해 출처(봇 출력용 — Battle.hurt_log): 근접 · 돌진 · 궁병 화살 · 탑 화살 · 장수 화살 · 장수 돌진 · 장수 근접 · 장수 내려찍기 · 요술
+func hurt(d: float, src := "기타") -> void:
 	if inv > 0 or battle.state != "play":
 		return
 	if musou_guard():
 		return
 	d *= Units.HURT_MUL * (1.0 - data.damage_reduction) * battle.tactics.hurt_mul()
+	battle.hurt_log[src] = float(battle.hurt_log.get(src, 0.0)) + minf(d, hp)
 	mg = minf(100.0, mg + d * 0.35 * battle.tactics.gauge_mul())
 	if cb_n > 0:
 		cb_n = cb_n / 2
