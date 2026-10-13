@@ -38,6 +38,8 @@ var slots_ctl: Control
 var pick_panel: PanelContainer
 var pick_title: Label
 var pick_sub: Label
+## 고르기 화면의 '지금 가진 것'(2026-10-13): 공격 · 보조마다 이름 · Lv · 짝을 가졌는지
+var pick_have: Label
 ## 카드 3장: {btn, box(StyleBoxFlat), icon(StyleBoxFlat), glyph, name, desc, pair, glow: ""|ready|evo}
 var cards: Array[Dictionary] = []
 
@@ -551,6 +553,18 @@ func _build_pick() -> void:
 	pick_sub = _label(10, Color("c8b890"), 2)
 	pick_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(pick_sub)
+	# 지금 가진 것: 밝은 바탕 띠에 두 줄(공격 / 보조)
+	var have_box := PanelContainer.new()
+	var hsb := StyleBoxFlat.new()
+	hsb.bg_color = Color(0.23, 0.19, 0.14, 0.95)
+	hsb.set_corner_radius_all(6)
+	hsb.set_content_margin_all(6)
+	have_box.add_theme_stylebox_override("panel", hsb)
+	pick_have = _label(10, Color("f4ecd8"), 0)
+	pick_have.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pick_have.custom_minimum_size = Vector2(316, 0)
+	have_box.add_child(pick_have)
+	vb.add_child(have_box)
 	for i in 3:
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(320, 86)
@@ -594,14 +608,33 @@ func _build_pick() -> void:
 		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(col)
 		var nm := _label(14, Color("3a2a1a"), 0)
+		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nm.clip_text = true
 		var ds := _label(11, Color("5a4a36"), 0)
 		ds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		var pr := _label(10, Color("8a5a1a"), 0)
 		pr.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		for l in [nm, ds, pr]:
+		# 첫 줄: 이름 + 이유 딱지(진화! · 짝 완성 · 레벨 업 · 새 책략 — 왜 이 카드가 좋은지 한눈에)
+		var top := HBoxContainer.new()
+		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		top.add_child(nm)
+		var badge := PanelContainer.new()
+		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var bsb := StyleBoxFlat.new()
+		bsb.set_corner_radius_all(5)
+		bsb.content_margin_left = 5
+		bsb.content_margin_right = 5
+		bsb.content_margin_top = 1
+		bsb.content_margin_bottom = 1
+		badge.add_theme_stylebox_override("panel", bsb)
+		var blbl := _label(10, Color("fffaf0"), 0)
+		badge.add_child(blbl)
+		top.add_child(badge)
+		for l in [top, ds, pr]:
 			col.add_child(l)
 		vb.add_child(btn)
-		cards.append({"btn": btn, "box": box, "icon": isb, "glyph": glyph, "name": nm, "desc": ds, "pair": pr, "glow": ""})
+		cards.append({"btn": btn, "box": box, "icon": isb, "glyph": glyph, "name": nm, "desc": ds, "pair": pr, "glow": "", "badge": bsb, "badge_lbl": blbl})
 	pick_panel.visible = false
 	add_child(pick_panel)
 
@@ -614,6 +647,7 @@ func show_pick(opts: Array[Dictionary]) -> void:
 	var T := b.tactics
 	pick_title.text = "공적 Lv %d — 책략 고르기" % b.lvl
 	pick_sub.text = "공격 %d/%d · 보조 %d/%d · 진화 %d  ·  공격 Lv5 + 짝 보조 = 진화" % [T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count()]
+	pick_have.text = _have_text()
 	for i in cards.size():
 		var c: Dictionary = cards[i]
 		var btn: Button = c.btn
@@ -624,6 +658,7 @@ func show_pick(opts: Array[Dictionary]) -> void:
 		var k: String = o.k
 		var isb: StyleBoxFlat = c.icon
 		c.glow = "evo" if o.get("evo", false) else ("ready" if o.get("ready", false) else "")
+		_set_badge(c, _reason(o))
 		if k == "bun":
 			isb.bg_color = Color("c8a874")
 			c.glyph.text = "饅"
@@ -644,11 +679,59 @@ func show_pick(opts: Array[Dictionary]) -> void:
 		var nm := T.name_of(k)
 		if k == "basic":
 			nm += "(%s 기본 공격)" % b.hero_data.display_name
-		c.name.text = "%s  %s%s" % [nm, _stars(nl), "  · 새 책략" if o.get("new", false) else ""]
+		c.name.text = "%s  %s" % [nm, _stars(nl)]
 		c.desc.text = T.level_desc(k, nl) if T.is_act(k) else "%s (Lv%d)" % [T.level_desc(k, nl), nl]
 		c.pair.text = _pair_text(k) + ("  — 고르면 다음 레벨업에 진화!" if o.get("ready", false) else "")
 	_pulse_cards()
 	pick_panel.visible = true
+
+
+## 지금 가진 것(고르기 화면 위): 공격은 이름 · Lv · 짝(가졌으면 ✓, 진화했으면 '진화'), 보조는 이름 · Lv
+func _have_text() -> String:
+	var T := b.tactics
+	var acts: Array[String] = []
+	for k in T.act_order:
+		var nm := T.evo_name(k) if T.evolved(k) else T.name_of(k)
+		if T.evolved(k):
+			acts.append("%s(진화)" % nm)
+			continue
+		var p := T.pair_of(k)
+		var ps := ""
+		if p != "":
+			ps = " 짝 %s%s" % [String(TacticsData.DEFS[p].n), "✓" if T.level(p) > 0 else ""]
+		acts.append("%s Lv%d%s" % [nm, T.level(k), ps])
+	var pas: Array[String] = []
+	for k in T.pas_order:
+		pas.append("%s Lv%d" % [T.name_of(k), T.level(k)])
+	return "가진 공격  %s\n가진 보조  %s" % [" · ".join(acts) if not acts.is_empty() else "없음", " · ".join(pas) if not pas.is_empty() else "없음"]
+
+
+## 카드를 고를 이유(딱지): [글, 색]. 진화 > 진화 준비 > 짝 완성 > 레벨 업 > 새 책략
+func _reason(o: Dictionary) -> Array:
+	var T := b.tactics
+	var k: String = o.k
+	if k == "bun":
+		return ["회복", Color("8a7a5a")]
+	if o.get("evo", false):
+		return ["진화!", Color("d8902a")]
+	if o.get("ready", false):
+		return ["진화 준비", Color("d8902a")]
+	if T.is_act(k):
+		var p := T.pair_of(k)
+		if o.get("new", false) and p != "" and T.level(p) > 0:
+			return ["짝 있음", Color("c06a2a")]
+	elif o.get("new", false):
+		for a in T.pairs_for(k):
+			if T.level(a) > 0 and not T.evolved(a):
+				return ["짝 완성", Color("c06a2a")]
+	if o.get("new", false):
+		return ["새 책략", Color("4a7ab8")]
+	return ["레벨 업", Color("4a8a5a")]
+
+
+func _set_badge(c: Dictionary, r: Array) -> void:
+	(c.badge as StyleBoxFlat).bg_color = r[1]
+	(c.badge_lbl as Label).text = r[0]
 
 
 ## 카드 아래 줄: 짝(가졌으면 ✓)과 진화 이름
