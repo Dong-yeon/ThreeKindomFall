@@ -52,6 +52,9 @@ var _still := 0.0
 var _min_hp := INF
 ## 유비 최저 체력 비율(D-208 — 쓰러지면 짐)
 var _lb_min := 1.0
+## 마을 늦게 가기(D-215 시험용): 습격 뒤 이 초 동안은 마을로 가지 않고 습격이 시작된 자리에 머묾(동료 혼자 버티는지 보려고)
+var late_vil := 0.0
+var _vil_hold := Vector2.INF
 ## 1분마다(D-209): 공적 Lv · 그 1분 동안 둘레 120px 평균 적 · 적 수
 var _tl_t := 60.0
 var _tl_near := 0.0
@@ -95,6 +98,8 @@ func _ready() -> void:
 			max_t = float(a.substr(11))
 		elif a == "--god":
 			god = true
+		elif a.begins_with("--late-village="):
+			late_vil = float(a.substr(15))
 	if shot_dir != "":
 		# 화면을 찍을 땐 수직 동기화를 꺼서 빨리 돌림(--fixed-fps로 판 시간은 그대로)
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
@@ -203,6 +208,10 @@ func _bot_process() -> void:
 	var h := b.hero
 	var T := b.field_target()
 	var goal: Vector2 = T.pos
+	if late_vil > 0 and b.vil_st == "raid" and b.t - b.vil_t0 < late_vil:
+		if _vil_hold == Vector2.INF:
+			_vil_hold = h.position
+		goal = _vil_hold
 	# 보호막이 풀린 진영장이 목표 근처면 진영장을 쫓음(궁대장은 물러나며 쏨)
 	for c in b.camps:
 		if not c.cap and Unit.alive(c.lead) and not c.lead.shield and c.lead.position.distance_to(goal) < 220:
@@ -510,6 +519,7 @@ func _result(status: String) -> void:
 		elif u.spawned:
 			am.append("%s 못 만남" % U.n)
 	print("[army] " + " · ".join(am))
+	print("[village] " + _village_line())
 	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))
 	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 둘레 120px 적 평균 %.1f · 분당 피격 %.1f · 최저 체력 %d/%d · 구슬 주운 경험 %d%%" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0),
 		_near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(_min_hp), int(h.max_hp), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0)])
@@ -519,6 +529,28 @@ func _result(status: String) -> void:
 	print("[result] status=%s time=%.1f kills=%d max_combo=%d cap=%d hero_hp=%d home=%d allies=%d level=%d act=%d/%d pas=%d/%d evos=%d picks=%d dist=%d still=%d min_hp=%d near=%.1f hits_pm=%.1f orbs=%d errors=%d warnings=%d" % [
 		status, b.t, b.kills, h.cb_max, b.cap_n, ceili(h.hp), ceili(b.home_hp / b.home_max * 100), b.allies.size(), b.lvl,
 		T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count(), T.history.size(), int(_dist), int(_still / maxf(b.t, 1.0) * 100.0), int(_min_hp), _near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0), _errs.lines.size(), _errs.warnings])
+
+
+## 탁현 마을 사건(D-215): 습격 시각 · 장수가 등무 곁에 온 때 · 끝(구함 · 불탐)과 걸린 시간 · 동료(장비)가 한 일
+func _village_line() -> String:
+	if b.vil_t0 < 0:
+		return "습격 없음"
+	var parts: Array[String] = ["습격 %s" % _fmt(b.vil_t0)]
+	parts.append("장수 도착 %s(+%ds)" % [_fmt(b.vil_hero_t), int(b.vil_hero_t - b.vil_t0)] if b.vil_hero_t >= 0 else "장수 못 옴")
+	var res: String = {"saved": "구함", "lost": "불탐"}.get(b.vil_st, "진행 중")
+	if b.vil_end_t >= 0:
+		parts.append("%s %s(걸린 %ds)" % [res, _fmt(b.vil_end_t), int(b.vil_end_t - b.vil_t0)])
+	else:
+		parts.append(res)
+	# 물러난 동료는 사라져(queue_free) 있을 수 있음 — 타입 있는 인자로 넘기면 오류라 먼저 확인
+	if is_instance_valid(b.companion) and not b.companion.dead:
+		b.cmp_log_update(b.companion)
+	var L: Dictionary = b.cmp_log
+	if not L.is_empty():
+		var gh: float = maxf(float(L.goal_hp), 1.0)
+		parts.append("%s 처치 %d · 등무에게 피해 %d(%d%%) · 체력 %d%% · %s" % [L.n, int(L.kills), int(L.dealt), roundi(float(L.dealt) / gh * 100.0), roundi(float(L.hp) * 100.0),
+			"물러남 %s(%s)" % [_fmt(L.left_t), {"saved": "마을 구함", "lost": "마을 불탐", "hurt": "다침"}.get(L.why, L.why)] if float(L.left_t) >= 0 else "싸우는 중"])
+	return " · ".join(parts)
 
 
 ## 성능 정리: 적이 가장 많던 순간(앞뒤 0.5초 평균) · 판 전체 평균 · 가장 무거운 프레임

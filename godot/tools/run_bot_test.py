@@ -1,6 +1,7 @@
 # 1장 자동 전투 테스트: Godot을 창 없이(headless) 띄워 봇(scripts/bot.gd)이 1장을 끝까지 진행하게 하고 결과를 표로 보여 준다.
 # 판마다 클리어 여부 · 시간 · 처치 · 공적 레벨 · 채운 책략 칸 · 진화 수 · 오류, 그리고 칸 · 진화 · 고른 기록(레벨업 카드)을 출력.
-# 실행: python godot/tools/run_bot_test.py [--seed 1] [--modes normal,god] [--max-time 900] [--godot <Godot 실행 파일>]
+# 탁현 마을(D-215): 습격 · 장수 도착 · 끝(구함 · 불탐) 시각과 동료(장비)의 처치 · 등무에게 준 피해 · 물러난 때.
+# 실행: python godot/tools/run_bot_test.py [--seed 1] [--modes normal,god] [--max-time 900] [--late-village 초] [--godot <Godot 실행 파일>]
 #   normal = 봇이 실제로 싸움(손맛·난이도 확인) / god = 장수 무적(진영 → 관문 → 정원지 → 장각까지 목표 흐름이 이어지는지)
 # 판정: 오류가 하나라도 있거나 god가 클리어하지 못하면 실패(종료 코드 1). normal의 클리어 여부는 난이도 문제라 실패로 치지 않음.
 # Godot 실행 파일: --godot > 환경 변수 GODOT > C:/Tools/Godot-4.7.2/Godot_v4.7.2-stable_win64_console.exe
@@ -27,6 +28,7 @@ def main():
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--modes', default='normal,god')
     ap.add_argument('--max-time', type=float, default=900)
+    ap.add_argument('--late-village', type=float, default=0, help='시험용(D-215): 마을 습격 뒤 이 초 동안 봇이 마을로 가지 않음(동료 혼자 버티는지)')
     ap.add_argument('--timeout', type=float, default=900, help='한 판에 기다릴 실제 시간(초)')
     a = ap.parse_args()
     if hasattr(sys.stdout, 'reconfigure'):
@@ -44,6 +46,8 @@ def main():
         cmd = [a.godot, '--path', PROJ, '--headless', '--fixed-fps', '60', '--', '--bot', '--seed=%d' % a.seed, '--max-time=%g' % a.max_time]
         if m == 'god':
             cmd.append('--god')
+        if a.late_village > 0:
+            cmd.append('--late-village=%g' % a.late_village)
         procs[m] = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     rows, failed = [], False
     for m, p in procs.items():
@@ -54,12 +58,12 @@ def main():
             out, _ = p.communicate()
         text = out.decode('utf-8', 'replace')
         res = None
-        extra = {'slots': '-', 'evos': '-', 'picks': '-', 'phases': '-', 'events': '-', 'timeline': '-', 'evo_t': '-', 'army': '-', 'allies': '-', 'move': '-'}
+        extra = {'slots': '-', 'evos': '-', 'picks': '-', 'phases': '-', 'events': '-', 'timeline': '-', 'evo_t': '-', 'army': '-', 'village': '-', 'allies': '-', 'move': '-'}
         logged, printed = [], []  # 봇의 Logger가 모은 것(파일:줄 포함) / 엔진 출력에서 찾은 것(봇이 붙기 전 오류도 잡힘)
         for line in text.splitlines():
             if line.startswith('[result]'):
                 res = dict(kv.split('=', 1) for kv in line[len('[result]'):].split())
-            elif line.startswith(('[slots]', '[evos]', '[picks]', '[phases]', '[events]', '[timeline]', '[evo_t]', '[army]', '[allies]', '[move]')):
+            elif line.startswith(('[slots]', '[evos]', '[picks]', '[phases]', '[events]', '[timeline]', '[evo_t]', '[army]', '[village]', '[allies]', '[move]')):
                 tag, _, rest = line.partition(' ')
                 extra[tag.strip('[]')] = rest.strip()
             elif line.startswith('[error]'):
@@ -91,6 +95,7 @@ def main():
     for m, r, n_err, errs, ex in rows:
         print()
         print('[%s] 판 길이 %s (%s)' % (MODE_NAME.get(m, m), fmt_t(r['time']), STATUS_NAME.get(r['status'], r['status'])))
+        print('  탁현 마을: %s' % ex['village'])
         print('  대군: %s' % ex['army'])
         print('  사건: %s' % ex['events'])
         print('  시각별 Lv: %s' % ex['timeline'])

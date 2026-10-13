@@ -21,7 +21,10 @@ func _draw_impl() -> void:
 	for bl in b.blades:
 		var p: Vector2 = bl.pos
 		if V.has_point(p):
-			_crescent(bl)
+			if bl.spear:
+				_spear(bl)
+			else:
+				_crescent(bl)
 	_tactics(V)
 	var font := Fonts.main()
 	for f in b.fx:
@@ -119,6 +122,25 @@ func _crescent(bl: Dictionary) -> void:
 	draw_colored_polygon(pts, Color(c, 0.92 * fade))
 	pts.append(pts[0])
 	draw_polyline(pts, Color(c2, fade), 1.5)
+
+
+## 창(D-215 — 장비 일직선 창): 끝(pos)이 날 · 뒤로 곧은 자루. 날은 마름모, 자루 둘레에 옅은 빛
+func _spear(bl: Dictionary) -> void:
+	var dir: Vector2 = bl.dir
+	var side := dir.orthogonal()
+	var tip: Vector2 = bl.pos + Vector2(0, -10)
+	var len: float = float(bl.hw) * 2.0
+	var th: float = bl.thick
+	var fade := clampf((float(bl.reach) - float(bl.travel)) / (float(bl.reach) * 0.25), 0.0, 1.0)
+	var c: Color = bl.c
+	var c2: Color = bl.c2
+	var tail := tip - dir * len
+	draw_line(tail, tip, Color(c2, 0.35 * fade), th + 4)
+	draw_line(tail, tip - dir * th * 1.6, Color(c2, 0.95 * fade), maxf(2.0, th * 0.45))
+	var head := PackedVector2Array([tip + dir * 2, tip - dir * th * 1.2 + side * th * 0.8, tip - dir * th * 2.2, tip - dir * th * 1.2 - side * th * 0.8])
+	draw_colored_polygon(head, Color(c, 0.95 * fade))
+	head.append(head[0])
+	draw_polyline(head, Color(c2, fade), 1.2)
 
 
 ## 책략: 회전 언월 칼날 · 연노 화살 · 비도 · 날아가는 진천뢰(바닥의 화살비 표시 · 불길은 ground.gd)

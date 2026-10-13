@@ -103,6 +103,14 @@ var siege: Siege = null
 var vil_st := "wait"
 var vil_t := 0.0
 var deng: Enemy = null
+## 마을 사건 시각(봇 출력용, D-215): 습격 시작 · 장수가 등무 곁(200px)에 처음 온 때 · 끝(구함 · 불탐) — -1 = 아직
+var vil_t0 := -1.0
+var vil_hero_t := -1.0
+var vil_end_t := -1.0
+## 스토리 동료(D-212 · D-215): 1장은 마을 습격 때 장비(Stage1.COMPANION)
+var companion: Companion = null
+## 동료가 한 일(봇 출력용): 이름 · 처치 · 목표에게 준 피해와 그 최대 체력 · 남은 체력 비율 · 물러난 때와 까닭("" = 아직 싸움)
+var cmp_log := {}
 var home_raided := false
 var liubei: Ally = null
 ## 늑대 · 들개 무리가 나왔나(D-209) · 진행 중인 진영 id(수비탑을 처음 친 곳 — 점령할 때까지 목표, D-209)
@@ -478,14 +486,22 @@ func _village_tick(dt: float) -> void:
 			e.raid = true
 			e.set_post(at)
 			e.aggro = 170
+		vil_t0 = t
 		note("탁현 마을 습격")
-		banner("%s이 습격당해요!" % V.n, "%s%s %d초 안에 쓰러뜨려요 — 오른쪽 아래" % [V.ln, eul(V.ln), int(V.limit)])
+		_companion_come()
+		banner("%s이 습격당해요!" % V.n, "%s%s %s%s 막아요 — %d초 안에 함께 쓰러뜨려요" % [companion.hd.display_name, jo(companion.hd.display_name, "이", "가"), String(V.ln).get_slice(" ", String(V.ln).get_slice_count(" ") - 1), eul(V.ln), int(V.limit)]
+			if companion != null else "%s%s %d초 안에 쓰러뜨려요 — 오른쪽 아래" % [V.ln, eul(V.ln), int(V.limit)])
 		Sound.play("alert", 0.5)
 	elif vil_st == "raid":
+		if vil_hero_t < 0 and Unit.alive(deng) and hero.position.distance_to(deng.position) < 200:
+			vil_hero_t = t
 		vil_t -= dt
 		if vil_t > 0:
 			return
 		vil_st = "lost"
+		vil_end_t = t
+		if companion_on():
+			companion.leave("lost")
 		for e in enemies:
 			if not e.dead and e.raid:
 				e.has_post = false
@@ -494,6 +510,46 @@ func _village_tick(dt: float) -> void:
 		note("탁현 마을 불탐")
 		banner("%s이 불탔어요…" % V.n, "%s의 습격대가 본진으로 향해요" % V.ln)
 		Sound.play("lose", 0.3)
+
+
+## 스토리 동료(D-212 · D-215): 마을 습격이 시작되면 동료 장수가 마을 동쪽에서 나타나 등무를 맡음(장수를 호위하지 않음)
+func _companion_come() -> void:
+	var C: Dictionary = Stage1.COMPANION
+	var hd: HeroData = load(C.hero)
+	if hd == null:
+		return
+	var at: Vector2 = C.from
+	companion = Companion.new()
+	companion.setup_companion(self, hd, C, at, deng)
+	world.add_child(companion)
+	allies.append(companion)
+	add_fx({"k": "ring", "pos": at, "t": 0.5, "r": 28.0, "c": Color("6a9ad8")})
+	cmp_log = {"goal_hp": deng.max_hp, "left_t": -1.0, "why": ""}
+	cmp_log_update(companion)
+	note("%s 등장" % hd.display_name)
+
+
+func cmp_log_update(c: Companion) -> void:
+	cmp_log.n = c.hd.display_name
+	cmp_log.kills = c.kills
+	cmp_log.dealt = c.dealt
+	cmp_log.hp = c.hp / c.max_hp
+
+
+## 동료가 아직 싸우는 중인가(물러나 사라진 동료는 queue_free돼 있어 Unit.alive에 넘기면 오류)
+func companion_on() -> bool:
+	return is_instance_valid(companion) and not companion.dead and not companion.leaving
+
+
+## 동료가 물러남(Companion.leave): 마을이 끝났거나(saved · lost) 많이 다쳤을 때(hurt)
+func companion_left(c: Companion) -> void:
+	cmp_log_update(c)
+	cmp_log.left_t = t
+	cmp_log.why = c.why
+	note("%s 물러남(%s)" % [c.hd.display_name, {"saved": "마을 구함", "lost": "마을 불탐", "hurt": "다침"}.get(c.why, c.why)])
+	if c.why == "hurt":
+		# 마을이 끝나서 물러날 땐 마을 알림(구함 · 불탐)이 대신함
+		banner("%s%s 물러나요" % [c.hd.display_name, jo(c.hd.display_name, "이", "가")], "%s%s 막다 많이 다쳤어요 — 서둘러요" % [Stage1.VILLAGE.ln, eul(Stage1.VILLAGE.ln)])
 
 
 ## 늑대 · 들개 무리(D-209): PACK.at초에 한 번, 화면 바로 밖 dirs방향에서 늑대(멈칫 → 덮침) · 들개(빠르게 쫓음)가 장수에게
@@ -1092,14 +1148,16 @@ func nearest_enemy(from: Vector2, max_d: float) -> Enemy:
 
 
 ## 기본 공격 하나를 날림. size = 연격 단계 크기 배율, col = 연격 단계 색 [날, 테두리]
-func launch_blade(from: Vector2, a: float, A: BasicAttack, dmg: float, size: float, col: Array) -> void:
-	blades.append({"pos": from, "dir": Vector2.from_angle(a), "spd": A.speed, "travel": 0.0, "reach": A.reach,
+## who = 날린 동료(Companion, D-215) — null이면 출진 장수(연격 수 · 멈칫 · 장수 특성은 출진 장수만)
+func launch_blade(from: Vector2, a: float, A: BasicAttack, dmg: float, size: float, col: Array, who: Companion = null) -> void:
+	blades.append({"pos": from, "dir": Vector2.from_angle(a), "spd": A.speed, "travel": 0.0, "reach": A.reach, "spear": A.shape == "spear",
 		"hw": A.width * size / 2, "thick": A.thickness * size, "bulge": A.bulge * size, "dmg": dmg, "pierce": A.pierce,
-		"push": A.push, "hs": A.hit_stop, "shake": A.shake, "hit": {}, "hits": 0, "c": col[0], "c2": col[1]})
+		"push": A.push, "hs": A.hit_stop, "shake": A.shake, "hit": {}, "hits": 0, "c": col[0], "c2": col[1], "who": who, "cmp": who != null})
 
 
-## 날아가는 기본 공격: 반달 모양(가운데 두껍고 끝이 뾰족함)에 닿은 적을 꿰뚫으며 벰. 적마다 한 번씩.
+## 날아가는 기본 공격: 반달 모양(가운데 두껍고 끝이 뾰족함) · 창(곧은 막대, 끝 = pos, D-215)에 닿은 적을 꿰뚫으며 벰. 적마다 한 번씩.
 ## 벽(물 말고)에 닿으면 사라짐(웹판 언월파와 같음). 장수급은 특성(lead_bonus)만큼 더 아프고 안 밀림.
+## 동료(who)의 것은 연격 수 · 멈칫에 안 들어가고, 장수급을 체력 COMPANION.floor 아래로 못 깎음(마무리는 출진 장수).
 func _tick_blades(dt: float) -> void:
 	if blades.is_empty():
 		return
@@ -1117,6 +1175,11 @@ func _tick_blades(dt: float) -> void:
 			continue
 		var side := dir.orthogonal()
 		var hw: float = bl.hw
+		var spear: bool = bl.spear
+		# 동료가 날린 것인데 동료가 이미 사라졌으면 함께 사라짐
+		if bl.cmp and not is_instance_valid(bl.who):
+			continue
+		var who: Companion = bl.who if bl.cmp else null
 		var n := 0
 		var i := 0
 		while i < enemies.size():
@@ -1126,16 +1189,32 @@ func _tick_blades(dt: float) -> void:
 				continue
 			var d := e.position - p
 			var ly := d.dot(side)
-			if absf(ly) > hw + e.r:
-				continue
-			var tt := clampf(ly / hw, -1.0, 1.0)
-			var s := 1.0 - tt * tt
 			var lx := d.dot(dir)
-			if lx > float(bl.bulge) * s + e.r or lx < (float(bl.bulge) - float(bl.thick)) * s - e.r - step:
-				continue
+			if spear:
+				# 창: 끝(p)에서 뒤로 길이 2·hw, 굵기 thick인 막대(이번 프레임에 지나온 길 포함)
+				if absf(ly) > float(bl.thick) / 2 + e.r or lx > e.r or lx < -2.0 * hw - e.r - step:
+					continue
+			else:
+				if absf(ly) > hw + e.r:
+					continue
+				var tt := clampf(ly / hw, -1.0, 1.0)
+				var s := 1.0 - tt * tt
+				if lx > float(bl.bulge) * s + e.r or lx < (float(bl.bulge) - float(bl.thick)) * s - e.r - step:
+					continue
 			bl.hit[e.get_instance_id()] = true
 			var lead := e.is_lead()
-			hurt_enemy(e, float(bl.dmg) * (1.0 + hero_data.lead_bonus if lead else 1.0))
+			if who != null:
+				var dmg: float = bl.dmg * (1.0 + who.hd.lead_bonus if lead else 1.0)
+				if e.elite:
+					dmg = minf(dmg, maxf(0.0, e.hp - e.max_hp * float(who.C.floor)))
+				if e == who.goal:
+					who.dealt += dmg
+				if dmg > 0:
+					hurt_enemy(e, dmg)
+					if e.dead:
+						who.kills += 1
+			else:
+				hurt_enemy(e, float(bl.dmg) * (1.0 + hero_data.lead_bonus if lead else 1.0))
 			n += 1
 			if n <= 6:
 				add_fx({"k": "spark", "pos": e.position + Vector2(0, -4), "t": 0.18, "a": dir.angle(), "c": bl.c})
@@ -1145,7 +1224,7 @@ func _tick_blades(dt: float) -> void:
 				bl.pierce -= 1
 				if bl.pierce == 0:
 					break
-		if n > 0:
+		if n > 0 and who == null:
 			hero.cb_add(n, 0.6)
 			if bl.hits == 0:
 				hit_stop = maxf(hit_stop, bl.hs)
@@ -1301,6 +1380,9 @@ func _on_kill(e: Enemy) -> void:
 		if vil_st == "raid":
 			# 탁현 마을을 구함(D-208): 남은 습격대는 흩어지고 회복 + 보급 상자
 			vil_st = "saved"
+			vil_end_t = t
+			if companion_on():
+				companion.leave("saved")
 			for o in enemies:
 				if not o.dead and o.raid:
 					o.dead = true

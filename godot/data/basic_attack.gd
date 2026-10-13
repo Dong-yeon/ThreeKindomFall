@@ -2,13 +2,14 @@ class_name BasicAttack
 extends Resource
 ## 장수의 기본 공격(D-171): 무기를 손에 그리지 않고, 대표 무기가 날아가는 것이 기본 공격(자동).
 ## 가장 가까운 적 쪽으로 날리고, 맞힌 수만큼 연격 수가 쌓인다. 처음 맞힐 때 멈칫 · 흔들림, 맞은 졸개는 밀림.
-## 지금은 crescent(관우 · 반달 참격 관통)만 있다. 장비 일직선 창 · 유비 쌍검 부메랑은 모양을 더해 같은 틀로 만든다.
+## 모양: crescent(관우 · 반달 참격 관통) · spear(장비 · 일직선 창 관통, D-215). 유비 쌍검 부메랑은 모양을 더해 같은 틀로 만든다.
 
 ## 책략 카드에 보이는 이름 · 글자(기본 공격도 공격 칸 1칸을 차지하고 레벨업으로 올림, D-172)
 @export var display_name := "반달 참격"
 @export var glyph := "월"
-## 날아가는 것의 모양. crescent = 앞으로 휜 반달(가운데가 두껍고 끝이 뾰족함)
-@export_enum("crescent") var shape := "crescent"
+## 날아가는 것의 모양. crescent = 앞으로 휜 반달(가운데가 두껍고 끝이 뾰족함) /
+## spear = 날아가는 쪽으로 곧게 뻗은 창(좁고 길게 꿰뚫음 — width = 창 길이, thickness = 굵기, bulge는 안 씀)
+@export_enum("crescent", "spear") var shape := "crescent"
 ## 다음 공격까지(초). 연격 단계마다 빨라짐(÷1.1 · ÷1.2)
 @export var cooldown := 0.75
 ## 이 거리 안에 적이 있으면 날림(px)
