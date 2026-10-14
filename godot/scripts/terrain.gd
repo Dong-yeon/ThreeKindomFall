@@ -115,7 +115,7 @@ func _camps(V: Rect2) -> void:
 		_flag(p + Vector2(0, -10), Color("4a7ab8") if cap else Color("d8b040"), b.hero_data.flag_glyph if cap else "黃")
 		var total: int = c.tws.size()
 		var left := b.towers_left(c)
-		var what: String = String(c.ln) if left == 0 else ("수비탑 %d/%d" % [total - left, total])
+		var what: String = String(c.ln) if left == 0 else ("%s %d/%d" % [Battle.obj_name(c), total - left, total])
 		var txt: String = ("%s — 점령" % c.n) if cap else ("%s · %s" % [c.n, what])
 		_label(txt, Vector2(p.x, R.position.y - 14), Color("cfe2f4") if cap else Color("ffd8a0"))
 

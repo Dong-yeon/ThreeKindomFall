@@ -112,6 +112,9 @@ var cam_k := 0.0
 var surge_t := 0.0
 var surge_warn := {}
 var surge_n := 0
+## 감옥에서 풀려난 의용병 수 · 본진에 닿은 수(봇 출력)
+var captive_freed := 0
+var captive_safe := 0
 ## 장각(2 · 3장, Siege가 만듦 — 1장엔 없음)
 var boss: Enemy = null
 ## 2 · 3장용 진행(D-211): 성문 열림 · 장각의 요술 · 요술 제단 · 장각 · 사신수. 1장(Stage1.SIEGE = false)엔 없음
@@ -193,7 +196,7 @@ func _ready() -> void:
 	world.add_child(hero)
 	for c in Stage1.CAMPS:
 		var d: Dictionary = c.duplicate()
-		d.merge({"cap": false, "lead": null, "al_t": 0.0, "tws": [], "call_t": 0.0})
+		d.merge({"cap": false, "lead": null, "al_t": 0.0, "tws": [], "call_t": 0.0, "burn_t": -1.0})
 		camps.append(d)
 	_build_obstacles()
 	if Stage1.SIEGE:
@@ -446,6 +449,7 @@ func _field_tick(dt: float) -> void:
 		_pack_tick()
 		_home_raid_tick()
 		_camps_tick(dt)
+		_granary_tick(dt)
 		_party_tick(dt)
 		_rein_tick(dt)
 		_wave_tick(dt)
@@ -1449,7 +1453,8 @@ func push_away(at: Vector2, rad: float, amount: float) -> void:
 
 func hurt_enemy(e: Enemy, d: float) -> void:
 	# 수비탑이 남은 진영의 진영장은 피해를 받지 않음(D-205) · 일기토를 지켜보는 울타리 밖 적은 다치지 않음
-	if e.dead or e.shield or (e.arena_side < 0 and duel()):
+	# 일기토 중엔 울타리 안(arena_side 1)만 다침 — 밖의 건물 · 진영 목표 · 물체도 그대로
+	if e.dead or e.shield or (e.arena_side <= 0 and duel()):
 		return
 	# 수비탑을 처음 친 진영 = 진행 중인 진영(D-209)
 	if cur_camp == "" and e.tower_id != "":
@@ -1483,15 +1488,30 @@ func _on_kill(e: Enemy) -> void:
 				tw.alive = false
 		var total: int = c.tws.size()
 		var left := towers_left(c)
+		var kind: String = c.get("obj", "tower")
+		var on := obj_name(c)
 		add_fx({"k": "ring", "pos": e.position, "t": 0.5, "r": 60.0, "c": Color("ffb050")})
 		shake = maxf(shake, 0.15)
-		note("%s 수비탑 %d/%d" % [c.n, total - left, total])
+		note("%s %s %d/%d" % [c.n, on, total - left, total])
+		if kind == "cage":
+			# 감옥(2026-10-14): 의용병이 풀려나 본진으로
+			for j in int(Stage1.OBJ.cage.free):
+				var a := ally_spawn("captive", e.position + Vector2(randf_range(-16, 16), randf_range(6, 20)), "escort", "")
+				a.arena_side = 0
+				captive_freed += 1
+		elif kind == "granary" and float(c.burn_t) < 0 and left > 0:
+			c.burn_t = float(Stage1.OBJ.granary.limit)
 		if left == 0:
-			# 마지막 탑: 진영장 보호막이 풀림(D-205)
+			c.burn_t = -1.0
+			# 마지막 목표: 진영장 보호막이 풀림(D-205)
 			if Unit.alive(c.lead):
 				c.lead.shield = false
 				add_fx({"k": "ring", "pos": c.lead.position, "t": 0.5, "r": 70.0, "c": Color("6ac0e0")})
-			banner("수비탑을 다 부쉈어요", "%s — %s의 보호막이 풀렸어요" % [c.n, c.ln])
+			banner("%s%s 다 %s" % [on, jo(on, "을", "를"), "불태웠어요" if kind == "granary" else "부쉈어요"], "%s — %s의 보호막이 풀렸어요" % [c.n, c.ln])
+		elif kind == "cage":
+			banner("감옥을 부쉈어요 (%d/%d)" % [total - left, total], "의용병이 본진으로 가요 — 지켜 줘요")
+		elif kind == "granary":
+			banner("군량 더미를 불태웠어요 (%d/%d)" % [total - left, total], "%d초 안에 남은 더미를 모두 태워요" % ceili(float(c.burn_t)))
 		else:
 			banner("수비탑을 부쉈어요 (%d/%d)" % [total - left, total], "%s — 남은 탑을 부수면 %s의 보호막이 풀려요" % [c.n, c.ln])
 		return
@@ -2120,18 +2140,14 @@ func _spawn_squads() -> void:
 			var e := spawn(k, at, s[3])
 			e.set_post(at)
 			e.aggro = 230
-	# 진영(D-205): 수비탑 2개(장수를 쏨, D-202) · 진영장(처음부터 진영 안, 탑이 남아 있는 동안 보호막) · 처음 호위병
-	var T: Dictionary = Stage1.TOWER
+	# 진영(D-205): 부술 목표(수비탑 · 감옥 · 군량 더미 — 2026-10-14) · 진영장(처음부터 진영 안, 목표가 남아 있는 동안 보호막) · 처음 호위병
 	var L: Dictionary = Stage1.LEAD
 	for c in camps:
 		var i := 0
 		for tp in c.towers:
 			var tw := {"id": "%s:%d" % [c.id, i], "pos": tp, "alive": true}
 			c.tws.append(tw)
-			var u := spawn("tower", tp, float(T.hp) * float(c.mul))
-			u.camp_id = c.id
-			u.tower_id = tw.id
-			u.r = float(T.r)
+			_spawn_obj(c, tw)
 			i += 1
 		var ld := spawn(c.lk, c.pos, float(c.mul) * float(c.lm))
 		ld.make_lead(c, camp_rect(c))
@@ -2140,6 +2156,57 @@ func _spawn_squads() -> void:
 		c.call_t = randf_range(0.5, 2.0)
 		for j in int(L.start):
 			_guard(c, float(c.mul))
+
+
+## 진영의 부술 목표 하나(수비탑 · 감옥 · 군량 더미 — Stage1.CAMPS[].obj)
+func _spawn_obj(c: Dictionary, tw: Dictionary) -> void:
+	var kind: String = c.get("obj", "tower")
+	var u: Enemy
+	if kind == "tower":
+		var T: Dictionary = Stage1.TOWER
+		u = spawn("tower", tw.pos, float(T.hp) * float(c.mul))
+		u.r = float(T.r)
+	else:
+		var O: Dictionary = Stage1.OBJ[kind]
+		u = spawn(kind, tw.pos, float(O.hp) * float(c.mul))
+		u.r = float(O.r)
+	u.camp_id = c.id
+	u.tower_id = tw.id
+
+
+## 진영 목표 이름(알림 · 목표 글): 수비탑 · 감옥 · 군량 더미
+static func obj_name(c: Dictionary) -> String:
+	return String(Stage1.OBJ[c.get("obj", "tower")].n)
+
+
+## 감옥에서 풀려난 의용병이 본진에 닿음: 본진 수비대가 되고 유비 체력 회복
+func captive_home(a: Ally) -> void:
+	captive_safe += 1
+	if Unit.alive(liubei):
+		liubei.hp = minf(liubei.max_hp, liubei.hp + liubei.max_hp * float(Stage1.OBJ.cage.heal))
+	add_fx({"k": "ring", "pos": a.position, "t": 0.4, "r": 24.0, "c": Color("8fe08a")})
+	if captive_safe == 1 or captive_safe % 3 == 0:
+		banner("의용병이 본진에 닿았어요", "본진 수비대가 늘고 유비가 기운을 차려요")
+
+
+## 군량 더미(2026-10-14): 첫 더미를 부순 뒤 limit초가 지나도 남아 있으면 부순 더미가 다시 쌓임
+func _granary_tick(dt: float) -> void:
+	for c in camps:
+		if c.cap or float(c.burn_t) < 0:
+			continue
+		c.burn_t = float(c.burn_t) - dt
+		if float(c.burn_t) > 0:
+			continue
+		c.burn_t = -1.0
+		for tw in c.tws:
+			if not tw.alive:
+				tw.alive = true
+				_spawn_obj(c, tw)
+		if Unit.alive(c.lead):
+			c.lead.shield = true
+		note("%s 군량 다시 쌓임" % c.n)
+		banner("군량이 다시 쌓였어요!", "%s — 첫 더미를 부순 뒤 %d초 안에 모두 불태워야 해요" % [c.n, int(Stage1.OBJ.granary.limit)])
+		Sound.play("alert", 0.4)
 
 
 ## 화면 바로 바깥 둘레에서 a 방향의 빈 곳(안 되면 조금씩 돌려 봄). 장수에게 걸어올 수 없는 곳(닫힌 장각 본진 안 · 닫힌 관문 너머)은 뺀다
@@ -2375,7 +2442,9 @@ func field_target() -> Dictionary:
 			if tw.alive and hero.position.distance_to(tw.pos) < bd2:
 				bd2 = hero.position.distance_to(tw.pos)
 				tp = tw.pos
-		return {"pos": tp, "n": "%s · 수비탑 부수기 %d/%d" % [best.n, total - left, total]}
+		var O: Dictionary = Stage1.OBJ[best.get("obj", "tower")]
+		var tm := " (남은 %d초)" % ceili(float(best.burn_t)) if float(best.burn_t) >= 0 else ""
+		return {"pos": tp, "n": "%s · %s %s %d/%d%s" % [best.n, O.n, O.verb, total - left, total, tm], "warn": tm != ""}
 	# 정원지의 대군(D-214): 본진에 가장 가까운 부대의 대장 — 아직 아무 부대도 안 나왔으면 관문 앞
 	var A: Dictionary = Stage1.ARMY
 	var gp := Vector2(float(A.road_x), float(A.y0))

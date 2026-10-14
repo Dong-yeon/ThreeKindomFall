@@ -12,7 +12,7 @@ var k := ""
 var def: Dictionary
 var ai := "chase"
 ## ai를 숫자로(매 프레임 문자열 match가 정수 비교보다 10배쯤 느려서, D-200). 없으면 -1
-const AI_CODE := {"chase": 0, "dash": 1, "shooter": 2, "boss": 3, "tower": 4, "lead": 5, "altar": 6, "prop": 7}
+const AI_CODE := {"chase": 0, "dash": 1, "shooter": 2, "boss": 3, "tower": 4, "lead": 5, "altar": 6, "prop": 7, "obj": 8}
 const AI_CHASE := 0
 const AI_DASH := 1
 const AI_SHOOTER := 2
@@ -21,6 +21,7 @@ const AI_TOWER := 4
 const AI_LEAD := 5
 const AI_ALTAR := 6
 const AI_PROP := 7
+const AI_OBJ := 8
 var _ai := AI_CHASE
 var spd := 60.0
 var spd0 := 60.0
@@ -139,7 +140,7 @@ func setup(b: Battle, key: String, at: Vector2, mul: float) -> void:
 	tex = Sprites.sheet(def.spr) if String(def.spr) != "" else null
 	_anim_off = r
 	_glyph = String(def.n).left(1)
-	building = ai == "tower" or ai == "altar" or ai == "prop"
+	building = ai == "tower" or ai == "altar" or ai == "prop" or ai == "obj"
 	prop = ai == "prop"
 
 
@@ -528,8 +529,8 @@ func _boss_tick(dt: float, dv: Vector2, d: float) -> void:
 ## 경고 · 체력뿐 — 전엔 매 프레임 다시 그렸음. 장수급 · 장각은 둘레 빛이 매 프레임 일렁여서 늘 그림.
 ## (Unit.anim_moved · Sprites.dir_of · walk_step과 같은 계산을 함수 부르기 없이 함)
 func refresh_look() -> void:
-	if prop:
-		# 부서지는 물체: 맞아서 번쩍일 때만 다시 그림(서 있기만 해서 — 20~30개)
+	if prop or _ai == AI_OBJ:
+		# 부서지는 물체 · 진영 목표(감옥 · 군량 더미): 맞아서 번쩍일 때만 다시 그림(서 있기만 해서 — 20~30개)
 		if (flash > 0) != _dk_flash or hp / max_hp != _dk_hp:
 			queue_redraw()
 		return
@@ -582,6 +583,8 @@ func _draw_impl() -> void:
 			_draw_tower()
 		elif _ai == AI_PROP:
 			_draw_prop()
+		elif _ai == AI_OBJ:
+			_draw_obj()
 		else:
 			_draw_altar()
 		return
@@ -636,6 +639,30 @@ func _draw_impl() -> void:
 
 
 ## 수비탑: 나무 망루 + 황건 깃발 + 체력 막대(맞으면 번쩍). 노리는 중엔 사거리 원, 쏘기 직전엔 망대에 빨간 고리
+## 진영 목표(2026-10-14, 코드로 그린 임시): 감옥 = 나무 창살 우리 + 갇힌 사람 그림자 / 군량 더미 = 누런 자루 더미 + 짚 지붕. 맞으면 번쩍, 체력 막대
+func _draw_obj() -> void:
+	_dk_flash = flash > 0
+	_dk_hp = hp / max_hp
+	var hi := flash > 0
+	draw_rect(Rect2(-20, 8, 40, 6), Color(0, 0, 0, 0.22))
+	if k == "cage":
+		var wood := Color("fff2c0") if hi else Color("6a4a20")
+		draw_rect(Rect2(-18, -26, 36, 34), Color(0.15, 0.12, 0.1, 0.55))
+		draw_circle(Vector2(-6, -8), 5, Color("4a6a9a"))
+		draw_circle(Vector2(7, -6), 5, Color("4a6a9a"))
+		for i in 6:
+			draw_rect(Rect2(-18 + i * 6.8, -26, 3, 34), wood)
+		draw_rect(Rect2(-20, -30, 40, 5), wood)
+		draw_rect(Rect2(-20, 6, 40, 4), wood)
+	else:
+		var sack := Color("fff2c0") if hi else Color("d8b860")
+		for q in [Vector2(-10, -4), Vector2(10, -4), Vector2(0, -4), Vector2(-5, -14), Vector2(5, -14)]:
+			draw_circle(q, 8, sack)
+			draw_circle(q, 8, Color("6a4a20"), false, 1.0)
+		draw_colored_polygon(PackedVector2Array([Vector2(-18, -18), Vector2(18, -18), Vector2(0, -32)]), Color("b89848"))
+	draw_bar(0, -40, 36, 4, hp / max_hp, Color("d9705e"))
+
+
 func _draw_tower() -> void:
 	var T: Dictionary = Stage1.TOWER
 	var wood := Color("fff2c0") if flash > 0 else Color("a8743a")

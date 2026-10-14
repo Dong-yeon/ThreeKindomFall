@@ -49,6 +49,9 @@ func tick(dt: float) -> void:
 	cd -= dt
 	hit_cd -= dt
 	scan -= dt
+	if mode == "escort":
+		_escort_tick(dt)
+		return
 	var march := mode == "march"
 	var anc: Dictionary = b.anchors.get(anchor, {})
 	if scan <= 0:
@@ -114,6 +117,31 @@ func tick(dt: float) -> void:
 		dead = true
 		b.add_fx({"k": "burst", "pos": position, "t": 0.3, "r": 6.0, "c": Color("6a9ad8")})
 		b.ally_down(self)
+
+
+## 감옥에서 풀려난 의용병(2026-10-14): 싸우지 않고 본진으로 걸어감(적이 노림, 받는 피해 그대로). 본진에 닿으면 본진 수비대(Battle.captive_home)
+func _escort_tick(dt: float) -> void:
+	var b := battle
+	var to := b.path_for(self, "h", b.home_pos)
+	var m := to - position
+	if m.length() > 0.01:
+		last_pos = position
+		position += m.normalized() * minf(m.length(), spd * dt)
+		b.push_out(self)
+	if position.distance_to(b.home_pos) < b.home_r + 10:
+		mode = "guard"
+		anchor = "home"
+		b.captive_home(self)
+		return
+	if hit_cd <= 0:
+		var hit := b.touching_enemy(position, r + 3)
+		if hit != null:
+			# 받는 피해 × 0.65(호위 안 하면 절반쯤 쓰러짐) — 길목 부대에 셋이 한꺼번에 쓰러지지 않고 장수가 구하러 갈 틈이 있게
+			hp -= hit.touch * 0.65
+			hit_cd = 0.6
+	if hp <= 0:
+		dead = true
+		b.add_fx({"k": "burst", "pos": position, "t": 0.3, "r": 6.0, "c": Color("6a9ad8")})
 
 
 ## 다시 그리기는 Battle._redraw_units가 화면 근처에 있을 때만 부름

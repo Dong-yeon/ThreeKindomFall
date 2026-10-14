@@ -39,17 +39,27 @@ const HOME_RAID := {"at": 300.0, "n": 30, "mul": 1.3}
 ## 강은 다리 3곳으로만 건넘.
 const RIVER := {"y0": 2330.0, "y1": 2400.0, "bridges": [Vector2(130, 230), Vector2(375, 465), Vector2(610, 710)]}
 ## lk/ln/lm = 진영장 종류·이름·체력 배율 · skill = 진영장 공격(LEAD_SKILL). mul = 진영 병력 · 수비탑 체력 배율.
-## towers = 수비탑 2개(진영 밖 양쪽, 장수를 쏨, D-202). 탑이 하나라도 서 있으면 진영장은 보호막(D-205 — 막사를 없앰).
+## towers = 부술 목표 자리. obj = 목표 종류(2026-10-14 진영마다 다른 목표 — 사람 손맛 "진영 셋이 같은 모양이라 지루"):
+##   tower = 수비탑(진영 밖, 장수를 쏨, D-202) · cage = 감옥(부수면 의용병이 풀려나 본진으로 — OBJ.cage) · granary = 군량 더미(첫 더미를 부수면 OBJ.granary.limit초 안에 다 부숴야 함)
+## 목표가 하나라도 남아 있으면 진영장은 보호막(D-205 — 막사를 없앰).
 ## 진영장 공격은 장각전 전에 피하는 법을 하나씩 익히는 계단(D-195): 서쪽 돌진 → 동쪽 땅 내려찍기 → 북쪽 부채꼴 화살.
 ## 서쪽 진영장은 등무가 탁현 마을 습격으로 옮겨 가 한충(연의 황건 장수)으로 바꿈(D-208)
 const CAMPS := [
 	{"id": "a", "n": "서쪽 황건 진영", "pos": Vector2(190, 2050), "size": Vector2(250, 190), "lk": "ytbig", "ln": "황건 장수 한충", "lm": 12.0, "mul": 0.85,
-		"skill": "charge", "towers": [Vector2(405, 1985), Vector2(230, 2230)]},
+		"skill": "charge", "obj": "tower", "towers": [Vector2(405, 1985), Vector2(230, 2230)]},
 	{"id": "b", "n": "동쪽 황건 진영", "pos": Vector2(630, 1560), "size": Vector2(250, 190), "lk": "ytbig", "ln": "황건 역사 대장", "lm": 14.0, "mul": 1.1,
-		"skill": "slam", "towers": [Vector2(545, 1365), Vector2(450, 1700)]},
+		"skill": "slam", "obj": "cage", "towers": [Vector2(555, 1515), Vector2(705, 1610)]},
 	{"id": "c", "n": "북쪽 황건 진영", "pos": Vector2(260, 1060), "size": Vector2(250, 190), "lk": "ytarch", "ln": "황건 궁대장", "lm": 36.0, "mul": 1.35,
-		"skill": "fan", "towers": [Vector2(500, 990), Vector2(110, 1265)]},
+		"skill": "fan", "obj": "granary", "towers": [Vector2(165, 1000), Vector2(355, 1000), Vector2(165, 1120), Vector2(355, 1120)]},
 ]
+## 진영의 부술 목표(2026-10-14): n = 이름(알림 · 목표 글), hp = 체력(× 진영 mul), r = 크기.
+## cage: 부술 때마다 의용병 free명이 풀려나 본진으로 걸어감(적이 노림) — 본진에 닿으면 본진 수비대가 되고 유비 체력 heal 회복.
+## granary: 첫 더미를 부수면 limit초 안에 다 부숴야 함. 못 하면 부순 더미가 다시 쌓임
+const OBJ := {
+	"tower": {"n": "수비탑", "verb": "부수기"},
+	"cage": {"n": "감옥", "verb": "부수기", "hp": 650.0, "r": 18.0, "free": 3, "heal": 0.1},
+	"granary": {"n": "군량 더미", "verb": "불태우기", "hp": 420.0, "r": 16.0, "limit": 60.0},
+}
 ## 진영장(D-205): 처음부터 진영 안. 진영 사각형 안을 돌아다니다(wander초마다 새 자리) 장수가 aggro 안이면 장수 쪽으로(사각형 밖으론 안 나감).
 ## 호위병: 장수가 near 안이면 call_near초, 아니면 call_far초마다 call_n명(진영 병력 상한 cap · 처음 start명) — 막사(D-202)의 병력 수 · 빠르기와 비슷하게.
 ## 공격: 장수가 range 안이고 진영장이 화면에 보이면 gap초마다, warn초 예고(서서 빨갛게 보여 줌) 뒤
