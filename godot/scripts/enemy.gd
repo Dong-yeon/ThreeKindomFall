@@ -12,7 +12,7 @@ var k := ""
 var def: Dictionary
 var ai := "chase"
 ## ai를 숫자로(매 프레임 문자열 match가 정수 비교보다 10배쯤 느려서, D-200). 없으면 -1
-const AI_CODE := {"chase": 0, "dash": 1, "shooter": 2, "boss": 3, "tower": 4, "lead": 5, "altar": 6, "prop": 7, "obj": 8}
+const AI_CODE := {"chase": 0, "dash": 1, "shooter": 2, "boss": 3, "tower": 4, "lead": 5, "altar": 6, "prop": 7, "obj": 8, "flee": 9}
 const AI_CHASE := 0
 const AI_DASH := 1
 const AI_SHOOTER := 2
@@ -22,6 +22,9 @@ const AI_LEAD := 5
 const AI_ALTAR := 6
 const AI_PROP := 7
 const AI_OBJ := 8
+const AI_FLEE := 9
+## 작은 사건(2026-10-14): spy · bounty — 쓰러지면 Battle._on_kill이 보상
+var ev_kind := ""
 var _ai := AI_CHASE
 var spd := 60.0
 var spd0 := 60.0
@@ -197,6 +200,9 @@ func tick(dt: float) -> void:
 		return
 	if _ai == AI_LEAD:
 		_lead_tick(dt)
+		return
+	if _ai == AI_FLEE:
+		_flee_tick(dt)
 		return
 	# 패턴 예고 · 돌진 중엔 다른 움직임 없음(대군 부장)
 	if not pat.is_empty() and _pat_tick(dt):
@@ -639,6 +645,31 @@ func _draw_impl() -> void:
 
 
 ## 수비탑: 나무 망루 + 황건 깃발 + 체력 막대(맞으면 번쩍). 노리는 중엔 사거리 원, 쏘기 직전엔 망대에 빨간 고리
+## 첩자(2026-10-14): 장수 반대쪽으로 달아남(벽에 막히면 옆으로 미끄러짐, 지도 안). 장수보다 느려 잡을 수 있음
+func _flee_tick(dt: float) -> void:
+	var b := battle
+	t += dt
+	flash = maxf(0.0, flash - dt)
+	slow_t = maxf(0.0, slow_t - dt)
+	last_pos = position
+	var away := position - b.hero.position
+	var v := away.normalized() if away.length() > 1 else Vector2(0, -1)
+	if stuck > 0.3:
+		v = v.orthogonal() * (slide if slide != 0.0 else 1.0)
+	position += v * spd * (0.55 if slow_t > 0 else 1.0) * dt
+	b.push_out(self)
+	position = position.clamp(Vector2(r + 6, r + 6), Vector2(Battle.W - r - 6, Battle.H - r - 6))
+	if position.distance_to(last_pos) < spd * dt * 0.3:
+		stuck += dt
+		if slide == 0.0:
+			slide = 1.0 if randf() < 0.5 else -1.0
+		if stuck > 1.5:
+			stuck = 0.0
+			slide = -slide
+	elif stuck > 0:
+		stuck = maxf(0.0, stuck - dt)
+
+
 ## 진영 목표(2026-10-14, 코드로 그린 임시): 감옥 = 나무 창살 우리 + 갇힌 사람 그림자 / 군량 더미 = 누런 자루 더미 + 짚 지붕. 맞으면 번쩍, 체력 막대
 func _draw_obj() -> void:
 	_dk_flash = flash > 0

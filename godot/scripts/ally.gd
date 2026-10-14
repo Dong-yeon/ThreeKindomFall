@@ -155,6 +155,18 @@ func _draw_impl() -> void:
 	var b := battle
 	if b == null:
 		return
+	if k == "supply":
+		# 보급 수레(코드로 그린 임시): 바퀴 둘 + 짐칸 + 푸른 덮개
+		draw_rect(Rect2(-16, 6, 32, 5), Color(0, 0, 0, 0.22))
+		draw_rect(Rect2(-15, -12, 30, 14), Color("8a5a2a"))
+		draw_rect(Rect2(-13, -20, 26, 9), Color("4a7ab8"))
+		draw_rect(Rect2(-15, -12, 30, 14), Color("3a2410"), false, 1.5)
+		for wx in [-9.0, 9.0]:
+			draw_circle(Vector2(wx, 4), 5, Color("3a2410"))
+			draw_circle(Vector2(wx, 4), 2, Color("a8743a"))
+		draw_bar(0, -28, 34, 4, hp / max_hp, Color("6a9ad8"))
+		draw_label("보급 수레", Vector2(0, -36), Color("cfe2f4"))
+		return
 	draw_oval(Vector2(0, r * 0.9), r * 1.1, r * 0.45, Color(0.42, 0.6, 0.85, 0.9), false, 2)
 	var moved := anim_moved()
 	var mv := moved.length() > 0.2

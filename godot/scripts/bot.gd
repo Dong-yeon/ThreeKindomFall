@@ -584,6 +584,7 @@ func _result(status: String) -> void:
 	for e in b.enemies:
 		if e.prop:
 			props_all += 1
+	print("[small] " + (" · ".join(b.ev_log) if not b.ev_log.is_empty() else "-") + " · 나온 수 %d" % b.ev_i)
 	print("[heals] 합 %d · %s · 남은 물체 %d · 몰려온 무리 %d번 · 의용병 %d명 풀려나 %d명 본진" % [hn, " · ".join(hs) if not hs.is_empty() else "-", props_all, b.surge_n, b.captive_freed, b.captive_safe])
 	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))
 	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 둘레 120px 적 평균 %.1f · 분당 피격 %.1f · 최저 체력 %d/%d · 구슬 주운 경험 %d%%" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0),

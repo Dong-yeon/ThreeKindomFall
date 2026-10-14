@@ -112,6 +112,14 @@ var cam_k := 0.0
 var surge_t := 0.0
 var surge_warn := {}
 var surge_n := 0
+## 작은 사건(Stage1.EVENTS): 다음 차례 · 이번 판 종류 순서 · 첩자 · 보급 수레 · 두목 · 결과 기록(봇 출력)
+var ev_i := 0
+var ev_order: Array[String] = []
+var spy: Enemy = null
+var spy_t := 0.0
+var supply: Ally = null
+var bounty: Enemy = null
+var ev_log: Array[String] = []
 ## 감옥에서 풀려난 의용병 수 · 본진에 닿은 수(봇 출력)
 var captive_freed := 0
 var captive_safe := 0
@@ -450,6 +458,7 @@ func _field_tick(dt: float) -> void:
 		_home_raid_tick()
 		_camps_tick(dt)
 		_granary_tick(dt)
+		_events_tick(dt)
 		_party_tick(dt)
 		_rein_tick(dt)
 		_wave_tick(dt)
@@ -1564,6 +1573,17 @@ func _on_kill(e: Enemy) -> void:
 		else:
 			banner("%s%s 쓰러뜨렸어요" % [e.ename, eul(e.ename)], "")
 		return
+	if e.ev_kind != "":
+		# 작은 사건(2026-10-14): 첩자 · 현상금 두목 — 보급 상자
+		drops.append({"k": "chest", "pos": e.position})
+		var what := "첩자 잡음" if e.ev_kind == "spy" else "두목 격파"
+		note(what)
+		ev_log.append(what)
+		banner("%s%s 쓰러뜨렸어요!" % [e.ename, eul(e.ename)], "보급 상자를 주워요")
+		Sound.play("win", 0.35)
+		if e == spy:
+			spy = null
+		return
 	if e.army_lead:
 		# 부장 격파(D-214): 그 부대는 흩어지고 보급 상자
 		var U: Dictionary = Stage1.ARMY.units[e.army_unit]
@@ -2179,8 +2199,96 @@ static func obj_name(c: Dictionary) -> String:
 	return String(Stage1.OBJ[c.get("obj", "tower")].n)
 
 
-## 감옥에서 풀려난 의용병이 본진에 닿음: 본진 수비대가 되고 유비 체력 회복
+## p 둘레 rr 안에 (건물이 아닌) 적이 있나 — 화면 · 목표 글용(충돌 칸은 이전 프레임 것이라 지워진 적이 섞여 있을 수 있어 쓰지 않음)
+func _enemy_near(p: Vector2, rr: float) -> bool:
+	for e in enemies:
+		if not e.dead and not e.building and e.position.distance_to(p) < rr:
+			return true
+	return false
+
+
+## 살아 있나 — 쓰러져 지워진(queue_free) 것도 안전하게(타입 있는 Unit.alive에 넘기면 오류)
+static func _live(u) -> bool:
+	return u != null and is_instance_valid(u) and not u.dead
+
+
+## 작은 사건(Stage1.EVENTS): 정한 때마다 하나(종류는 판마다 섞어 돌아가며). 일기토(이 함수가 안 불림) · 마을 습격 중이면 미룸
+func _events_tick(dt: float) -> void:
+	var E: Dictionary = Stage1.EVENTS
+	if ev_order.is_empty():
+		for k in E.kinds:
+			ev_order.append(k)
+		ev_order.shuffle()
+	# 첩자: 제한 시간이 지나면 달아남
+	if _live(spy):
+		spy_t -= dt
+		if spy_t <= 0:
+			spy.dead = true
+			add_fx({"k": "puff", "pos": spy.position, "t": 0.3})
+			note("첩자 놓침")
+			ev_log.append("첩자 놓침")
+			banner("첩자가 달아났어요…", "")
+			spy = null
+	if won or ev_i >= E.times.size() or t < float(E.times[ev_i]) or vil_st == "raid":
+		return
+	var kind: String = ev_order[ev_i % ev_order.size()]
+	ev_i += 1
+	var p := Vector2.INF
+	for _k in 6:
+		p = ring_pos(randf() * TAU)
+		if p != Vector2.INF:
+			break
+	if p == Vector2.INF:
+		return
+	if kind == "spy":
+		var S: Dictionary = E.spy
+		# 화면 바로 밖에서(가까이서 나오면 자동 공격에 바로 쓰러졌음)
+		spy = spawn("spy", p, 1.0)
+		spy.max_hp = float(S.hp)
+		spy.hp = spy.max_hp
+		spy.spd = float(S.spd)
+		spy.spd0 = spy.spd
+		spy.ev_kind = "spy"
+		spy.ename = S.n
+		spy_t = float(S.limit)
+		note("첩자 나타남")
+		banner("황건 첩자를 잡아요!", "%d초 안에 잡으면 보급 상자 — 놓치면 달아나요" % int(S.limit))
+	elif kind == "cart":
+		var C: Dictionary = E.cart
+		supply = ally_spawn("supply", p, "escort", "")
+		supply.max_hp = float(C.hp)
+		supply.hp = supply.max_hp
+		supply.spd = float(C.spd)
+		note("보급 수레 나타남")
+		banner("보급 수레가 본진으로 가요", "지켜 주면 본진에 고기만두 %d개" % int(C.buns))
+	else:
+		var B: Dictionary = E.bounty
+		var nm: String = B.names[randi() % B.names.size()]
+		bounty = spawn("ytbig", p, mul_y(p.y) * float(B.hp))
+		bounty.elite = true
+		bounty.ename = nm
+		bounty.r *= 1.3
+		bounty.ev_kind = "bounty"
+		bounty.aggro = 99999.0
+		note("현상금 두목 나타남")
+		banner("현상금이 걸린 %s!" % nm, "쓰러뜨리면 보급 상자")
+	Sound.play("alert", 0.4)
+
+
+## 본진으로 가던 의용병 · 보급 수레가 닿음: 의용병 = 본진 수비대 + 유비 회복 / 보급 수레 = 본진에 고기만두 + 유비 회복
 func captive_home(a: Ally) -> void:
+	if a.k == "supply":
+		var C: Dictionary = Stage1.EVENTS.cart
+		for j in int(C.buns):
+			drops.append({"k": "bun", "pos": home_pos + Vector2(-30 + j * 30, -70), "src": "수레"})
+		if Unit.alive(liubei):
+			liubei.hp = minf(liubei.max_hp, liubei.hp + liubei.max_hp * float(C.heal))
+		a.dead = true
+		note("보급 수레 도착")
+		ev_log.append("수레 도착")
+		banner("보급 수레가 본진에 닿았어요!", "본진에 고기만두 %d개" % int(C.buns))
+		Sound.play("heal", 0.4)
+		return
 	captive_safe += 1
 	if Unit.alive(liubei):
 		liubei.hp = minf(liubei.max_hp, liubei.hp + liubei.max_hp * float(Stage1.OBJ.cage.heal))
@@ -2428,6 +2536,13 @@ func field_target() -> Dictionary:
 		var dp: Vector2 = deng.position if Unit.alive(deng) else V.pos
 		var who := String(V.ln).get_slice(" ", String(V.ln).get_slice_count(" ") - 1)
 		return {"pos": dp, "n": "%s 구하기 — %s 격파 (남은 %d초)" % [V.n, who, ceili(vil_t)], "warn": true}
+	# 작은 사건: 첩자(제한 시간) · 보급 수레가 공격받을 때 · 가까운 현상금 두목
+	if _live(spy):
+		return {"pos": spy.position, "n": "황건 첩자 잡기 (남은 %d초)" % ceili(spy_t), "warn": true}
+	if _live(supply) and supply.mode == "escort" and _enemy_near(supply.position, 40.0):
+		return {"pos": supply.position, "n": "보급 수레 지키기 (%d%%)" % ceili(supply.hp / supply.max_hp * 100), "warn": true}
+	if _live(bounty) and hero.position.distance_to(bounty.position) < 500:
+		return {"pos": bounty.position, "n": "현상금 · %s 격파" % bounty.ename, "warn": true}
 	var best := focus_camp()
 	if not best.is_empty():
 		var total: int = best.tws.size()
