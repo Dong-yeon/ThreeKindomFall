@@ -1168,14 +1168,21 @@ func _separate() -> void:
 
 
 ## 아군에게 붙은 적(맞히는 쪽). _separate가 만든 칸을 씀.
-func touching_enemy(at: Vector2, extra: float) -> Enemy:
+## 유비를 위협할 수 있는 적인가(2026-10-14 사람 손맛 "유비 문제" — 장수를 쫓아온 졸개가 본진 근처에서 유비에게 붙어 쓰러뜨렸음):
+## 본진으로 가는 적(본진 기습 · 진영 부대 · 불탄 마을 습격대) · 유비를 노리는 돌격병 · 정원지의 대군만. 예고되는 위협이라 '왜 쓰러졌는지' 알 수 있게
+static func threatens_lb(e: Enemy) -> bool:
+	return e.goal_home or e.hunt_lb or e.army_unit >= 0
+
+
+## liubei = 유비가 맞는 쪽이면 유비를 위협하는 적만(threatens_lb)
+func touching_enemy(at: Vector2, extra: float, liubei_only := false) -> Enemy:
 	Perf.begin(&"충돌")
-	var e := _touching_enemy_impl(at, extra)
+	var e := _touching_enemy_impl(at, extra, liubei_only)
 	Perf.end()
 	return e
 
 
-func _touching_enemy_impl(at: Vector2, extra: float) -> Enemy:
+func _touching_enemy_impl(at: Vector2, extra: float, liubei_only: bool) -> Enemy:
 	var cx := int(at.x / GRID) + _cell_ox
 	var cy := int(at.y / GRID) + _cell_oy
 	for i in range(-1, 2):
@@ -1189,7 +1196,7 @@ func _touching_enemy_impl(at: Vector2, extra: float) -> Enemy:
 			var k := _cell_head[gx * _cell_gh + gy]
 			while k >= 0:
 				var e := _cell_units[k]
-				if not e.dead and not e.building and e.air <= 0 and e.position.distance_to(at) < e.r + extra:
+				if not e.dead and not e.building and e.air <= 0 and e.position.distance_to(at) < e.r + extra and (not liubei_only or threatens_lb(e)):
 					return e
 				k = _cell_next[k]
 	return null
@@ -1258,8 +1265,9 @@ func _engage_tick(dt: float) -> void:
 		e.eng_t = 0.3
 		var best: Ally = null
 		var bd := 70.0
+		var lb_ok := threatens_lb(e)
 		for a in allies:
-			if a.dead:
+			if a.dead or (a == liubei and not lb_ok):
 				continue
 			var dd := a.position.distance_to(e.position)
 			if dd < bd:

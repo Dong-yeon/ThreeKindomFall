@@ -105,7 +105,7 @@ func tick(dt: float) -> void:
 		b.add_fx({"k": "spark", "pos": tg.position + Vector2(0, -3), "t": 0.15, "a": (tg.position - position).angle(), "c": Color("a8c8f0")})
 	# 붙은 황건에게 맞음
 	if hit_cd <= 0:
-		var hit := b.touching_enemy(position, r + 3)
+		var hit := b.touching_enemy(position, r + 3, k == "liubei")
 		if hit != null:
 			# 수비대는 웹판처럼 60%만, 진군 부대는 다 받음(D-180)
 			hp -= hit.touch * (1.0 if march else 0.6)
