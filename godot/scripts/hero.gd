@@ -20,6 +20,8 @@ var vel := Vector2.ZERO
 var still := 0.0
 ## 맞은 횟수(봇 측정: 분당 피격)
 var hits_taken := 0
+## 무쌍을 쓴 수(사람 플레이 기록)
+var musou_n := 0
 # 기본 공격 · 연격 수
 var cb_t := 0.3
 var cb_idle := 9.0
@@ -128,6 +130,7 @@ func musou_go() -> void:
 	if battle.state != "play" or mg < 100 or musou_t > 0 or stun > 0:
 		return
 	mg = 0.0
+	musou_n += 1
 	musou_t = data.musou_time
 	musou_k = 0.0
 	battle.shake = 0.2
@@ -165,15 +168,19 @@ func musou_tick(dt: float) -> void:
 
 
 ## 맞음: 무쌍 무적 중엔 안 맞음, 맞으면 무쌍 게이지가 차고 연격 수는 절반.
-## src = 피해 출처(봇 출력용 — Battle.hurt_log): 근접 · 돌진 · 궁병 화살 · 탑 화살 · 장수 화살 · 장수 돌진 · 장수 근접 · 장수 내려찍기 · 요술
-func hurt(d: float, src := "기타") -> void:
+## src = 피해 출처(봇 출력용 — Battle.hurt_log): 근접 · 돌진 · 궁병 화살 · 탑 화살 · 장수 화살 · 장수 돌진 · 장수 근접 · 장수 내려찍기 · 요술.
+## 실제로 깎인 체력을 돌려줌(안 맞았으면 0) — 일기토 중이면 그 일기토 피해에도 더함(Battle.arena_log)
+func hurt(d: float, src := "기타") -> float:
 	if inv > 0 or battle.state != "play":
-		return
+		return 0.0
 	if musou_guard():
-		return
+		return 0.0
 	d *= Units.HURT_MUL * (1.0 - data.damage_reduction) * battle.tactics.hurt_mul()
-	battle.hurt_log[src] = float(battle.hurt_log.get(src, 0.0)) + minf(d, hp)
+	var got := minf(d, hp)
+	battle.hurt_log[src] = float(battle.hurt_log.get(src, 0.0)) + got
 	battle.last_hurt = src
+	if battle.duel():
+		battle.arena.hurt = float(battle.arena.hurt) + got
 	mg = minf(100.0, mg + d * 0.35 * battle.tactics.gauge_mul())
 	if cb_n > 0:
 		cb_n = cb_n / 2
@@ -181,12 +188,14 @@ func hurt(d: float, src := "기타") -> void:
 	hp -= d
 	inv = 0.6
 	hits_taken += 1
+	battle.hero_min = minf(battle.hero_min, maxf(hp, 0.0))
 	Sound.play("hurt", 0.35)
 	battle.shake = 0.22
 	battle.add_fx({"k": "num", "pos": position + Vector2(0, -20), "t": 0.7, "v": "-%d" % roundi(d), "c": Color("ff9a8a")})
 	if hp <= 0:
 		hp = 0
 		battle.finish(false, "hero")
+	return got
 
 
 func heal(v: float) -> void:

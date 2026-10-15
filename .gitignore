@@ -21,4 +21,6 @@ __pycache__/
 .godot/
 godot/android/
 godot/build/
+# 웹 빌드에 넣는 커밋 해시(tools/export_web.py가 씀, D-221)
+godot/build_info.txt
 *.translation

@@ -18,6 +18,8 @@ const DRAW_PAD := 120.0
 ## 흐름장을 프레임마다 미리 넓혀 두는 칸 수(D-199, 이 PC에서 약 0.4ms). 지도는 42×150 = 6300칸.
 ## 1200 · 2500은 넓히는 프레임 자체가 1~2ms씩 늘고, 0이면 물어볼 때 한꺼번에 넓히는 일이 잦았음
 const FLOW_WORK := 600
+## 한 프레임에 나아가는 판 시간 상한(2026-10-13: 0.033 → 0.066) — 사람 플레이 기록(Playtest)이 '상한이 걸린 시간'을 잴 때도 씀
+const DT_CAP := 0.066
 
 @export var hero_data: HeroData
 
@@ -102,6 +104,20 @@ var hurt_log := {}
 var last_hurt := ""
 ## 회복을 얻은 수 · 출처별(D-216 봇 출력): 물체 · 부장 · 처치 · 카드 · 마을
 var heal_log := {}
+## 장수 최저 체력 · 몰려오는 무리(Stage1.SURGE)에게 받은 피해 · 무리에서 쓰러뜨린 수(봇 출력 · 사람 플레이 기록)
+var hero_min := 0.0
+var surge_hurt := 0.0
+var surge_kills := 0
+## 유비가 받은 피해 출처별 합(lb_src) · 유비 최저 체력 비율
+var lb_hurt_log := {}
+var lb_min := 1.0
+## 정원지 2단계가 된 때 · 쓰러진 때(-1 = 아직) · 책략을 고른 수
+var cyz2_t := -1.0
+var cyz_dead_t := -1.0
+var pick_n := 0
+## 사람 플레이 기록(D-221 — 웹 ?playtest=1 · PC --playtest일 때만, 아니면 null) · 이 판의 seed(--seed 또는 기록이 켜졌을 때 정한 값, 그 밖엔 -1)
+var playtest: Playtest = null
+var run_seed := -1
 ## 보스 울타리(D-216 1단계): {} = 없음 / {st: warn · on, t: 예고 남은 초, lead: 부장 · 정원지, c: 중심, r, t0: 생긴 때, beat: 다음 북소리까지}
 var arena := {}
 ## 끝난 울타리 기록(봇 출력): {n: 부대, ln: 이름, t0, t1, d: 중심에서 본진까지}
@@ -119,7 +135,8 @@ var spy: Enemy = null
 var spy_t := 0.0
 var supply: Ally = null
 var bounty: Enemy = null
-var ev_log: Array[String] = []
+## 작은 사건 기록(봇 [small] · 사람 플레이 기록이 같이 씀): {k: spy · cart · bounty, t0, t1(-1 = 진행 중), res}
+var ev_rec: Array[Dictionary] = []
 ## 감옥에서 풀려난 의용병 수 · 본진에 닿은 수(봇 출력)
 var captive_freed := 0
 var captive_safe := 0
@@ -192,9 +209,15 @@ var _sep_mv := PackedByteArray()
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--seed="):
-			seed(int(a.substr(7)))
+			run_seed = int(a.substr(7))
+			seed(run_seed)
 		elif a.begins_with("--wave-hp="):
 			WAVE_HP = float(a.substr(10))
+	# 사람 플레이 기록이 켜졌으면 seed를 정해 두고 기록함(같은 판을 다시 볼 수 있게). 꺼져 있으면 전과 같음
+	var pt_on := Playtest.wanted()
+	if pt_on and run_seed < 0:
+		run_seed = randi()
+		seed(run_seed)
 	tactics = Tactics.new()
 	tactics.name = "Tactics"
 	add_child(tactics)
@@ -202,9 +225,10 @@ func _ready() -> void:
 	hero = Hero.new()
 	hero.setup(self, hero_data, Stage1.START)
 	world.add_child(hero)
+	hero_min = hero.hp
 	for c in Stage1.CAMPS:
 		var d: Dictionary = c.duplicate()
-		d.merge({"cap": false, "lead": null, "al_t": 0.0, "tws": [], "call_t": 0.0, "burn_t": -1.0})
+		d.merge({"cap": false, "lead": null, "al_t": 0.0, "tws": [], "call_t": 0.0, "burn_t": -1.0, "cap_t": -1.0})
 		camps.append(d)
 	_build_obstacles()
 	if Stage1.SIEGE:
@@ -216,6 +240,11 @@ func _ready() -> void:
 	for i in start_march:
 		ally_spawn("sol", hero.position + Vector2(randf_range(-40, 40), randf_range(10, 40)), "march", "")
 	_place_camera()
+	if pt_on:
+		playtest = Playtest.new()
+		playtest.name = "Playtest"
+		playtest.b = self
+		add_child(playtest)
 	hud.setup(self)
 	var args := OS.get_cmdline_user_args()
 	if "--bot" in args:
@@ -251,6 +280,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		# 무쌍 버튼은 몇 번째 손가락이든 받음(끌면서 다른 손가락으로 누름). 마우스는 터치로 바뀌어 여기로 옴
 		if ev.pressed and hud.pause_hit(ev.position):
 			toggle_pause()
+			get_viewport().set_input_as_handled()
+		elif ev.pressed and state == "play" and hud.bored_hit(ev.position):
+			# 사람 플레이 기록의 '지루' 버튼(판은 그대로 진행)
+			playtest.bored()
+			hud.flash_bored()
 			get_viewport().set_input_as_handled()
 		elif ev.pressed and hud.musou_hit(ev.position):
 			hero.musou_go()
@@ -326,7 +360,7 @@ func move_vec() -> Vector2:
 func _process(delta: float) -> void:
 	# 한 프레임에 나아가는 판 시간 상한(2026-10-13: 0.033 → 0.066). 전엔 웹판과 같은 0.033이라 30fps 아래에선 판 전체가 슬로모션이 됐음
 	# (저사양 태블릿 웹 13fps면 실제 속도의 약 45%). 이제 15fps까지는 제 속도, 그보다 끊기면 그만큼만 느려짐
-	var dt := minf(delta, 0.066)
+	var dt := minf(delta, DT_CAP)
 	if state == "play":
 		_update(dt)
 	# 장수가 들어선 칸의 흐름장을 미리 넓혀 둠 — 'p'는 0.2초마다만 새로 만들어서 대개 몇 프레임 뒤에 이어받음
@@ -514,6 +548,7 @@ func choose(i: int) -> void:
 	if state != "pick" or i < 0 or i >= pick_opts.size():
 		return
 	tactics.apply(pick_opts[i])
+	pick_n += 1
 	pick_opts.clear()
 	hud.hide_pick()
 	state = "play"
@@ -891,6 +926,7 @@ func _surge_go(at: Vector2) -> void:
 			continue
 		var e := spawn("ytdash" if i % int(S.dash_every) == int(S.dash_every) - 1 else "ytb", p, m)
 		e.xp_mul = REIN_XP
+		e.surge = true
 		made += 1
 	if made > 0:
 		surge_n += 1
@@ -1058,6 +1094,7 @@ func _cyz_tick(_dt: float) -> void:
 	if cyz_phase == 1 and Unit.alive(cyz) and (cyz.hp <= cyz.max_hp * float(Z.phase2) or _army_leads_down() >= int(Z.leads2)):
 		var in_duel := duel()
 		cyz_phase = 2
+		cyz2_t = t
 		# 혼자 버티지 않고 장수에게 달려듦(2026-10-13)
 		cyz.aggro = float(Z.aggro2)
 		cyz.skill_list = ["charge", "slam"]
@@ -1185,6 +1222,14 @@ func _separate() -> void:
 ## 본진으로 가는 적(본진 기습 · 진영 부대 · 불탄 마을 습격대) · 유비를 노리는 돌격병 · 정원지의 대군만. 예고되는 위협이라 '왜 쓰러졌는지' 알 수 있게
 static func threatens_lb(e: Enemy) -> bool:
 	return e.goal_home or e.hunt_lb or e.army_unit >= 0
+
+
+## 유비가 맞음(Ally — 피해를 빼기 전에 부름): 출처별 합 · 최저 체력(봇 출력 · 사람 플레이 기록)
+func lb_hurt(e: Enemy, d: float) -> void:
+	var src := "대군" if e.army_unit >= 0 else ("유비 노리는 돌격병" if e.hunt_lb else ("습격대" if e.raid else ("본진행 적" if e.goal_home else "기타")))
+	var got := minf(d, maxf(liubei.hp, 0.0))
+	lb_hurt_log[src] = float(lb_hurt_log.get(src, 0.0)) + got
+	lb_min = minf(lb_min, maxf(liubei.hp - got, 0.0) / liubei.max_hp)
 
 
 ## liubei = 유비가 맞는 쪽이면 유비를 위협하는 적만(threatens_lb)
@@ -1475,6 +1520,8 @@ func hurt_enemy(e: Enemy, d: float) -> void:
 	if e.hp <= 0:
 		e.dead = true
 		kills += 1
+		if e.surge:
+			surge_kills += 1
 		add_fx({"k": "burst", "pos": e.position, "t": 0.3, "r": e.r * 0.6, "c": Color("f6e2a0")})
 		Sound.play("hit" if e.prop else ("slam" if e.building else "kill"), 0.3 if e.prop else (0.45 if e.building else 0.12))
 		_on_kill(e)
@@ -1527,6 +1574,7 @@ func _on_kill(e: Enemy) -> void:
 	if e.camp_lead != "":
 		var c := camp_by_id(e.camp_lead)
 		c.cap = true
+		c.cap_t = t
 		cap_n += 1
 		if cur_camp == c.id:
 			cur_camp = ""
@@ -1578,7 +1626,7 @@ func _on_kill(e: Enemy) -> void:
 		drops.append({"k": "chest", "pos": e.position})
 		var what := "첩자 잡음" if e.ev_kind == "spy" else "두목 격파"
 		note(what)
-		ev_log.append(what)
+		ev_end(e.ev_kind, "잡음" if e.ev_kind == "spy" else "격파")
 		banner("%s%s 쓰러뜨렸어요!" % [e.ename, eul(e.ename)], "보급 상자를 주워요")
 		Sound.play("win", 0.35)
 		if e == spy:
@@ -1608,6 +1656,7 @@ func _on_kill(e: Enemy) -> void:
 	if e == cyz:
 		note("정원지 격파")
 		cyz_dead = true
+		cyz_dead_t = t
 		if siege != null:
 			# 2 · 3장: 성문이 열리기 시작(D-206)
 			siege.start_gate()
@@ -1974,7 +2023,7 @@ func _arena_tick(dt: float) -> void:
 				continue
 			L.arena_done = true
 			note("일기토 예고 · %s" % L.ename)
-			arena = {"st": "warn", "t": float(A.warn), "lead": L, "c": hero.position, "r": float(A.r), "t0": t, "beat": 0.0}
+			arena = {"st": "warn", "t": float(A.warn), "lead": L, "c": hero.position, "r": float(A.r), "t0": t, "beat": 0.0, "hurt": 0.0}
 			banner("%s%s 일기토를 청해요!" % [L.ename, jo(L.ename, "이", "가")], "곧 울타리가 쳐져요 — 1:1로 쓰러뜨려야 나갈 수 있어요")
 			Sound.play("alert", 0.5)
 			break
@@ -2134,7 +2183,7 @@ func _arena_off() -> void:
 		if L != null and is_instance_valid(L) and L.army_unit >= 0 and L != cyz:
 			unit = String(Stage1.ARMY.units[L.army_unit].n)
 		var ln: String = L.ename if L != null and is_instance_valid(L) else "?"
-		arena_log.append({"n": unit, "ln": ln, "t0": arena.t0, "t1": t, "d": (arena.c as Vector2).distance_to(home_pos)})
+		arena_log.append({"n": unit, "ln": ln, "t0": arena.t0, "t1": t, "d": (arena.c as Vector2).distance_to(home_pos), "hurt": float(arena.hurt)})
 		note("일기토 끝")
 	arena = {}
 	for e in enemies:
@@ -2226,7 +2275,7 @@ func _events_tick(dt: float) -> void:
 			spy.dead = true
 			add_fx({"k": "puff", "pos": spy.position, "t": 0.3})
 			note("첩자 놓침")
-			ev_log.append("첩자 놓침")
+			ev_end("spy", "놓침")
 			banner("첩자가 달아났어요…", "")
 			spy = null
 	if won or ev_i >= E.times.size() or t < float(E.times[ev_i]) or vil_st == "raid":
@@ -2252,6 +2301,7 @@ func _events_tick(dt: float) -> void:
 		spy.ename = S.n
 		spy_t = float(S.limit)
 		note("첩자 나타남")
+		ev_rec.append({"k": "spy", "t0": t, "t1": -1.0, "res": ""})
 		banner("황건 첩자를 잡아요!", "%d초 안에 잡으면 보급 상자 — 놓치면 달아나요" % int(S.limit))
 	elif kind == "cart":
 		var C: Dictionary = E.cart
@@ -2260,6 +2310,7 @@ func _events_tick(dt: float) -> void:
 		supply.hp = supply.max_hp
 		supply.spd = float(C.spd)
 		note("보급 수레 나타남")
+		ev_rec.append({"k": "cart", "t0": t, "t1": -1.0, "res": ""})
 		banner("보급 수레가 본진으로 가요", "지켜 주면 본진에 고기만두 %d개" % int(C.buns))
 	else:
 		var B: Dictionary = E.bounty
@@ -2271,8 +2322,18 @@ func _events_tick(dt: float) -> void:
 		bounty.ev_kind = "bounty"
 		bounty.aggro = 99999.0
 		note("현상금 두목 나타남")
+		ev_rec.append({"k": "bounty", "t0": t, "t1": -1.0, "res": ""})
 		banner("현상금이 걸린 %s!" % nm, "쓰러뜨리면 보급 상자")
 	Sound.play("alert", 0.4)
+
+
+## 작은 사건 끝을 기록(아직 안 끝난 같은 종류 중 가장 이른 것). res: 잡음 · 놓침 · 도착 · 부서짐 · 격파
+func ev_end(k: String, res: String) -> void:
+	for r in ev_rec:
+		if r.k == k and float(r.t1) < 0:
+			r.t1 = t
+			r.res = res
+			return
 
 
 ## 본진으로 가던 의용병 · 보급 수레가 닿음: 의용병 = 본진 수비대 + 유비 회복 / 보급 수레 = 본진에 고기만두 + 유비 회복
@@ -2285,7 +2346,7 @@ func captive_home(a: Ally) -> void:
 			liubei.hp = minf(liubei.max_hp, liubei.hp + liubei.max_hp * float(C.heal))
 		a.dead = true
 		note("보급 수레 도착")
-		ev_log.append("수레 도착")
+		ev_end("cart", "도착")
 		banner("보급 수레가 본진에 닿았어요!", "본진에 고기만두 %d개" % int(C.buns))
 		Sound.play("heal", 0.4)
 		return

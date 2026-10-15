@@ -31,6 +31,15 @@ var _fps_acc := []
 var _fps_t := 0.0
 var _fps_slow := 0
 var pause_info: Label
+## 사람 플레이 기록(D-221, Battle.playtest가 있을 때만): 왼쪽 위 '지루' 버튼(누르면 잠깐 반짝) · 결과 창 요약 · 기록 복사
+var bored_btn: ColorRect
+var _bored_flash := 0.0
+var end_vb: VBoxContainer
+var pt_lbl: Label
+var pt_msg: Label
+var pt_edit: TextEdit
+## 웹 복사 결과를 기다리는 남은 초(navigator.clipboard는 비동기 — 실패하면 고를 수 있는 글 창을 띄움)
+var _pt_wait := 0.0
 var end_title: Label
 var end_stats: Label
 var vignette: GradientTexture2D
@@ -118,6 +127,7 @@ func setup(battle: Battle) -> void:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 12)
 	end_panel.add_child(vb)
+	end_vb = vb
 	end_title = _label(18, Color("3a2a1a"), 0)
 	end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(end_title)
@@ -131,6 +141,8 @@ func setup(battle: Battle) -> void:
 	end_panel.visible = false
 	add_child(end_panel)
 	_build_pause()
+	if b.playtest != null:
+		_build_playtest()
 	# 무쌍 중 화면 가장자리
 	vignette = GradientTexture2D.new()
 	vignette.fill = GradientTexture2D.FILL_RADIAL
@@ -165,8 +177,12 @@ func pause_hit(p: Vector2) -> bool:
 	return pause_btn.visible and pause_btn.get_global_rect().grow(6).has_point(p)
 
 
+func bored_hit(p: Vector2) -> bool:
+	return bored_btn != null and bored_btn.visible and bored_btn.get_global_rect().grow(4).has_point(p)
+
+
 func blocks(p: Vector2) -> bool:
-	return musou_hit(p) or pause_hit(p) or end_panel.visible or pick_panel.visible or pause_panel.visible or (tap_panel != null and tap_panel.visible)
+	return musou_hit(p) or pause_hit(p) or bored_hit(p) or end_panel.visible or pick_panel.visible or pause_panel.visible or (tap_panel != null and tap_panel.visible)
 
 
 ## '화면을 눌러 시작'(웹): 화면 전체를 어둡게 덮고 장 이름 · 안내. 누르기는 Battle._unhandled_input이 받음(여긴 입력을 막지 않음)
@@ -242,12 +258,15 @@ func _fps_tick() -> void:
 
 
 func _refresh_impl() -> void:
-	if fps_lbl == null and "--fps" in OS.get_cmdline_user_args():
+	if fps_lbl == null and ("--fps" in OS.get_cmdline_user_args() or b.playtest != null):
 		fps_lbl = _label(10, Color("ffffff"), 3)
-		fps_lbl.position = Vector2(4, TOP_H + 2)
+		# 기록 중이면 '지루' 버튼 오른쪽
+		fps_lbl.position = Vector2(56 if bored_btn != null else 4, TOP_H + 2)
 		add_child(fps_lbl)
 	if fps_lbl != null:
 		_fps_tick()
+	if bored_btn != null:
+		_playtest_tick()
 	var h := b.hero
 	var T := b.field_target()
 	var title := "%s · %s · 공적 Lv %d" % [Stage1.NAME, _fmt_t(b.t), b.lvl]
@@ -297,6 +316,8 @@ func show_end() -> void:
 	if win and b.siege != null and b.siege.beast_t >= 0:
 		# 첫 사신수 해방(D-207 — 3장)
 		end_stats.text += "\n사신수   %s 해방" % SiegeData.BEAST.n
+	if pt_lbl != null:
+		pt_lbl.text = b.playtest.summary()
 	end_panel.visible = true
 
 
@@ -809,6 +830,104 @@ func _pulse_cards() -> void:
 
 
 # ─────────── 일시정지(D-197) ───────────
+
+# ─────────── 사람 플레이 기록(D-221) ───────────
+
+func _build_playtest() -> void:
+	bored_btn = ColorRect.new()
+	bored_btn.color = Color(0.11, 0.09, 0.07, 0.6)
+	bored_btn.position = Vector2(6, TOP_H + 4)
+	bored_btn.size = Vector2(44, 26)
+	bored_btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := _label(12, Color("fff2c0"), 2)
+	l.text = "지루"
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bored_btn.add_child(l)
+	add_child(bored_btn)
+	pt_lbl = _label(11, Color("5a4a36"), 0)
+	end_vb.add_child(pt_lbl)
+	var copy := Button.new()
+	copy.text = "기록 복사"
+	copy.custom_minimum_size = Vector2(0, 40)
+	copy.pressed.connect(_pt_copy)
+	end_vb.add_child(copy)
+	pt_msg = _label(11, Color("5a4a36"), 0)
+	pt_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pt_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pt_msg.visible = false
+	end_vb.add_child(pt_msg)
+	pt_edit = TextEdit.new()
+	pt_edit.editable = false
+	pt_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	pt_edit.custom_minimum_size = Vector2(0, 140)
+	pt_edit.add_theme_font_size_override("font_size", 9)
+	pt_edit.visible = false
+	end_vb.add_child(pt_edit)
+	# '다시 하기'는 맨 아래에
+	end_vb.move_child(end_vb.get_child(2), end_vb.get_child_count() - 1)
+
+
+func flash_bored() -> void:
+	_bored_flash = 0.35
+
+
+func _playtest_tick() -> void:
+	var dt := get_process_delta_time()
+	bored_btn.visible = b.state == "play"
+	_bored_flash = maxf(0.0, _bored_flash - dt)
+	bored_btn.color = Color(0.11, 0.09, 0.07, 0.6).lerp(Color(0.95, 0.75, 0.25, 0.95), _bored_flash / 0.35)
+	if _pt_wait > 0:
+		_pt_wait -= dt
+		var r = JavaScriptBridge.eval("window._tkfClip", true)
+		var st := int(r) if r != null else 0
+		if st == 1:
+			_pt_wait = 0.0
+			_pt_note("복사했어요 (%d자)" % b.playtest.text.length())
+		elif st == 2 or _pt_wait <= 0:
+			_pt_wait = 0.0
+			_pt_fallback()
+
+
+## 기록 복사: PC는 DisplayServer.clipboard_set. 웹은 navigator.clipboard를 직접 불러 성공 · 실패를 받음
+## (iOS Safari는 터치 처리 안에서 부르지 않으면 막을 수 있음 — 막히면 _pt_fallback)
+const JS_COPY := "window._tkfClip=0;window._tkfText=%s;try{navigator.clipboard.writeText(window._tkfText).then(function(){window._tkfClip=1},function(){window._tkfClip=2})}catch(e){window._tkfClip=2}"
+## 웹 대신 창: 게임 화면(캔버스) 위의 HTML 글 상자 — iOS에서 길게 눌러 고르고 복사할 수 있음(Godot TextEdit는 웹에서 OS 클립보드로 못 꺼냄)
+const JS_SHOW := "(function(){var d=document.getElementById('tkfPt');if(!d){d=document.createElement('div');d.id='tkfPt';d.style.cssText='position:fixed;left:4vw;right:4vw;top:8vh;bottom:8vh;z-index:99;background:#f4ecd8;border:3px solid #3a2a1a;border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;touch-action:auto';var p=document.createElement('div');p.textContent='복사가 막혔어요 — 글을 길게 눌러 전체 선택 → 복사';p.style.cssText='font:14px sans-serif;color:#3a2a1a';var ta=document.createElement('textarea');ta.id='tkfPtTa';ta.readOnly=true;ta.style.cssText='flex:1;font:11px monospace;touch-action:auto;-webkit-user-select:text;user-select:text';var c=document.createElement('button');c.textContent='닫기';c.style.cssText='font:16px sans-serif;padding:8px';c.onclick=function(){d.style.display=\'none\'};d.appendChild(p);d.appendChild(ta);d.appendChild(c);document.body.appendChild(d);}d.style.display='flex';var t=document.getElementById('tkfPtTa');t.value=window._tkfText;t.focus();t.setSelectionRange(0,t.value.length);})()"
+
+
+func _pt_copy() -> void:
+	var s: String = b.playtest.text
+	if s == "":
+		return
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval(JS_COPY % JSON.stringify(s), true)
+		_pt_wait = 1.5
+		_pt_note("복사 중…")
+		return
+	DisplayServer.clipboard_set(s)
+	if DisplayServer.clipboard_get() == s:
+		_pt_note("복사했어요 (%d자)" % s.length())
+	else:
+		_pt_fallback()
+
+
+func _pt_fallback() -> void:
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval(JS_SHOW, true)
+		_pt_note("복사가 막혀 기록 글 창을 띄웠어요 — 길게 눌러 복사")
+		return
+	pt_edit.text = b.playtest.text
+	pt_edit.visible = true
+	pt_edit.select_all()
+	_pt_note("복사가 안 돼요 — 아래 글을 골라 복사")
+
+
+func _pt_note(s: String) -> void:
+	pt_msg.text = s
+	pt_msg.visible = true
+
 
 func _build_pause() -> void:
 	pause_btn = PauseButton.new()

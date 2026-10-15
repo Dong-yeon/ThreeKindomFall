@@ -49,9 +49,7 @@ var _last_us := 0
 var _last_pos := Vector2.INF
 var _dist := 0.0
 var _still := 0.0
-var _min_hp := INF
 ## 유비 최저 체력 비율(D-208 — 쓰러지면 짐)
-var _lb_min := 1.0
 ## 마을 늦게 가기(D-215 시험용): 습격 뒤 이 초 동안은 마을로 가지 않고 습격이 시작된 자리에 머묾(동료 혼자 버티는지 보려고)
 var late_vil := 0.0
 ## 대군 부대 사이에 기다릴 자리(본진에서 길 따라 px, -1 = 아직 안 정함)
@@ -441,11 +439,6 @@ func _measure() -> void:
 		if d < 0.5:
 			_still += get_process_delta_time() if b.hit_stop <= 0 else 0.0
 	_last_pos = h.position
-	_min_hp = minf(_min_hp, h.hp)
-	if Unit.alive(b.liubei):
-		_lb_min = minf(_lb_min, b.liubei.hp / b.liubei.max_hp)
-	elif b.liubei != null:
-		_lb_min = 0.0
 	var dt := get_process_delta_time()
 	var near := 0
 	for e in b.enemies:
@@ -535,7 +528,7 @@ func _result(status: String) -> void:
 	for e in b.events:
 		evs.append("%s %s(+%s)" % [_fmt(e.t), e.n, _fmt(e.t - t0)])
 		t0 = e.t
-	print("[events] " + (" · ".join(evs) if not evs.is_empty() else "-") + " | 유비 최저 체력 %d%%" % roundi(_lb_min * 100))
+	print("[events] " + (" · ".join(evs) if not evs.is_empty() else "-") + " | 유비 최저 체력 %d%%" % roundi(b.lb_min * 100))
 	# 시각별 레벨 · 진화 시각(D-209)
 	print("[timeline] " + (" · ".join(_timeline) if not _timeline.is_empty() else "-") + " · 끝 %s Lv%d" % [_fmt(b.t), b.lvl])
 	var ev_t: Array[String] = []
@@ -566,10 +559,14 @@ func _result(status: String) -> void:
 	for k in ks:
 		hl.append("%s %d(%d%%)" % [k, int(b.hurt_log[k]), roundi(float(b.hurt_log[k]) / maxf(tot, 1.0) * 100.0)])
 	print("[hurt] 합 %d · %s · 마지막 %s" % [int(tot), " · ".join(hl) if not hl.is_empty() else "-", b.last_hurt if b.last_hurt != "" else "-"])
+	var lh: Array[String] = []
+	for k in b.lb_hurt_log:
+		lh.append("%s %d" % [k, int(b.lb_hurt_log[k])])
+	print("[lb_hurt] " + (" · ".join(lh) if not lh.is_empty() else "-") + " · 무리에게 받은 장수 피해 %d · 무리 처치 %d/%d" % [int(b.surge_hurt), b.surge_kills, b.kills])
 	# 보스 울타리(D-216): 부대 · 생긴 때 · 걸린 시간 · 중심에서 본진까지
 	var ar: Array[String] = []
 	for a in b.arena_log:
-		ar.append("%s %s(%ds · 본진까지 %dpx)" % [a.n, _fmt(float(a.t0)), int(float(a.t1) - float(a.t0)), int(a.d)])
+		ar.append("%s %s(%ds · 본진까지 %dpx · 받은 피해 %d)" % [a.n, _fmt(float(a.t0)), int(float(a.t1) - float(a.t0)), int(a.d), int(a.hurt)])
 	if not b.arena.is_empty() and b.arena.st == "on":
 		ar.append("%s 진행 중(%ds)" % [String(b.arena.lead.ename), int(b.t - float(b.arena.t0))])
 	print("[arena] " + (" · ".join(ar) if not ar.is_empty() else "-"))
@@ -584,17 +581,23 @@ func _result(status: String) -> void:
 	for e in b.enemies:
 		if e.prop:
 			props_all += 1
-	print("[small] " + (" · ".join(b.ev_log) if not b.ev_log.is_empty() else "-") + " · 나온 수 %d" % b.ev_i)
+	var sm: Array[String] = []
+	for r in b.ev_rec:
+		sm.append("%s %s %s" % [SMALL_N[r.k], _fmt(float(r.t0)), "%s(%ds)" % [r.res, int(float(r.t1) - float(r.t0))] if float(r.t1) >= 0 else "진행 중"])
+	print("[small] " + (" · ".join(sm) if not sm.is_empty() else "-") + " · 나온 수 %d" % b.ev_i)
 	print("[heals] 합 %d · %s · 남은 물체 %d · 몰려온 무리 %d번 · 의용병 %d명 풀려나 %d명 본진" % [hn, " · ".join(hs) if not hs.is_empty() else "-", props_all, b.surge_n, b.captive_freed, b.captive_safe])
 	print("[allies] " + (" · ".join(_ally_log) if not _ally_log.is_empty() else "-"))
 	print("[move] 이동 %dpx · 평균 %dpx/초 · 멈춤 %d%% · 둘레 120px 적 평균 %.1f · 분당 피격 %.1f · 최저 체력 %d/%d · 구슬 주운 경험 %d%%" % [int(_dist), int(_dist / maxf(b.t, 1.0)), int(_still / maxf(b.t, 1.0) * 100.0),
-		_near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(_min_hp), int(h.max_hp), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0)])
+		_near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(b.hero_min), int(h.max_hp), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0)])
 	print("[slots] " + " · ".join(slots))
 	print("[evos] " + (", ".join(evos) if not evos.is_empty() else "-"))
 	print("[picks] " + " · ".join(T.history))
 	print("[result] status=%s time=%.1f kills=%d max_combo=%d cap=%d hero_hp=%d home=%d allies=%d level=%d act=%d/%d pas=%d/%d evos=%d picks=%d dist=%d still=%d min_hp=%d near=%.1f hits_pm=%.1f orbs=%d errors=%d warnings=%d" % [
 		status, b.t, b.kills, h.cb_max, b.cap_n, ceili(h.hp), ceili(b.home_hp / b.home_max * 100), b.allies.size(), b.lvl,
-		T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count(), T.history.size(), int(_dist), int(_still / maxf(b.t, 1.0) * 100.0), int(_min_hp), _near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0), _errs.lines.size(), _errs.warnings])
+		T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count(), T.history.size(), int(_dist), int(_still / maxf(b.t, 1.0) * 100.0), int(b.hero_min), _near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0), _errs.lines.size(), _errs.warnings])
+
+
+const SMALL_N := {"spy": "첩자", "cart": "수레", "bounty": "두목"}
 
 
 ## 탁현 마을 사건(D-215): 습격 시각 · 장수가 등무 곁에 온 때 · 끝(구함 · 불탐)과 걸린 시간 · 동료(장비)가 한 일

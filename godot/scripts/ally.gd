@@ -111,6 +111,8 @@ func tick(dt: float) -> void:
 		var hit := b.touching_enemy(position, r + 3, k == "liubei")
 		if hit != null:
 			# 수비대는 웹판처럼 60%만, 진군 부대는 다 받음(D-180)
+			if k == "liubei":
+				b.lb_hurt(hit, hit.touch * (1.0 if march else 0.6))
 			hp -= hit.touch * (1.0 if march else 0.6)
 			hit_cd = 0.6
 	if hp <= 0:
@@ -142,6 +144,8 @@ func _escort_tick(dt: float) -> void:
 	if hp <= 0:
 		dead = true
 		b.add_fx({"k": "burst", "pos": position, "t": 0.3, "r": 6.0, "c": Color("6a9ad8")})
+		if self == b.supply:
+			b.ev_end("cart", "부서짐")
 
 
 ## 다시 그리기는 Battle._redraw_units가 화면 근처에 있을 때만 부름

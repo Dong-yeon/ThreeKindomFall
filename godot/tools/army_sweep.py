@@ -121,7 +121,7 @@ def main():
             m = metrics(r)
             g = agg.setdefault(mode, {'len': [], 'd': [], 'kd': [], 'war': [], 'kill': [], 'dead': [], 'clear': 0})
             g['kd'] += m['kill_d']
-            for dur, dist in re.findall(r'\S+ \d+:\d\d\((\d+)s · 본진까지 (\d+)px\)', r.get('arena', '')):
+            for dur, dist in re.findall(r'\S+ \d+:\d\d\((\d+)s · 본진까지 (\d+)px(?: · 받은 피해 \d+)?\)', r.get('arena', '')):
                 g.setdefault('ar', []).append(int(dur))
                 g.setdefault('ard', []).append(int(dist))
             for k, v in re.findall(r'(물체|부장|처치|마을|카드) (\d+)', r.get('heals', '')):

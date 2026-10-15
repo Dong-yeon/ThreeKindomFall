@@ -68,6 +68,8 @@ var gap_mul := 1.0
 var raid := false
 ## 유비만 노림(본진 기습 돌격병, D-209)
 var hunt_lb := false
+## 몰려오는 무리(Stage1.SURGE)에서 나옴 — 기록용(처치 · 받은 피해를 따로 셈)
+var surge := false
 ## 호위병(D-205): 따라다니는 진영장 · 진영장에서 떨어진 자리(장수가 멀면 그 자리로)
 var guard_of: Enemy = null
 var guard_off := Vector2.ZERO
@@ -376,7 +378,9 @@ func _touch_hero() -> void:
 		src = "장수 돌진"
 	elif is_lead():
 		src = "장수 근접"
-	hero.hurt(touch, src)
+	var got := hero.hurt(touch, src)
+	if surge:
+		b.surge_hurt += got
 	if is_lead() and hero.inv > iv0:
 		# 34px 밀려남. 한 번에 밀면 12px 벽을 뚫고 닫힌 본진 안으로 들어가서(웹판도 같음) 네 번에 나눠 벽 검사
 		var kd := (hero.position - position).normalized() if hero.position != position else Vector2(0, 1)
