@@ -202,12 +202,26 @@ func _completes(o: Dictionary) -> bool:
 	if k == "bun" or o.get("evo", false):
 		return false
 	if is_act(k):
-		return level(k) + 1 == TacticsData.MAX_LV and pair_of(k) != "" and level(pair_of(k)) > 0
+		return int(o.get("to", level(k) + 1)) == TacticsData.MAX_LV and level(k) < TacticsData.MAX_LV and pair_of(k) != "" and level(pair_of(k)) > 0
 	if level(k) == 0:
 		for a in pairs_for(k):
 			if level(a) >= TacticsData.MAX_LV and not evolved(a):
 				return true
 	return false
+
+
+## 적장의 병법서(D-224): 레벨업 고르기와 같은 뽑기에서 카드마다 Stage1.TRADE.lv단계씩(최대 Lv5, o.to = 오를 레벨). 진화 카드는 그대로 진화.
+## 올릴 책략이 없으면(고기만두뿐) 빈 배열 — 거래를 열지 않음
+func trade_options(n := 3) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for o in options(n):
+		if o.k == "bun":
+			continue
+		if not o.get("evo", false):
+			o["to"] = mini(level(o.k) + int(Stage1.TRADE.lv), TacticsData.MAX_LV)
+			o["ready"] = _completes(o)
+		out.append(o)
+	return out
 
 
 func apply(o: Dictionary) -> void:
@@ -228,8 +242,10 @@ func apply(o: Dictionary) -> void:
 		if not lv.has(k):
 			(act_order if is_act(k) else pas_order).append(k)
 			cd[k] = 0.3
-		lv[k] = level(k) + 1
+		lv[k] = int(o.get("to", level(k) + 1))
 		tag = "%s %d" % [String(TacticsData.DEFS[k].n) if k != "basic" else b.hero_data.basic.display_name, lv[k]]
+	if o.has("trade"):
+		tag = "병법서: " + tag
 	history.append("Lv%d %s" % [b.lvl, tag])
 
 

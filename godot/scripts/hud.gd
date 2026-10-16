@@ -51,6 +51,10 @@ var pick_sub: Label
 var pick_have: Label
 ## 카드 3장: {btn, box(StyleBoxFlat), icon(StyleBoxFlat), glyph, name, desc, pair, glow: ""|ready|evo}
 var cards: Array[Dictionary] = []
+## 적장 거래(D-224): 고르기 창 테두리(거래면 붉게) · 거절 버튼
+var pick_sb: StyleBoxFlat
+var decline_btn: Button
+const TRADE_RED := Color("c84a3a")
 
 
 func setup(battle: Battle) -> void:
@@ -595,6 +599,7 @@ func _build_pick() -> void:
 	sb.set_corner_radius_all(10)
 	sb.set_content_margin_all(10)
 	pick_panel.add_theme_stylebox_override("panel", sb)
+	pick_sb = sb
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
 	pick_panel.add_child(vb)
@@ -686,6 +691,23 @@ func _build_pick() -> void:
 			col.add_child(l)
 		vb.add_child(btn)
 		cards.append({"btn": btn, "box": box, "icon": isb, "glyph": glyph, "name": nm, "desc": ds, "pair": pr, "glow": "", "badge": bsb, "badge_lbl": blbl})
+	# 거래 거절(D-224): 거래 창에서만 보임
+	decline_btn = Button.new()
+	decline_btn.text = "거절 — 체력을 지켜요"
+	decline_btn.custom_minimum_size = Vector2(320, 40)
+	decline_btn.focus_mode = Control.FOCUS_NONE
+	decline_btn.add_theme_font_size_override("font_size", 13)
+	decline_btn.add_theme_color_override("font_color", Color("f4ecd8"))
+	var dsb := StyleBoxFlat.new()
+	dsb.bg_color = Color(0.25, 0.2, 0.16, 0.95)
+	dsb.border_color = Color("8a7a5a")
+	dsb.set_border_width_all(2)
+	dsb.set_corner_radius_all(8)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		decline_btn.add_theme_stylebox_override(st, dsb)
+	decline_btn.pressed.connect(b.decline_trade)
+	decline_btn.visible = false
+	vb.add_child(decline_btn)
 	pick_panel.visible = false
 	add_child(pick_panel)
 
@@ -694,10 +716,20 @@ static func _stars(n: int) -> String:
 	return "★".repeat(n) + "☆".repeat(TacticsData.MAX_LV - n)
 
 
-func show_pick(opts: Array[Dictionary]) -> void:
+## trade_vs가 있으면 적장의 병법서(D-224): 제목 · 대가 줄이 바뀌고 테두리가 붉고 거절 버튼이 보임. 카드는 Lv +TRADE.lv
+func show_pick(opts: Array[Dictionary], trade_vs := "") -> void:
 	var T := b.tactics
-	pick_title.text = "공적 Lv %d — 책략 고르기" % b.lvl
-	pick_sub.text = "공격 %d/%d · 보조 %d/%d · 진화 %d  ·  공격 Lv5 + 짝 보조 = 진화" % [T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count()]
+	var trade := trade_vs != ""
+	if trade:
+		var mh := b.hero.max_hp
+		pick_title.text = "적장의 병법서"
+		pick_sub.text = "%s%s 피해 없이 이겼어요!\n최대 체력 %d → %d를 내주면 하나를 Lv +%d" % [trade_vs, Battle.eul(trade_vs), roundi(mh), roundi(mh - b.trade_cost()), int(Stage1.TRADE.lv)]
+	else:
+		pick_title.text = "공적 Lv %d — 책략 고르기" % b.lvl
+		pick_sub.text = "공격 %d/%d · 보조 %d/%d · 진화 %d  ·  공격 Lv5 + 짝 보조 = 진화" % [T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count()]
+	pick_sb.border_color = TRADE_RED if trade else CARD_GOLD
+	pick_sb.set_border_width_all(3 if trade else 2)
+	decline_btn.visible = trade
 	pick_have.text = _have_text()
 	for i in cards.size():
 		var c: Dictionary = cards[i]
@@ -709,7 +741,10 @@ func show_pick(opts: Array[Dictionary]) -> void:
 		var k: String = o.k
 		var isb: StyleBoxFlat = c.icon
 		c.glow = "evo" if o.get("evo", false) else ("ready" if o.get("ready", false) else "")
-		_set_badge(c, _reason(o))
+		var rs := _reason(o)
+		if trade and (rs[0] == "레벨 업" or rs[0] == "새 책략"):
+			rs = ["Lv +%d" % (int(o.to) - T.level(k)), TRADE_RED]
+		_set_badge(c, rs)
 		if k == "bun":
 			isb.bg_color = Color("c8a874")
 			c.glyph.text = "饅"
@@ -726,12 +761,14 @@ func show_pick(opts: Array[Dictionary]) -> void:
 			c.desc.text = T.evo_desc(k)
 			c.pair.text = "%s Lv5 + %s" % [T.name_of(k), String(TacticsData.DEFS[T.pair_of(k)].n)]
 			continue
-		var nl := T.level(k) + 1
+		var nl := int(o.get("to", T.level(k) + 1))
 		var nm := T.name_of(k)
 		if k == "basic":
 			nm += "(%s 기본 공격)" % b.hero_data.display_name
 		c.name.text = "%s  %s" % [nm, _stars(nl)]
 		c.desc.text = T.level_desc(k, nl) if T.is_act(k) else "%s (Lv%d)" % [T.level_desc(k, nl), nl]
+		if trade:
+			c.desc.text = "Lv%d → %d · %s" % [T.level(k), nl, c.desc.text]
 		c.pair.text = _pair_text(k) + ("  — 고르면 다음 레벨업에 진화!" if o.get("ready", false) else "")
 	_pulse_cards()
 	pick_panel.visible = true

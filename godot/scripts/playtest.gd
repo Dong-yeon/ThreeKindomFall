@@ -102,10 +102,15 @@ func _build(win: bool) -> Dictionary:
 	d.flow = _flow()
 	var duels: Array = []
 	for a in b.arena_log:
-		duels.append({"vs": a.ln, "unit": a.n, "t0": _r(a.t0), "dur": _r(float(a.t1) - float(a.t0)), "hurt": _r(a.hurt)})
+		duels.append({"vs": a.ln, "unit": a.n, "t0": _r(a.t0), "dur": _r(float(a.t1) - float(a.t0)), "hurt": _r(a.hurt), "clean": a.get("clean", false)})
 	if not b.arena.is_empty() and b.arena.st == "on":
 		duels.append({"vs": String(b.arena.lead.ename) if is_instance_valid(b.arena.lead) else "?", "unit": "", "t0": _r(b.arena.t0), "dur": _r(b.t - float(b.arena.t0)), "hurt": _r(b.arena.hurt), "open": true})
 	d.duels = duels
+	# 적장 거래(D-224): 상대 · 시각 · 받음/거절/없음 · 받은 것
+	var trades: Array = []
+	for r in b.trade_log:
+		trades.append({"vs": r.vs, "t": _r(r.t), "res": r.res, "got": r.got})
+	d.trades = trades
 	var hurt_all := _sum(b.hurt_log)
 	d.surge = {"n": b.surge_n, "kills": b.surge_kills, "kills_all": b.kills, "kill_pct": _pct(b.surge_kills, b.kills),
 		"hurt": _r(b.surge_hurt), "hurt_all": _r(hurt_all), "hurt_pct": _pct(b.surge_hurt, hurt_all)}

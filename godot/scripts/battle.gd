@@ -115,6 +115,11 @@ var lb_min := 1.0
 var cyz2_t := -1.0
 var cyz_dead_t := -1.0
 var pick_n := 0
+## 적장 거래(D-224): 열 차례인 거래(일기토 상대 이름, 없으면 "") · 지금 고르기 창이 레벨업("lvl")인지 병법서("trade")인지 · 거래 기록 {vs, t, res, got}
+var trade_due := ""
+var trade_vs := ""
+var pick_mode := "lvl"
+var trade_log: Array[Dictionary] = []
 ## 사람 플레이 기록(D-221 — 웹 ?playtest=1 · PC --playtest일 때만, 아니면 null) · 이 판의 seed(--seed 또는 기록이 켜졌을 때 정한 값, 그 밖엔 -1)
 var playtest: Playtest = null
 var run_seed := -1
@@ -518,8 +523,11 @@ func _field_tick(dt: float) -> void:
 	tactics.tick(dt)
 	Perf.end()
 	_pickups()
+	# 적장 거래(D-224): 피해 없이 이긴 일기토 뒤 — 레벨업 고르기보다 먼저
+	if trade_due != "" and state == "play":
+		_open_trade()
 	# 레벨업: 판을 멈추고 책략 3개 중 1개 고르기(밀린 만큼 한 번씩)
-	if lvl_q > 0 and state == "play":
+	elif lvl_q > 0 and state == "play":
 		lvl_q -= 1
 		_open_pick()
 
@@ -538,17 +546,66 @@ var pick_opts: Array[Dictionary] = []
 
 func _open_pick() -> void:
 	pick_opts = tactics.options(3)
+	pick_mode = "lvl"
 	Sound.play("accept", 0.35)
 	state = "pick"
 	joy_on = false
 	hud.show_pick(pick_opts)
 
 
+## 적장의 병법서(D-224): 최대 체력 TRADE.cost를 내주면 카드 1장(Lv +TRADE.lv) — 거절할 수 있음. 올릴 책략이 없으면 열지 않음
+func _open_trade() -> void:
+	var vs := trade_due
+	trade_due = ""
+	var opts := tactics.trade_options(3)
+	if opts.is_empty():
+		trade_log.append({"vs": vs, "t": t, "res": "없음", "got": ""})
+		return
+	for o in opts:
+		o["trade"] = true
+	pick_opts = opts
+	pick_mode = "trade"
+	trade_vs = vs
+	note("적장 거래 · %s" % vs)
+	Sound.play("alert", 0.4)
+	state = "pick"
+	joy_on = false
+	hud.show_pick(pick_opts, vs)
+
+
+## 거래에서 내줄 최대 체력(지금 기준)
+func trade_cost() -> float:
+	return hero.max_hp * float(Stage1.TRADE.cost)
+
+
 func choose(i: int) -> void:
 	if state != "pick" or i < 0 or i >= pick_opts.size():
 		return
-	tactics.apply(pick_opts[i])
-	pick_n += 1
+	if pick_mode == "trade":
+		var cost := trade_cost()
+		var n0 := tactics.history.size()
+		tactics.apply(pick_opts[i])
+		hero.max_hp -= cost
+		hero.hp = minf(hero.hp, hero.max_hp)
+		var got: String = tactics.history[n0] if tactics.history.size() > n0 else ""
+		trade_log.append({"vs": trade_vs, "t": t, "res": "받음", "got": got.get_slice(": ", 1)})
+		note("거래 받음 · 최대 체력 -%d" % roundi(cost))
+		banner("적장의 병법서!", "최대 체력 -%d — %s" % [roundi(cost), got.get_slice(": ", 1)])
+		add_fx({"k": "ring", "pos": hero.position, "t": 0.6, "r": 90.0, "c": Color("c84a3a")})
+	else:
+		tactics.apply(pick_opts[i])
+		pick_n += 1
+	pick_opts.clear()
+	hud.hide_pick()
+	state = "play"
+
+
+## 거래 거절(D-224): 체력을 지키고 그대로
+func decline_trade() -> void:
+	if state != "pick" or pick_mode != "trade":
+		return
+	trade_log.append({"vs": trade_vs, "t": t, "res": "거절", "got": ""})
+	note("거래 거절")
 	pick_opts.clear()
 	hud.hide_pick()
 	state = "play"
@@ -2183,8 +2240,12 @@ func _arena_off() -> void:
 		if L != null and is_instance_valid(L) and L.army_unit >= 0 and L != cyz:
 			unit = String(Stage1.ARMY.units[L.army_unit].n)
 		var ln: String = L.ename if L != null and is_instance_valid(L) else "?"
-		arena_log.append({"n": unit, "ln": ln, "t0": arena.t0, "t1": t, "d": (arena.c as Vector2).distance_to(home_pos), "hurt": float(arena.hurt)})
-		note("일기토 끝")
+		# 적장 거래(D-224): 부장을 쓰러뜨렸고 울타리 안 피해가 TRADE.max_hurt 이하 — 정원지는 판이 끝나서 빼고, 이미 끝난 판도 뺌
+		var clean: bool = float(arena.hurt) <= float(Stage1.TRADE.max_hurt) and L != cyz and L != null and is_instance_valid(L) and L.dead
+		arena_log.append({"n": unit, "ln": ln, "t0": arena.t0, "t1": t, "d": (arena.c as Vector2).distance_to(home_pos), "hurt": float(arena.hurt), "clean": clean})
+		note("일기토 끝%s" % (" · 피해 없음" if clean else ""))
+		if clean and state == "play" and not won:
+			trade_due = ln
 	arena = {}
 	for e in enemies:
 		e.arena_side = 0

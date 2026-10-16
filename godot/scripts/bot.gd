@@ -6,7 +6,7 @@ extends Node
 ## 보통은 tools/run_bot_test.py로 돌린다(여러 모드를 돌려 표로 보여 줌).
 ## 실행(창 없이 빠르게): Godot --path godot --headless --fixed-fps 60 -- --bot [--seed=1]
 ## 스크린샷(창 모드): Godot --path godot --fixed-fps 60 -- --bot --shots=<폴더> [--shot-at=3,60,120]
-## 그 밖: --max-time=<초>(기본 900) · --god(장수 무적: 목표 흐름이 끝까지 이어지는지)
+## 그 밖: --max-time=<초>(기본 900) · --god(장수 무적: 목표 흐름이 끝까지 이어지는지) · --no-trade(적장 거래 늘 거절, D-224)
 ## 성능(D-198): --perf → 구간별 프레임 시간을 모아 '적이 가장 많던 순간'과 판 전체를 출력. 그리기 · 렌더 시간은 창 모드에서만 잡힘
 ##   예) Godot --path godot --fixed-fps 60 -- --bot --god --perf
 
@@ -38,6 +38,8 @@ var b: Battle
 var max_t := 900.0
 ## --god: 장수가 안 죽음(목표 흐름 끝까지 확인용)
 var god := false
+## --no-trade: 적장 거래(D-224)를 늘 거절(거래 없는 판과 비교용)
+var no_trade := false
 var shot_dir := ""
 var shot_at: Array[float] = [3.0, 40.0, 120.0, 240.0]
 var _log_t := 0.0
@@ -77,6 +79,7 @@ var _near_t := 0.0
 ## 스크린샷 모드: 첫 레벨업 카드 · 첫 진화 카드에서 몇 프레임 기다렸다 찍고 고름
 var _pick_wait := 0
 var _shot_pick := false
+var _shot_trade := false
 var _shot_evo := false
 var _lead_shots := {}
 ## 줍으러 가는 구슬 자리 · 그만둘 때(D-209 — 정한 구슬은 닿거나 시간이 지날 때까지 쫓음. 안 그러면 목표와 구슬 사이를 오락가락)
@@ -98,6 +101,8 @@ func _ready() -> void:
 			max_t = float(a.substr(11))
 		elif a == "--god":
 			god = true
+		elif a == "--no-trade":
+			no_trade = true
 		elif a.begins_with("--late-village="):
 			late_vil = float(a.substr(15))
 	if shot_dir != "":
@@ -181,7 +186,15 @@ func _process(_dt: float) -> void:
 
 func _bot_process() -> void:
 	if b.state == "pick":
-		if shot_dir != "":
+		# 적장 거래 창(D-224)도 처음 한 장
+		if shot_dir != "" and b.pick_mode == "trade" and not _shot_trade:
+			if _pick_wait < 4:
+				_pick_wait += 1
+				return
+			_shot("trade")
+			_shot_trade = true
+			_pick_wait = 0
+		elif shot_dir != "":
 			var has_evo := b.pick_opts.any(func(o): return o.get("evo", false))
 			if (not _shot_pick or (has_evo and not _shot_evo)) and _pick_wait < 4:
 				_pick_wait += 1
@@ -192,6 +205,10 @@ func _bot_process() -> void:
 					_shot_evo = true
 				_shot_pick = true
 			_pick_wait = 0
+		# 적장 거래(D-224): 봇은 체력이 절반 넘게 남았을 때만 받음(--no-trade면 늘 거절)
+		if b.pick_mode == "trade" and (no_trade or b.hero.hp < b.hero.max_hp * 0.5):
+			b.decline_trade()
+			return
 		b.choose(_pick(b.pick_opts))
 		return
 	if b.state != "play":
@@ -592,6 +609,10 @@ func _result(status: String) -> void:
 	print("[slots] " + " · ".join(slots))
 	print("[evos] " + (", ".join(evos) if not evos.is_empty() else "-"))
 	print("[picks] " + " · ".join(T.history))
+	var tr: Array[String] = []
+	for r in b.trade_log:
+		tr.append("%s %s %s%s" % [_fmt(float(r.t)), r.vs, r.res, (" " + String(r.got)) if String(r.got) != "" else ""])
+	print("[trade] %s" % (" · ".join(tr) if not tr.is_empty() else "없음"))
 	print("[result] status=%s time=%.1f kills=%d max_combo=%d cap=%d hero_hp=%d home=%d allies=%d level=%d act=%d/%d pas=%d/%d evos=%d picks=%d dist=%d still=%d min_hp=%d near=%.1f hits_pm=%.1f orbs=%d errors=%d warnings=%d" % [
 		status, b.t, b.kills, h.cb_max, b.cap_n, ceili(h.hp), ceili(b.home_hp / b.home_max * 100), b.allies.size(), b.lvl,
 		T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count(), T.history.size(), int(_dist), int(_still / maxf(b.t, 1.0) * 100.0), int(b.hero_min), _near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0), _errs.lines.size(), _errs.warnings])
