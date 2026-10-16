@@ -133,6 +133,9 @@ var cam_k := 0.0
 var surge_t := 0.0
 var surge_warn := {}
 var surge_n := 0
+## 무리 대장 격파 수 · 그때 흩어진 졸개 수(D-225, 봇 · 플레이 기록)
+var surge_lead_kills := 0
+var surge_scattered := 0
 ## 작은 사건(Stage1.EVENTS): 다음 차례 · 이번 판 종류 순서 · 첩자 · 보급 수레 · 두목 · 결과 기록(봇 출력)
 var ev_i := 0
 var ev_order: Array[String] = []
@@ -976,18 +979,54 @@ func _surge_go(at: Vector2) -> void:
 	var n := mini(int(S.max), int(S.n0) + int(float(S.per_min) * t / 60.0))
 	var m := mul_y(at.y) * float(S.hp)
 	var made := 0
+	# 무리 대장(D-225): 무리 한가운데, 장수급(금빛 테 · 위 체력 막대)
+	var L := spawn("ytbig", at, m * float(S.lead_hp))
+	L.elite = true
+	L.ename = "황건 무리 대장"
+	L.surge = true
+	L.surge_id = surge_n
+	L.surge_lead = true
+	L.aggro = 99999.0
 	for i in n:
-		var p := at + Vector2.from_angle(randf() * TAU) * randf_range(0, float(S.spread))
+		var p := at + Vector2.from_angle(randf() * TAU) * randf_range(16, float(S.spread))
 		p = Vector2(clampf(p.x, 24, W - 24), clampf(p.y, 24, H - 24))
 		if hit_obs(p, 12):
 			continue
 		var e := spawn("ytdash" if i % int(S.dash_every) == int(S.dash_every) - 1 else "ytb", p, m)
 		e.xp_mul = REIN_XP
 		e.surge = true
+		e.surge_id = surge_n
 		made += 1
 	if made > 0:
+		if surge_n == 0:
+			banner("황건 무리가 몰려와요!", "깃발 든 무리 대장을 쓰러뜨리면 무리가 흩어져요")
 		surge_n += 1
 		add_fx({"k": "ring", "pos": at, "t": 0.4, "r": float(S.spread) + 20.0, "c": Color("d9705e")})
+
+
+## 무리 대장 격파(D-225): 같은 무리의 남은 졸개가 흩어지고(쓰러짐 — 경험 구슬 없음) 고기만두(lead_bun) 또는 경험 구슬(lead_xp)
+func _surge_lead_down(L: Enemy) -> void:
+	var S: Dictionary = Stage1.SURGE
+	var n := 0
+	for o in enemies:
+		if not o.dead and o.surge_id == L.surge_id and o != L:
+			o.dead = true
+			kills += 1
+			surge_kills += 1
+			n += 1
+			add_fx({"k": "burst", "pos": o.position, "t": 0.3, "r": o.r * 0.6, "c": Color("f6e2a0")})
+	surge_lead_kills += 1
+	surge_scattered += n
+	if randf() < float(S.lead_bun):
+		drops.append({"k": "bun", "pos": L.position, "src": "무리 대장"})
+	else:
+		drop_orb(L.position, float(S.lead_xp))
+	note("무리 대장 격파 · %d명 흩어짐" % n)
+	if n > 0:
+		banner("무리 대장 격파!", "남은 무리 %d명이 흩어져요" % n)
+	hit_stop = maxf(hit_stop, 0.06)
+	shake = maxf(shake, 0.2)
+	Sound.play("win", 0.3)
 
 
 ## 정원지의 대군(D-214): 진영 ARMY.after곳을 점령하면 곧바로 출진 — 부대마다 ARMY.units[].at초에(앞 부대 부장이 쓰러지고 rest초 뒤가 더 이르면 그때) 관문 앞에서 나와 길을 따라 본진으로 진군.
@@ -1593,6 +1632,9 @@ func _on_kill(e: Enemy) -> void:
 		drop_orb(e.position, TacticsData.xp_of(e.k, e.elite) * e.xp_mul)
 	# 2 · 3장: 장각 · 요술 제단(D-211 — siege.gd)
 	if siege != null and siege.on_kill(e):
+		return
+	if e.surge_lead:
+		_surge_lead_down(e)
 		return
 	if e.building:
 		var c := camp_by_id(e.camp_id)

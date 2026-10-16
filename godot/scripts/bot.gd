@@ -441,6 +441,13 @@ func _shot_events() -> void:
 		else:
 			_lead_shots["arena_" + String(b.arena.st)] = true
 			_shot("arena_" + String(b.arena.st))
+	# 무리 대장(D-225): 장수 곁(160px)에 처음 왔을 때 한 장
+	if not _lead_shots.has("surge_lead"):
+		for e in b.enemies:
+			if e.surge_lead and not e.dead and e.position.distance_to(b.hero.position) < 160:
+				_lead_shots["surge_lead"] = true
+				_shot("surge_lead")
+				break
 	if not _lead_shots.has("arrows") and b.shots.filter(func(s): return s.arrow and b.in_view(s.pos, -10)).size() >= 2:
 		_lead_shots["arrows"] = true
 		_shot("arrows")
@@ -579,7 +586,7 @@ func _result(status: String) -> void:
 	var lh: Array[String] = []
 	for k in b.lb_hurt_log:
 		lh.append("%s %d" % [k, int(b.lb_hurt_log[k])])
-	print("[lb_hurt] " + (" · ".join(lh) if not lh.is_empty() else "-") + " · 무리에게 받은 장수 피해 %d · 무리 처치 %d/%d" % [int(b.surge_hurt), b.surge_kills, b.kills])
+	print("[lb_hurt] " + (" · ".join(lh) if not lh.is_empty() else "-") + " · 무리에게 받은 장수 피해 %d · 무리 처치 %d/%d · 무리 대장 %d/%d(흩어짐 %d)" % [int(b.surge_hurt), b.surge_kills, b.kills, b.surge_lead_kills, b.surge_n, b.surge_scattered])
 	# 보스 울타리(D-216): 부대 · 생긴 때 · 걸린 시간 · 중심에서 본진까지
 	var ar: Array[String] = []
 	for a in b.arena_log:

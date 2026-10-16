@@ -113,7 +113,8 @@ func _build(win: bool) -> Dictionary:
 	d.trades = trades
 	var hurt_all := _sum(b.hurt_log)
 	d.surge = {"n": b.surge_n, "kills": b.surge_kills, "kills_all": b.kills, "kill_pct": _pct(b.surge_kills, b.kills),
-		"hurt": _r(b.surge_hurt), "hurt_all": _r(hurt_all), "hurt_pct": _pct(b.surge_hurt, hurt_all)}
+		"hurt": _r(b.surge_hurt), "hurt_all": _r(hurt_all), "hurt_pct": _pct(b.surge_hurt, hurt_all),
+		"lead_kills": b.surge_lead_kills, "scattered": b.surge_scattered}
 	var small: Array = []
 	for r in b.ev_rec:
 		var done := float(r.t1) >= 0
@@ -253,7 +254,7 @@ func summary() -> String:
 	if not P.is_empty():
 		L.append("FPS 평균 %s · 하위 5%% %s · 상한 %s%%" % [P.fps_avg, P.fps_low5, P.cap_pct])
 	L.append("실제 %s · 빈 시간 %d초(%d구간) · 지루 %d번" % [Hud._fmt_t(float(data.real_s)), int(E.total_s), int(E.n), data.bored.size()])
-	L.append("일기토 %d번 · 무리 %d번(처치 %s%% · 피해 %s%%)" % [data.duels.size(), int(S.n), S.kill_pct, S.hurt_pct])
+	L.append("일기토 %d번 · 무리 %d번(대장 %d · 처치 %s%% · 피해 %s%%)" % [data.duels.size(), int(S.n), int(S.get("lead_kills", 0)), S.kill_pct, S.hurt_pct])
 	L.append("유비 최저 %d%% · 장수 최저 %d · 무쌍 %d번" % [int(data.liubei.min_pct), int(data.hero.min_hp), int(data.musou)])
 	return "\n".join(L)
 

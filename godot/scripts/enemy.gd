@@ -70,6 +70,9 @@ var raid := false
 var hunt_lb := false
 ## 몰려오는 무리(Stage1.SURGE)에서 나옴 — 기록용(처치 · 받은 피해를 따로 셈)
 var surge := false
+## 몰려오는 무리 번호(같은 무리끼리) · 무리 대장인가(D-225 — 쓰러지면 그 무리가 흩어짐)
+var surge_id := -1
+var surge_lead := false
 ## 호위병(D-205): 따라다니는 진영장 · 진영장에서 떨어진 자리(장수가 멀면 그 자리로)
 var guard_of: Enemy = null
 var guard_off := Vector2.ZERO
@@ -629,6 +632,15 @@ func _draw_impl() -> void:
 	draw_body(face_dir, step, size, 1.0, lift, _glyph)
 	if elite:
 		draw_arc(Vector2.ZERO, r + 6, 0, TAU, 32, Color(0.89, 0.72, 0.35, 0.6 + 0.3 * sin(b.t * 6)), 2.5)
+	if surge_lead:
+		# 무리 대장(D-225): 머리 위 붉은 깃발 — 무리 속에서 한눈에(깃발 든 놈을 치면 무리가 흩어짐)
+		var top := Vector2(r * 0.6, -size * 0.95 - lift)
+		draw_line(Vector2(r * 0.6, -r * 0.3), top, Color("4a3220"), 2.0)
+		var wave := sin(b.t * 5.0) * 2.0
+		var flag := PackedVector2Array([top, top + Vector2(19, 6 + wave), top + Vector2(0, 13)])
+		draw_colored_polygon(flag, Color("e8503a"))
+		flag.append(top)
+		draw_polyline(flag, Color("3a1a10"), 1.5)
 	if shield:
 		# 진영 수비탑이 남아 있는 동안: 푸른 보호막(D-205)
 		var sc := Vector2(0, -r * 0.4)
