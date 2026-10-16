@@ -13,7 +13,7 @@ const LV_AT := [60, 180, 300, 420, 600]
 const GAP := 10.0
 const MIN_EMPTY := 1.0
 const JOIN := 0.5
-const WHY := {"": "", "hero": "장수", "home": "본진", "army": "본진(대군 도착)", "liubei": "유비"}
+const WHY := {"": "", "hero": "장수", "home": "본진", "army": "본진(대군 도착)", "mid": "본진(고승 도착)", "liubei": "유비"}
 const SMALL_N := {"spy": "첩자", "cart": "수레", "bounty": "두목"}
 
 var b: Battle
@@ -179,7 +179,7 @@ func _flow() -> Dictionary:
 		if float(u.met_t) >= 0 and float(u.met_t) < first_t:
 			first_t = u.met_t
 			first_d = u.met_d
-	return {"camps": camps, "army_out": _r(b.army_t0), "army": army, "cyz2_t": _r(b.cyz2_t), "cyz_kill_t": _r(b.cyz_dead_t), "first_met_d": roundi(first_d)}
+	return {"camps": camps, "mid": {"t0": _r(b.mid_t0), "met_t": _r(b.mid_met_t), "kill_t": _r(b.mid_kill_t)}, "army_out": _r(b.army_t0), "army": army, "cyz2_t": _r(b.cyz2_t), "cyz_kill_t": _r(b.cyz_dead_t), "first_met_d": roundi(first_d)}
 
 
 ## 빈 시간: 일기토가 아닌 'play' 프레임 중 (화면에 적이 없음) 또는 (앞뒤 처치 사이가 GAP초 이상인 구간 안). 구간 목록은 MIN_EMPTY초 이상만

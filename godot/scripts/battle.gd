@@ -165,6 +165,12 @@ var companion: Companion = null
 ## 동료가 한 일(봇 출력용): 이름 · 처치 · 목표에게 준 피해와 그 최대 체력 · 남은 체력 비율 · 물러난 때와 까닭("" = 아직 싸움)
 var cmp_log := {}
 var home_raided := false
+## 중간 보스 고승(D-226): 나왔는가 · 그 적 · 나온 때 · 처음 만난 때 · 쓰러뜨린 때(봇 · 플레이 기록)
+var mid_out := false
+var midb: Enemy = null
+var mid_t0 := -1.0
+var mid_met_t := -1.0
+var mid_kill_t := -1.0
 var liubei: Ally = null
 ## 늑대 · 들개 무리가 나왔나(D-209) · 진행 중인 진영 id(수비탑을 처음 친 곳 — 점령할 때까지 목표, D-209)
 var pack_done := false
@@ -498,6 +504,7 @@ func _field_tick(dt: float) -> void:
 		_village_tick(dt)
 		_pack_tick()
 		_home_raid_tick()
+		_mid_tick()
 		_camps_tick(dt)
 		_granary_tick(dt)
 		_events_tick(dt)
@@ -748,6 +755,75 @@ func _home_raid_tick() -> void:
 	note("본진 기습")
 	banner("본진 기습!", "돌격병이 유비를 노려요 — 유비가 쓰러지면 져요")
 	Sound.play("alert", 0.6)
+
+
+## 중간 보스 — 고승의 기습(D-226, Stage1.MIDBOSS): at초에 동쪽 끝에서 호위와 함께 본진으로 진군, 닿으면 짐. 일기토 대상
+func _mid_tick() -> void:
+	var M: Dictionary = Stage1.MIDBOSS
+	if won or state != "play":
+		return
+	if not mid_out:
+		if t < float(M.at):
+			return
+		mid_out = true
+		mid_t0 = t
+		var at: Vector2 = M.from
+		var L := spawn(String(M.lk), at, float(M.lm) * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
+		L.elite = true
+		L.ename = String(M.n)
+		L.touch = Units.ENEMY[String(M.lk)].touch
+		L.r *= 1.4
+		L.goal_home = true
+		L.march_spd = float(M.march)
+		L.march_slow = float(M.slow)
+		L.march_slow_r = float(M.slow_r)
+		L.aggro = 0.0
+		L.pat = Stage1.ARMY[String(M.pat)]
+		L.pat_cd = randf_range(2.0, 4.0)
+		midb = L
+		var m := float(Stage1.ARMY.smul) * (1.0 + minf(t, 600.0) / 600.0 * 0.25)
+		for j in int(M.escort):
+			var k := "ytbig" if j % 5 == 0 else ("ytarch" if j % 8 == 1 else ("ytdash" if j % 12 == 2 else "ytb"))
+			var off := Vector2(randf_range(-90, 40), randf_range(-90, 90))
+			var p := at + off
+			if hit_obs(p, 12):
+				continue
+			var e := spawn(k, p, m)
+			e.set_post(p)
+			e.guard_of = L
+			e.guard_off = off
+			e.aggro = 200
+			e.mid = true
+		note("고승 기습")
+		banner("%s의 기습!" % String(M.n), "동쪽에서 본진으로 진군해요 — 본진에 닿기 전에 막아요")
+		Sound.play("alert", 0.6)
+		return
+	if not _live(midb):
+		return
+	if mid_met_t < 0 and hero.position.distance_to(midb.position) < 260:
+		mid_met_t = t
+		note("고승과 만남(본진까지 %dpx)" % int(midb.position.distance_to(home_pos)))
+	if midb.position.distance_to(home_pos) < home_r + float(Stage1.ARMY.reach):
+		finish(false, "mid")
+
+
+## 고승 격파(D-226): 호위가 흩어지고 보급 상자 + 고기만두
+func _mid_down(e: Enemy) -> void:
+	var M: Dictionary = Stage1.MIDBOSS
+	mid_kill_t = t
+	for o in enemies:
+		if not o.dead and o.mid:
+			o.dead = true
+			kills += 1
+			add_fx({"k": "burst", "pos": o.position, "t": 0.3, "r": o.r * 0.6, "c": Color("f6e2a0")})
+	drops.append({"k": "chest", "pos": e.position})
+	for j in int(M.bun):
+		drops.append({"k": "bun", "pos": e.position + Vector2(28, 0).rotated(j * 2.4 + 0.6), "src": "부장"})
+	note("고승 격파")
+	banner("%s 격파! 기습대가 흩어져요" % e.ename, "보급 상자를 주워요")
+	hit_stop = 0.08
+	shake = maxf(shake, 0.3)
+	Sound.play("win", 0.35)
 
 
 ## 진영(D-205): 진영장이 처음부터 진영 안에서 호위병을 부름(장수가 가까우면 자주 · 진영 병력 상한 — 전엔 막사가 냄, D-202).
@@ -1034,7 +1110,7 @@ func _surge_lead_down(L: Enemy) -> void:
 ## 장수가 부대 대장을 처음 260px 안에서 만난 때 · 그때 본진까지 거리를 적어 둠(봇 출력)
 func _army_tick(dt: float) -> void:
 	var A: Dictionary = Stage1.ARMY
-	if won or cap_n < int(A.after):
+	if won or cap_n < int(A.after) or t < float(A.min_t):
 		return
 	if army_t0 < 0:
 		army_t0 = t
@@ -1636,6 +1712,9 @@ func _on_kill(e: Enemy) -> void:
 	if e.surge_lead:
 		_surge_lead_down(e)
 		return
+	if e == midb:
+		_mid_down(e)
+		return
 	if e.building:
 		var c := camp_by_id(e.camp_id)
 		for tw in c.tws:
@@ -2158,6 +2237,8 @@ func _arena_cands() -> Array[Enemy]:
 			out.append(u.lead)
 	if Unit.alive(cyz):
 		out.append(cyz)
+	if _live(midb):
+		out.append(midb)
 	return out
 
 
@@ -2281,6 +2362,8 @@ func _arena_off() -> void:
 		var unit := "정원지"
 		if L != null and is_instance_valid(L) and L.army_unit >= 0 and L != cyz:
 			unit = String(Stage1.ARMY.units[L.army_unit].n)
+		elif L != null and L == midb:
+			unit = String(Stage1.MIDBOSS.short)
 		var ln: String = L.ename if L != null and is_instance_valid(L) else "?"
 		# 적장 거래(D-224): 부장을 쓰러뜨렸고 울타리 안 피해가 TRADE.max_hurt 이하 — 정원지는 판이 끝나서 빼고, 이미 끝난 판도 뺌
 		var clean: bool = float(arena.hurt) <= float(Stage1.TRADE.max_hurt) and L != cyz and L != null and is_instance_valid(L) and L.dead
@@ -2705,6 +2788,10 @@ func field_target() -> Dictionary:
 		return {"pos": spy.position, "n": "황건 첩자 잡기 (남은 %d초)" % ceili(spy_t), "warn": true}
 	if _live(supply) and supply.mode == "escort" and _enemy_near(supply.position, 40.0):
 		return {"pos": supply.position, "n": "보급 수레 지키기 (%d%%)" % ceili(supply.hp / supply.max_hp * 100), "warn": true}
+	# 고승의 기습(D-226)
+	if _live(midb):
+		var dm := midb.position.distance_to(home_pos)
+		return {"pos": midb.position, "n": "%s 격파 — 기습 (본진까지 %d)" % [String(Stage1.MIDBOSS.short), int(dm)], "warn": dm < float(Stage1.ARMY.danger)}
 	if _live(bounty) and hero.position.distance_to(bounty.position) < 500:
 		return {"pos": bounty.position, "n": "현상금 · %s 격파" % bounty.ename, "warn": true}
 	var best := focus_camp()
@@ -2740,6 +2827,9 @@ func field_target() -> Dictionary:
 		# 부대와 부대 사이 · 부대가 아직 멀 때(2026-10-13): 관문 앞을 가리키지 않음(전엔 관문 앞을 가리켜 갓 나온 부대를 늘 그 자리에서 잡았음).
 		# 가리킬 곳 없이(between) 장수가 고른 곳에서 싸우다, 부대가 내려와 engage 안에 들거나 장수 곁에 오면 그 부대를 가리킴.
 		# (본진 쪽 · 본진으로 가는 황건을 가리켜 봤더니 장수를 쫓는 들판 무리가 본진까지 따라와 유비가 쓰러짐 — 봇 각 20판)
+		# 출진 전(D-226): 진영 after곳을 점령했지만 min_t 전
+		if army.is_empty() and cap_n >= int(A.after) and t < float(A.min_t):
+			return {"pos": hero.position, "n": "정원지 대군 출진까지 %s" % mmss(float(A.min_t) - t), "between": true}
 		for u in army:
 			if far or not u.spawned:
 				var eta := "대군 %s%s 내려와요 (본진까지 %d)" % [A.units[F.u.i].n, jo(A.units[F.u.i].n, "이", "가"), int(F.d)] if far \

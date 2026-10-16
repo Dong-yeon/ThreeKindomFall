@@ -73,6 +73,8 @@ var surge := false
 ## 몰려오는 무리 번호(같은 무리끼리) · 무리 대장인가(D-225 — 쓰러지면 그 무리가 흩어짐)
 var surge_id := -1
 var surge_lead := false
+## 고승의 기습대(D-226 — 고승이 쓰러지면 흩어짐. 일기토 때 guard_of가 풀려도 남음)
+var mid := false
 ## 호위병(D-205): 따라다니는 진영장 · 진영장에서 떨어진 자리(장수가 멀면 그 자리로)
 var guard_of: Enemy = null
 var guard_off := Vector2.ZERO

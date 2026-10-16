@@ -306,6 +306,8 @@ func show_end() -> void:
 		end_title.text = "유비가 쓰러졌어요"
 	elif b.end_why == "army":
 		end_title.text = "정원지의 대군이 본진에 닿았어요"
+	elif b.end_why == "mid":
+		end_title.text = "고승의 기습대가 본진에 닿았어요"
 	else:
 		end_title.text = "%s가 쓰러졌어요" % hn if Battle.eul(hn) == "를" else "%s이 쓰러졌어요" % hn
 	var T := b.tactics
