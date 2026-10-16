@@ -768,7 +768,7 @@ func _mid_tick() -> void:
 		mid_out = true
 		mid_t0 = t
 		var at: Vector2 = M.from
-		var L := spawn(String(M.lk), at, float(M.lm) * (1.0 + minf(t, 600.0) / 600.0 * 0.25))
+		var L := spawn(String(M.lk), at, float(M.lm) * lead_grow())
 		L.elite = true
 		L.ename = String(M.n)
 		L.touch = Units.ENEMY[String(M.lk)].touch
@@ -1192,7 +1192,7 @@ func _spawn_unit(u: Dictionary, U: Dictionary) -> void:
 	var A: Dictionary = Stage1.ARMY
 	var at := Vector2(float(A.road_x), float(A.y0))
 	var lk: String = U.lk
-	var L := spawn(lk, at, float(U.lm))
+	var L := spawn(lk, at, float(U.lm) * lead_grow())
 	L.elite = true
 	L.ename = U.ln
 	L.touch = Units.ENEMY[lk].touch
@@ -1295,7 +1295,7 @@ func _spawn_cyz(at: Vector2, unit_i: int) -> void:
 	cyz_on = true
 	note("정원지 등장")
 	var Z: Dictionary = Stage1.CYZ
-	cyz = spawn("cyz", at, Z.m)
+	cyz = spawn("cyz", at, float(Z.m) * lead_grow(float(Z.grow_k)))
 	cyz.make_lead({"ln": "황건 장수 정원지", "id": "", "skill": "fan"}, Rect2(0, 0, W, H))
 	# 1단계: 부채꼴 화살 · 내려찍기를 번갈아(2026-10-13 — 공격 간격 LEAD.gap 3초라 내려찍기는 6초마다)
 	cyz.skill_list = ["fan", "slam"]
@@ -2080,6 +2080,12 @@ func spawn(k: String, at: Vector2, mul: float) -> Enemy:
 	world.add_child(e)
 	enemies.append(e)
 	return e
+
+
+## 장수급 체력 배율(D-227): 지금 나오면 × (1 + ARMY.grow × (판 시간 − grow_t0)분), grow_t0 전엔 1
+func lead_grow(k := 1.0) -> float:
+	var A: Dictionary = Stage1.ARMY
+	return 1.0 + k * float(A.grow) * maxf(0.0, t - float(A.grow_t0)) / 60.0
 
 
 ## 시간이 갈수록 단단해지는 배율(장각이 부르는 무리)
