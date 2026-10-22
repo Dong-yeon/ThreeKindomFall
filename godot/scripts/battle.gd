@@ -889,7 +889,7 @@ func _wave_tick(dt: float) -> void:
 		Sound.play("alert", 0.45)
 
 
-## 몰려오는 무리(Stage1.SURGE): gap초마다 화면 밖 한 방향(걸어올 수 있는 자리)을 정해 warn초 예고 → 그 자리에 무리가 모여 나와 장수를 쫓음
+## 몰려오는 무리(Stage1.SURGE): gap초마다 화면 가장자리 안(D-227 — 전엔 화면 밖) 한 방향(걸어올 수 있는 자리)을 정해 warn초 예고 → 그 자리에 무리가 모여 나와 장수를 쫓음
 func _surge_tick(dt: float) -> void:
 	var S: Dictionary = Stage1.SURGE
 	if won or boss != null or t < float(S.from):
@@ -907,7 +907,7 @@ func _surge_tick(dt: float) -> void:
 	if not arena.is_empty() or enemies.size() >= int(S.cap):
 		return
 	for _i in 6:
-		var p := ring_pos(randf() * TAU)
+		var p := edge_pos(randf() * TAU, float(S.inset), float(S.min_r))
 		if p != Vector2.INF:
 			surge_warn = {"a": (p - hero.position).angle(), "t": float(S.warn), "at": p}
 			Sound.play("alert", 0.25)
@@ -2392,6 +2392,29 @@ func ring_pos(a: float) -> Vector2:
 		var rr := view.size.length() / 2 + randf_range(20, 70)
 		var at := Vector2(clampf(p.x + cos(a + da) * rr, 24, W - 24), clampf(p.y + sin(a + da) * rr, 24, H - 24))
 		if not hit_obs(at, 16) and at.distance_to(p) > 200 and flow.reach(f, flow.cell_of(at)):
+			return at
+	return Vector2.INF
+
+
+## 장수에서 a 방향으로 화면 가장자리 안쪽 inset px 자리(D-227 몰려오는 무리) — 장수에서 min_r px 넘고 걸어올 수 있는 자리, 없으면 INF
+func edge_pos(a: float, inset: float, min_r: float) -> Vector2:
+	var p := hero.position
+	if flow.ver != obs_ver:
+		flow.build(obs, W, H, obs_ver)
+	var f := flow.field("p", p, t, 0.2)
+	var R := view.grow(-inset)
+	R = R.grow_side(SIDE_TOP, -Hud.TOP_H)  # 위 패널 밑
+	for da in [0.0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]:
+		var d := Vector2.from_angle(a + da)
+		var k := INF
+		if absf(d.x) > 0.001:
+			k = minf(k, ((R.end.x if d.x > 0 else R.position.x) - p.x) / d.x)
+		if absf(d.y) > 0.001:
+			k = minf(k, ((R.end.y if d.y > 0 else R.position.y) - p.y) / d.y)
+		if k == INF or k < min_r:
+			continue
+		var at := Vector2(clampf(p.x + d.x * k, 24, W - 24), clampf(p.y + d.y * k, 24, H - 24))
+		if not hit_obs(at, 16) and at.distance_to(p) > min_r and flow.reach(f, flow.cell_of(at)):
 			return at
 	return Vector2.INF
 
