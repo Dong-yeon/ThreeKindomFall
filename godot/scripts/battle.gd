@@ -933,12 +933,12 @@ func _surge_go(at: Vector2) -> void:
 		add_fx({"k": "ring", "pos": at, "t": 0.4, "r": float(S.spread) + 20.0, "c": Color("d9705e")})
 
 
-## 정원지의 대군(D-214): 진영 ARMY.after곳을 점령하면 곧바로 출진 — 부대마다 ARMY.units[].at초에(앞 부대 부장이 쓰러지고 rest초 뒤가 더 이르면 그때) 관문 앞에서 나와 길을 따라 본진으로 진군.
+## 정원지의 대군(D-214): 진영 ARMY.after곳을 점령하고 판 시간 ARMY.min_t초가 지나면(D-224) 출진 — 부대마다 ARMY.units[].at초에(앞 부대 부장이 쓰러지고 rest초 뒤가 더 이르면 그때) 관문 앞에서 나와 길을 따라 본진으로 진군.
 ## 부대의 대장(부장 · 본대는 정원지도)이 본진에 닿으면 짐. 본진에서 danger px 안에 들어오면 가까울수록 자주 돌격병을 유비에게 보냄.
 ## 장수가 부대 대장을 처음 260px 안에서 만난 때 · 그때 본진까지 거리를 적어 둠(봇 출력)
 func _army_tick(dt: float) -> void:
 	var A: Dictionary = Stage1.ARMY
-	if won or cap_n < int(A.after):
+	if won or cap_n < int(A.after) or t < float(A.min_t):
 		return
 	if army_t0 < 0:
 		army_t0 = t
@@ -1595,9 +1595,12 @@ func _on_kill(e: Enemy) -> void:
 		add_fx({"k": "ring", "pos": c.pos, "t": 0.6, "r": 150.0, "c": Color("4a7ab8")})
 		Sound.play("win", 0.35)
 		if cap_n >= 3:
-			# 곧바로 정원지의 대군이 출진(D-214 — _army_tick)
 			cap3_t = t
-		else:
+		# 진영 ARMY.after곳 점령이면 정원지의 대군이 출진(_army_tick) — 아직 ARMY.min_t 전이면 남은 시간을 알림(D-224)
+		var wait := float(Stage1.ARMY.min_t) - t
+		if cap_n >= int(Stage1.ARMY.after) and army_t0 < 0 and wait > 0:
+			banner("%s 점령! (%d/3)" % [c.n, cap_n], "정원지의 대군이 %s 뒤 출진해요 — 그동안 힘을 길러요" % mmss(wait))
+		elif cap_n < 3:
 			banner("%s 점령! (%d/3)" % [c.n, cap_n], "보급 상자를 주워요 — 진군 부대 %d명이 다음 진영으로 먼저 가요" % MARCH_ON_CAPTURE)
 		return
 	if e == deng:
@@ -2642,6 +2645,9 @@ func field_target() -> Dictionary:
 				var eta := "대군 %s%s 내려와요 (본진까지 %d)" % [A.units[F.u.i].n, jo(A.units[F.u.i].n, "이", "가"), int(F.d)] if far \
 					else "대군 %s 출진까지 %s" % [A.units[u.i].n, mmss(_unit_eta(u))]
 				return {"pos": hero.position, "n": eta, "between": true}
+		# 진영을 다 점령했는데 아직 ARMY.min_t 전(D-224): 가리킬 곳 없이 출진까지 남은 시간
+		if army_t0 < 0 and t < float(A.min_t):
+			return {"pos": hero.position, "n": "정원지 대군 출진까지 %s" % mmss(float(A.min_t) - t), "between": true}
 		return {"pos": gp, "n": "정원지 대군"}
 	if siege != null:
 		return siege.target()
