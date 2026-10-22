@@ -162,6 +162,10 @@ var liubei: Ally = null
 var pack_done := false
 var cur_camp := ""
 var party_t := 60.0
+## 정원지의 선발대(D-229, Stage1.VANGUARD): 다음까지(-1 = 아직 조건 안 됨) · 살아 있는 선발대 · 지금까지 낸 번수(봇 출력)
+var vang_t := -1.0
+var vang: Array[Enemy] = []
+var vang_n := 0
 var rein_t := 4.0
 ## 들판 증원(D-186): 몇 초마다 · 장수를 쫓는 무리 상한 · 떨어뜨리는 경험 배율(D-187 — 많이 오되 레벨은 천천히) · 지금까지 낸 수(종류 섞기)
 const REIN_GAP := 1.5
@@ -497,6 +501,7 @@ func _field_tick(dt: float) -> void:
 		_rein_tick(dt)
 		_wave_tick(dt)
 		_surge_tick(dt)
+		_vanguard_tick(dt)
 		_army_tick(dt)
 	_cyz_tick(dt)
 	if siege != null:
@@ -931,6 +936,47 @@ func _surge_go(at: Vector2) -> void:
 	if made > 0:
 		surge_n += 1
 		add_fx({"k": "ring", "pos": at, "t": 0.4, "r": float(S.spread) + 20.0, "c": Color("d9705e")})
+
+
+## 정원지의 선발대(D-229): 대군 출진을 기다리는 동안(진영 ARMY.after곳 점령 · ARMY.min_t 전) 관문 앞에서 본진으로 가는 작은 부대
+func _vanguard_tick(dt: float) -> void:
+	var V: Dictionary = Stage1.VANGUARD
+	for i in range(vang.size() - 1, -1, -1):
+		if not is_instance_valid(vang[i]) or vang[i].dead:
+			vang.remove_at(i)
+	if won or army_t0 >= 0 or cap_n < int(Stage1.ARMY.after) or t >= float(Stage1.ARMY.min_t) or duel():
+		return
+	if vang_t < 0:
+		vang_t = float(V.first)
+	vang_t -= dt
+	if vang_t > 0:
+		return
+	vang_t = float(V.gap)
+	var A: Dictionary = Stage1.ARMY
+	var g := Vector2(float(A.road_x), float(A.y0))
+	var m := mul_y(g.y) * float(V.mul)
+	for i in int(V.n):
+		var at := g + Vector2(randf_range(-40, 40), randf_range(0, 50))
+		if hit_obs(at, 12):
+			at = g
+		var k := "ytbig" if i < int(V.big) else ("ytdash" if i < int(V.big) + int(V.dash) else "ytb")
+		var e := spawn(k, at, m)
+		e.goal_home = true
+		e.aggro = float(V.aggro)
+		vang.append(e)
+	vang_n += 1
+	note("선발대 %d" % vang_n)
+	banner("정원지의 선발대가 내려와요!", "길을 따라 본진으로 — 본진에 닿기 전에 막아요")
+	Sound.play("alert", 0.35)
+
+
+## 선발대 중 본진에 가장 가까운 것(없으면 null)
+func _vang_front() -> Enemy:
+	var best: Enemy = null
+	for e in vang:
+		if is_instance_valid(e) and not e.dead and (best == null or e.position.distance_to(home_pos) < best.position.distance_to(home_pos)):
+			best = e
+	return best
 
 
 ## 정원지의 대군(D-214): 진영 ARMY.after곳을 점령하고 판 시간 ARMY.min_t초가 지나면(D-224) 출진 — 부대마다 ARMY.units[].at초에(앞 부대 부장이 쓰러지고 rest초 뒤가 더 이르면 그때) 관문 앞에서 나와 길을 따라 본진으로 진군.
@@ -2668,7 +2714,11 @@ func field_target() -> Dictionary:
 				var eta := "대군 %s%s 내려와요 (본진까지 %d)" % [A.units[F.u.i].n, jo(A.units[F.u.i].n, "이", "가"), int(F.d)] if far \
 					else "대군 %s 출진까지 %s" % [A.units[u.i].n, mmss(_unit_eta(u))]
 				return {"pos": hero.position, "n": eta, "between": true}
-		# 진영을 다 점령했는데 아직 ARMY.min_t 전(D-224): 가리킬 곳 없이 출진까지 남은 시간
+		# 진영을 다 점령했는데 아직 ARMY.min_t 전(D-224): 선발대(D-229)가 있으면 본진에 가장 가까운 것, 없으면 가리킬 곳 없이 출진까지 남은 시간
+		var vf := _vang_front()
+		if army_t0 < 0 and vf != null:
+			return {"pos": vf.position, "n": "선발대 막기 (본진까지 %d · 대군 출진까지 %s)" % [int(vf.position.distance_to(home_pos)), mmss(float(A.min_t) - t)],
+				"warn": vf.position.distance_to(home_pos) < float(A.danger)}
 		if army_t0 < 0 and t < float(A.min_t):
 			return {"pos": hero.position, "n": "정원지 대군 출진까지 %s" % mmss(float(A.min_t) - t), "between": true}
 		return {"pos": gp, "n": "정원지 대군"}
