@@ -130,6 +130,11 @@ func _build(win: bool) -> Dictionary:
 	d.lv = lvd
 	d.lv_end = b.lvl
 	d.picks = b.pick_n
+	# 적장 거래(D-230): 시각 · 적장 · 받음 · 고른 것
+	var deals: Array = []
+	for D in b.deal_log:
+		deals.append({"t": _r(D.t), "vs": D.vs, "took": D.took, "pick": D.pick})
+	d.deals = deals
 	d.musou = h.musou_n
 	d.bored = bored_t.duplicate()
 	d.empty = _empty()

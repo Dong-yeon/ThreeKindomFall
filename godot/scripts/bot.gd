@@ -76,6 +76,7 @@ var _near_sum := 0.0
 var _near_t := 0.0
 ## 스크린샷 모드: 첫 레벨업 카드 · 첫 진화 카드에서 몇 프레임 기다렸다 찍고 고름
 var _pick_wait := 0
+var _shot_deal := false
 var _shot_pick := false
 var _shot_evo := false
 var _lead_shots := {}
@@ -181,7 +182,15 @@ func _process(_dt: float) -> void:
 
 func _bot_process() -> void:
 	if b.state == "pick":
-		if shot_dir != "":
+		# 적장 거래 화면(D-230)은 처음 한 장 찍음
+		if shot_dir != "" and b.pick_deal != "" and not _shot_deal:
+			if _pick_wait < 4:
+				_pick_wait += 1
+				return
+			_shot("pick_deal")
+			_shot_deal = true
+			_pick_wait = 0
+		if shot_dir != "" and b.pick_deal == "":
 			var has_evo := b.pick_opts.any(func(o): return o.get("evo", false))
 			if (not _shot_pick or (has_evo and not _shot_evo)) and _pick_wait < 4:
 				_pick_wait += 1
@@ -192,6 +201,10 @@ func _bot_process() -> void:
 					_shot_evo = true
 				_shot_pick = true
 			_pick_wait = 0
+		# 적장 거래(D-230): 최대 체력이 처음의 60% 넘게 남았으면 받고(두 번까지), 아니면 거절 — 두 길 모두 시험
+		if b.pick_deal != "" and b.hero.max_hp < b.hero_data.max_hp * 0.61:
+			b.decline_deal()
+			return
 		b.choose(_pick(b.pick_opts))
 		return
 	if b.state != "play":
@@ -562,6 +575,10 @@ func _result(status: String) -> void:
 	var lh: Array[String] = []
 	for k in b.lb_hurt_log:
 		lh.append("%s %d" % [k, int(b.lb_hurt_log[k])])
+	var dl: Array[String] = []
+	for D in b.deal_log:
+		dl.append("%s %s %s%s" % [_fmt(D.t), D.vs, "받음" if D.took else "거절", " · " + String(D.pick) if D.took else ""])
+	print("[deal] 적장 거래 %d번%s · 최대 체력 %d/%d" % [b.deal_log.size(), (" — " + " / ".join(dl)) if not dl.is_empty() else "", int(b.hero.max_hp), int(b.hero_data.max_hp)])
 	print("[lb_hurt] " + (" · ".join(lh) if not lh.is_empty() else "-") + " · 무리에게 받은 장수 피해 %d · 무리 처치 %d/%d" % [int(b.surge_hurt), b.surge_kills, b.kills])
 	# 보스 울타리(D-216): 부대 · 생긴 때 · 걸린 시간 · 중심에서 본진까지
 	var ar: Array[String] = []

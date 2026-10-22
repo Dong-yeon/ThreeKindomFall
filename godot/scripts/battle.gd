@@ -115,6 +115,10 @@ var lb_min := 1.0
 var cyz2_t := -1.0
 var cyz_dead_t := -1.0
 var pick_n := 0
+## 적장 거래(D-230, Stage1.DEAL): 열릴 거래(이긴 적장 이름) · 지금 열린 거래의 적장(""이면 보통 고르기) · 기록 {t, vs, took, pick}
+var deal_q: Array[String] = []
+var pick_deal := ""
+var deal_log: Array[Dictionary] = []
 ## 사람 플레이 기록(D-221 — 웹 ?playtest=1 · PC --playtest일 때만, 아니면 null) · 이 판의 seed(--seed 또는 기록이 켜졌을 때 정한 값, 그 밖엔 -1)
 var playtest: Playtest = null
 var run_seed := -1
@@ -523,8 +527,10 @@ func _field_tick(dt: float) -> void:
 	tactics.tick(dt)
 	Perf.end()
 	_pickups()
-	# 레벨업: 판을 멈추고 책략 3개 중 1개 고르기(밀린 만큼 한 번씩)
-	if lvl_q > 0 and state == "play":
+	# 적장 거래(D-230)가 먼저, 그다음 레벨업: 판을 멈추고 책략 3개 중 1개 고르기(밀린 만큼 한 번씩)
+	if not deal_q.is_empty() and state == "play":
+		_open_deal(deal_q.pop_front())
+	elif lvl_q > 0 and state == "play":
 		lvl_q -= 1
 		_open_pick()
 
@@ -552,11 +558,57 @@ func _open_pick() -> void:
 func choose(i: int) -> void:
 	if state != "pick" or i < 0 or i >= pick_opts.size():
 		return
-	tactics.apply(pick_opts[i])
+	var o: Dictionary = pick_opts[i]
+	if pick_deal != "":
+		_take_deal(o)
+	else:
+		tactics.apply(o)
 	pick_n += 1
+	_close_pick()
+
+
+func _close_pick() -> void:
 	pick_opts.clear()
+	pick_deal = ""
 	hud.hide_pick()
 	state = "play"
+
+
+## 적장 거래(D-230): 일기토를 피해 없이 이긴 뒤 — 같은 고르기 화면에 '적장의 병법서'로(카드를 고르면 받음, '거래하지 않음'이면 거절)
+func _open_deal(vs: String) -> void:
+	pick_opts = tactics.options(3)
+	pick_deal = vs
+	Sound.play("accept", 0.35)
+	state = "pick"
+	joy_on = false
+	hud.show_pick(pick_opts, vs)
+
+
+## 거래를 받음: 최대 체력 DEAL.cost를 내주고(남은 체력도 그 안으로) 고른 책략을 DEAL.levels단계(진화 · 고기만두는 한 번)
+func _take_deal(o: Dictionary) -> void:
+	var D: Dictionary = Stage1.DEAL
+	hero.max_hp *= 1.0 - float(D.cost)
+	hero.hp = minf(hero.hp, hero.max_hp)
+	var k: String = o.k
+	var n := 1 if k == "bun" or o.get("evo", false) else int(D.levels)
+	for j in n:
+		if j > 0 and tactics.level(k) >= TacticsData.MAX_LV:
+			break
+		tactics.apply(o)
+	var got := tactics.history[-1] if not tactics.history.is_empty() else k
+	deal_log.append({"t": t, "vs": pick_deal, "took": true, "pick": got})
+	note("적장 거래 받음 · %s" % got)
+	banner("적장의 병법서!", "최대 체력 %d%%를 내주고 — %s" % [roundi(float(D.cost) * 100), got.get_slice(" ", 1) if got.begins_with("Lv") else got])
+	add_fx({"k": "ring", "pos": hero.position, "t": 0.6, "r": 90.0, "c": Color("c06ad8")})
+
+
+## 거래하지 않음(D-230)
+func decline_deal() -> void:
+	if state != "pick" or pick_deal == "":
+		return
+	deal_log.append({"t": t, "vs": pick_deal, "took": false, "pick": ""})
+	note("적장 거래 거절")
+	_close_pick()
 
 
 ## 탁현 마을 습격(D-208): VILLAGE.at초가 지나고 장수가 마을에서 far px 넘게 떨어져 있으면(D-209) 등무 + 습격대가 마을 둘레에 자리 잡음
@@ -2234,6 +2286,9 @@ func _arena_off() -> void:
 		var ln: String = L.ename if L != null and is_instance_valid(L) else "?"
 		arena_log.append({"n": unit, "ln": ln, "t0": arena.t0, "t1": t, "d": (arena.c as Vector2).distance_to(home_pos), "hurt": float(arena.hurt)})
 		note("일기토 끝")
+		# 적장 거래(D-230): 적장을 쓰러뜨려 끝났고 울타리 안에서 받은 피해가 DEAL.hurt_eps 이하
+		if not Unit.alive(L) and not won and float(arena.hurt) <= float(Stage1.DEAL.hurt_eps):
+			deal_q.append(ln)
 	arena = {}
 	for e in enemies:
 		e.arena_side = 0

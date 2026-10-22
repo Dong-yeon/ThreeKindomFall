@@ -51,6 +51,8 @@ var pick_sub: Label
 var pick_have: Label
 ## 카드 3장: {btn, box(StyleBoxFlat), icon(StyleBoxFlat), glyph, name, desc, pair, glow: ""|ready|evo}
 var cards: Array[Dictionary] = []
+## 적장 거래(D-230): 고르기 화면 아래 '거래하지 않음'(거래일 때만 보임)
+var deal_no: Button
 
 
 func setup(battle: Battle) -> void:
@@ -686,6 +688,13 @@ func _build_pick() -> void:
 			col.add_child(l)
 		vb.add_child(btn)
 		cards.append({"btn": btn, "box": box, "icon": isb, "glyph": glyph, "name": nm, "desc": ds, "pair": pr, "glow": "", "badge": bsb, "badge_lbl": blbl})
+	deal_no = Button.new()
+	deal_no.text = "거래하지 않음"
+	deal_no.custom_minimum_size = Vector2(0, 40)
+	deal_no.focus_mode = Control.FOCUS_NONE
+	deal_no.pressed.connect(b.decline_deal)
+	deal_no.visible = false
+	vb.add_child(deal_no)
 	pick_panel.visible = false
 	add_child(pick_panel)
 
@@ -694,10 +703,18 @@ static func _stars(n: int) -> String:
 	return "★".repeat(n) + "☆".repeat(TacticsData.MAX_LV - n)
 
 
-func show_pick(opts: Array[Dictionary]) -> void:
+## deal = 적장 거래(D-230)의 적장 이름(""이면 보통 레벨업 고르기) — 카드는 DEAL.levels단계, '거래하지 않음' 버튼
+func show_pick(opts: Array[Dictionary], deal := "") -> void:
 	var T := b.tactics
-	pick_title.text = "공적 Lv %d — 책략 고르기" % b.lvl
-	pick_sub.text = "공격 %d/%d · 보조 %d/%d · 진화 %d  ·  공격 Lv5 + 짝 보조 = 진화" % [T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count()]
+	var D: Dictionary = Stage1.DEAL
+	var step := int(D.levels) if deal != "" else 1
+	if deal != "":
+		pick_title.text = "적장의 병법서 — %s" % deal
+		pick_sub.text = "피해 없이 이겼어요! 최대 체력 %d%%를 내주면 책략 하나를 %d단계 올려요" % [roundi(float(D.cost) * 100), step]
+	else:
+		pick_title.text = "공적 Lv %d — 책략 고르기" % b.lvl
+		pick_sub.text = "공격 %d/%d · 보조 %d/%d · 진화 %d  ·  공격 Lv5 + 짝 보조 = 진화" % [T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count()]
+	deal_no.visible = deal != ""
 	pick_have.text = _have_text()
 	for i in cards.size():
 		var c: Dictionary = cards[i]
@@ -726,7 +743,7 @@ func show_pick(opts: Array[Dictionary]) -> void:
 			c.desc.text = T.evo_desc(k)
 			c.pair.text = "%s Lv5 + %s" % [T.name_of(k), String(TacticsData.DEFS[T.pair_of(k)].n)]
 			continue
-		var nl := T.level(k) + 1
+		var nl := mini(TacticsData.MAX_LV, T.level(k) + step)
 		var nm := T.name_of(k)
 		if k == "basic":
 			nm += "(%s 기본 공격)" % b.hero_data.display_name
@@ -802,6 +819,7 @@ func _pair_text(k: String) -> String:
 
 func hide_pick() -> void:
 	pick_panel.visible = false
+	deal_no.visible = false
 
 
 ## 진화 카드는 금빛으로 크게, '고르면 다음에 진화' 카드는 약하게 깜빡임
