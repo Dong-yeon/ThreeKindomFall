@@ -28,5 +28,34 @@ static func weapon_grade(lv: int) -> String:
 	return g
 
 
+## 재능 트리(D-234, D-213 — 가지 넷 · 무료 되돌리기): 재능 포인트 1 = 1단계. 칸마다 tier(0 · 1 · 2) — tier 칸은 같은 가지의 더 낮은 tier 칸에
+## TIER_NEED[tier]점 넘게 찍혀 있어야 열림. v = 1단계 값(효과 키 k로 Battle이 씀). 효과는 다음 출진부터.
+const TIER_NEED := [0, 2, 4]
+const TALENTS := [
+	{"n": "무력", "nodes": [
+		{"k": "atk", "n": "날카로운 날", "d": "공격 +%d%%", "v": 0.04, "max": 3, "tier": 0},
+		{"k": "lead", "n": "장수 베기", "d": "장수급에게 기본 공격 피해 +%d%%", "v": 0.10, "max": 3, "tier": 1},
+		{"k": "gauge", "n": "무쌍 기세", "d": "무쌍 게이지 +%d%%", "v": 0.10, "max": 3, "tier": 2}]},
+	{"n": "생존", "nodes": [
+		{"k": "hp", "n": "강골", "d": "최대 체력 +%d%%", "v": 0.06, "max": 3, "tier": 0},
+		{"k": "heal", "n": "약초", "d": "받는 회복 +%d%%", "v": 0.15, "max": 3, "tier": 1},
+		{"k": "grit", "n": "투지", "d": "체력 30%% 아래일 때 받는 피해 −%d%%", "v": 0.10, "max": 2, "tier": 2}]},
+	{"n": "책략", "nodes": [
+		{"k": "reroll", "n": "다시 생각", "d": "판마다 책략 다시 뽑기 %d번", "v": 1.0, "max": 3, "tier": 0, "int": true},
+		{"k": "xp", "n": "학문", "d": "판 안 경험 +%d%%", "v": 0.05, "max": 3, "tier": 1},
+		{"k": "plan", "n": "출진 전 계책", "d": "시작할 때 책략 고르기 %d번", "v": 1.0, "max": 1, "tier": 2, "int": true}]},
+	{"n": "군세", "nodes": [
+		{"k": "march", "n": "의용병", "d": "시작 진군 부대 +%d명", "v": 1.0, "max": 3, "tier": 0, "int": true},
+		{"k": "ally", "n": "훈련", "d": "아군 공격 +%d%%", "v": 0.10, "max": 3, "tier": 1},
+		{"k": "home", "n": "본진 성벽", "d": "본진 체력 +%d%%", "v": 0.15, "max": 2, "tier": 2}]},
+]
+
+
+## 재능 칸 하나의 설명(단계 r일 때 값)
+static func talent_desc(node: Dictionary, r: int) -> String:
+	var v := float(node.v) * r
+	return String(node.d) % (roundi(v) if node.get("int", false) else roundi(v * 100))
+
+
 static func need(lv: int) -> int:
 	return roundi(float(LV_NEED.a) + float(LV_NEED.b) * (lv - 1))

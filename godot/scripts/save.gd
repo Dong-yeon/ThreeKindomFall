@@ -18,7 +18,7 @@ func _ready() -> void:
 
 
 func _fresh() -> Dictionary:
-	return {"ver": VER, "lv": 1, "xp": 0, "merit": 0, "pts": 0, "runs": 0, "clears": 0, "weapon": {}}
+	return {"ver": VER, "lv": 1, "xp": 0, "merit": 0, "pts": 0, "runs": 0, "clears": 0, "weapon": {}, "tal": {}}
 
 
 func _load() -> void:
@@ -80,6 +80,85 @@ func upgrade_weapon(id: String) -> bool:
 	d.weapon[id] = lv + 1
 	write()
 	return true
+
+
+## 재능 트리(D-234, MetaData.TALENTS): pts = 지금까지 받은 재능 포인트, 쓴 것 = 단계 합. 되돌리기는 무료
+func tal_rank(k: String) -> int:
+	return int(d.tal.get(k, 0))
+
+
+func tal_spent() -> int:
+	var n := 0
+	for k in d.tal:
+		n += int(d.tal[k])
+	return n
+
+
+func tal_left() -> int:
+	return int(d.pts) - tal_spent()
+
+
+## 가지 br에서 tier보다 낮은 칸에 찍힌 수
+func _below(br: Dictionary, tier: int, tal: Dictionary) -> int:
+	var n := 0
+	for nd in br.nodes:
+		if int(nd.tier) < tier:
+			n += int(tal.get(nd.k, 0))
+	return n
+
+
+func _node(k: String) -> Array:
+	for br in MetaData.TALENTS:
+		for nd in br.nodes:
+			if nd.k == k:
+				return [br, nd]
+	return []
+
+
+## 열렸나(같은 가지 아래 tier에 TIER_NEED만큼)
+func tal_open(k: String) -> bool:
+	var f := _node(k)
+	return not f.is_empty() and _below(f[0], int(f[1].tier), d.tal) >= int(MetaData.TIER_NEED[int(f[1].tier)])
+
+
+func tal_add(k: String) -> bool:
+	var f := _node(k)
+	if f.is_empty() or tal_left() <= 0 or tal_rank(k) >= int(f[1].max) or not tal_open(k):
+		return false
+	d.tal[k] = tal_rank(k) + 1
+	write()
+	return true
+
+
+## 한 단계 빼기 — 빼고 나서도 위 tier 칸들이 열려 있어야 함(아니면 거절)
+func tal_sub(k: String) -> bool:
+	var f := _node(k)
+	if f.is_empty() or tal_rank(k) <= 0:
+		return false
+	var t2: Dictionary = d.tal.duplicate()
+	t2[k] = tal_rank(k) - 1
+	for nd in f[0].nodes:
+		if int(t2.get(nd.k, 0)) > 0 and _below(f[0], int(nd.tier), t2) < int(MetaData.TIER_NEED[int(nd.tier)]):
+			return false
+	if int(t2[k]) == 0:
+		t2.erase(k)
+	d.tal = t2
+	write()
+	return true
+
+
+func tal_reset() -> void:
+	d.tal = {}
+	write()
+
+
+## 출진 때 쓰는 효과 {효과 키: 단계 × v}
+func tal_fx() -> Dictionary:
+	var out := {}
+	for br in MetaData.TALENTS:
+		for nd in br.nodes:
+			out[nd.k] = float(nd.v) * tal_rank(nd.k)
+	return out
 
 
 ## 판 끝 보상을 더하고 저장. 돌려주는 것: {xp, merit, lv0, lv, pts(이번에 받은), xp_now, need}

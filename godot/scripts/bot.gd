@@ -516,6 +516,17 @@ func _on_finished(win: bool) -> void:
 			await get_tree().create_timer(0.3).timeout
 			_shot("forge_up")
 		print("[forge] %s 강화 Lv %d · 가진 전공 %d" % [b.hero_data.weapon_name, Save.weapon_lv(b.hero_data.id), int(Save.d.merit)])
+		b.hud.forge_panel.visible = false
+		# 재능(D-234): 창을 열어 찍고, 남은 포인트를 무력 1칸 → 2칸 순으로 넣어 본 뒤 한 장 더
+		b.hud.tal_open()
+		await get_tree().create_timer(0.3).timeout
+		_shot("talent")
+		for k in ["atk", "atk", "lead", "hp"]:
+			Save.tal_add(k)
+		b.hud._tal_refresh()
+		await get_tree().create_timer(0.3).timeout
+		_shot("talent_set")
+		print("[talent] 받은 %d · 남은 %d · %s" % [int(Save.d.pts), Save.tal_left(), JSON.stringify(Save.d.tal)])
 	_result("clear" if win else "lose_" + b.end_why)
 	_quit(0 if win else 1)
 

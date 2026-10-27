@@ -104,7 +104,7 @@ func tick(dt: float) -> void:
 		b.push_out(self)
 	elif tg != null and cd <= 0:
 		cd = def.cd
-		b.hurt_enemy(tg, atk * b.tactics.ally_mul())
+		b.hurt_enemy(tg, atk * b.tactics.ally_mul() * (1.0 + b.talv("ally")))
 		b.add_fx({"k": "spark", "pos": tg.position + Vector2(0, -3), "t": 0.15, "a": (tg.position - position).angle(), "c": Color("a8c8f0")})
 	# 붙은 황건에게 맞음
 	if hit_cd <= 0:

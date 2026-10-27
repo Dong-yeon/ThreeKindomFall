@@ -178,6 +178,9 @@ func hurt(d: float, src := "기타") -> float:
 	if musou_guard():
 		return 0.0
 	d *= Units.HURT_MUL * (1.0 - data.damage_reduction) * battle.tactics.hurt_mul()
+	# 재능 '투지'(D-234): 체력 30% 아래면 덜 아픔
+	if hp < max_hp * 0.3:
+		d *= 1.0 - battle.talv("grit")
 	var got := minf(d, hp)
 	battle.hurt_log[src] = float(battle.hurt_log.get(src, 0.0)) + got
 	battle.last_hurt = src
@@ -201,6 +204,7 @@ func hurt(d: float, src := "기타") -> float:
 
 
 func heal(v: float) -> void:
+	v *= 1.0 + battle.talv("heal")
 	var b0 := hp
 	hp = minf(max_hp, hp + v)
 	if hp > b0:

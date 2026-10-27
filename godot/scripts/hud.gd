@@ -58,6 +58,15 @@ var pick_have: Label
 var cards: Array[Dictionary] = []
 ## 적장 거래(D-230): 고르기 화면 아래 '거래하지 않음'(거래일 때만 보임)
 var deal_no: Button
+## 책략 다시 뽑기(D-234, 재능) — 남은 수가 있을 때만
+var pick_reroll: Button
+## 재능 트리(D-234): 결과 창 '재능' → 가지 탭 넷 · 칸 셋(− · +) · 모두 되돌리기
+var tal_panel: PanelContainer
+var tal_head: Label
+var tal_tab := 0
+var tal_tabs: Array[Button] = []
+var tal_rows: Array[Dictionary] = []
+var end_tal: Button
 
 
 func setup(battle: Battle) -> void:
@@ -148,6 +157,10 @@ func setup(battle: Battle) -> void:
 	forge.custom_minimum_size = Vector2(0, 40)
 	forge.pressed.connect(forge_open)
 	vb.add_child(forge)
+	end_tal = Button.new()
+	end_tal.custom_minimum_size = Vector2(0, 40)
+	end_tal.pressed.connect(tal_open)
+	vb.add_child(end_tal)
 	var retry := Button.new()
 	retry.text = "다시 하기"
 	retry.custom_minimum_size = Vector2(0, 44)
@@ -157,6 +170,7 @@ func setup(battle: Battle) -> void:
 	end_panel.visible = false
 	add_child(end_panel)
 	_build_forge()
+	_build_tal()
 	_build_pause()
 	if b.playtest != null:
 		_build_playtest()
@@ -333,6 +347,7 @@ func show_end() -> void:
 	if win and b.siege != null and b.siege.beast_t >= 0:
 		# 첫 사신수 해방(D-207 — 3장)
 		end_stats.text += "\n사신수   %s 해방" % SiegeData.BEAST.n
+	end_tal.text = "재능 (남은 포인트 %d)" % Save.tal_left()
 	# 판 밖 보상(D-232)
 	var M: Dictionary = b.meta_got
 	if not M.is_empty():
@@ -710,6 +725,12 @@ func _build_pick() -> void:
 			col.add_child(l)
 		vb.add_child(btn)
 		cards.append({"btn": btn, "box": box, "icon": isb, "glyph": glyph, "name": nm, "desc": ds, "pair": pr, "glow": "", "badge": bsb, "badge_lbl": blbl})
+	pick_reroll = Button.new()
+	pick_reroll.custom_minimum_size = Vector2(0, 36)
+	pick_reroll.focus_mode = Control.FOCUS_NONE
+	pick_reroll.pressed.connect(b.reroll)
+	pick_reroll.visible = false
+	vb.add_child(pick_reroll)
 	deal_no = Button.new()
 	deal_no.text = "거래하지 않음"
 	deal_no.custom_minimum_size = Vector2(0, 40)
@@ -737,6 +758,8 @@ func show_pick(opts: Array[Dictionary], deal := "") -> void:
 		pick_title.text = "공적 Lv %d — 책략 고르기" % b.lvl
 		pick_sub.text = "공격 %d/%d · 보조 %d/%d · 진화 %d  ·  공격 Lv5 + 짝 보조 = 진화" % [T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count()]
 	deal_no.visible = deal != ""
+	pick_reroll.visible = b.rerolls > 0
+	pick_reroll.text = "다시 뽑기 (%d번 남음)" % b.rerolls
 	pick_have.text = _have_text()
 	for i in cards.size():
 		var c: Dictionary = cards[i]
@@ -1034,6 +1057,125 @@ func _forge_press() -> void:
 	if Save.upgrade_weapon(b.hero_data.id):
 		Sound.play("win", 0.4)
 	_forge_refresh()
+
+
+func _build_tal() -> void:
+	tal_panel = PanelContainer.new()
+	tal_panel.set_anchors_preset(Control.PRESET_CENTER)
+	tal_panel.custom_minimum_size = Vector2(340, 0)
+	tal_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	tal_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("f4ecd8")
+	sb.border_color = Color("3a2a1a")
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(10)
+	sb.set_content_margin_all(12)
+	tal_panel.add_theme_stylebox_override("panel", sb)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	tal_panel.add_child(vb)
+	var title := _label(18, Color("3a2a1a"), 0)
+	title.text = "재능"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(title)
+	tal_head = _label(11, Color("5a4a36"), 0)
+	tal_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tal_head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tal_head.custom_minimum_size = Vector2(316, 0)
+	vb.add_child(tal_head)
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 4)
+	vb.add_child(tabs)
+	for i in MetaData.TALENTS.size():
+		var tb := Button.new()
+		tb.custom_minimum_size = Vector2(76, 34)
+		tb.toggle_mode = true
+		tb.focus_mode = Control.FOCUS_NONE
+		tb.pressed.connect(func():
+			tal_tab = i
+			_tal_refresh())
+		tabs.add_child(tb)
+		tal_tabs.append(tb)
+	for j in 3:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		var l := _label(12, Color("3a2a1a"), 0)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(228, 54)
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(l)
+		var minus := Button.new()
+		minus.text = "−"
+		minus.custom_minimum_size = Vector2(40, 40)
+		minus.focus_mode = Control.FOCUS_NONE
+		row.add_child(minus)
+		var plus := Button.new()
+		plus.text = "+"
+		plus.custom_minimum_size = Vector2(40, 40)
+		plus.focus_mode = Control.FOCUS_NONE
+		row.add_child(plus)
+		minus.pressed.connect(func(): _tal_step(j, -1))
+		plus.pressed.connect(func(): _tal_step(j, 1))
+		vb.add_child(row)
+		tal_rows.append({"l": l, "minus": minus, "plus": plus})
+	var reset := Button.new()
+	reset.text = "모두 되돌리기(무료)"
+	reset.custom_minimum_size = Vector2(0, 38)
+	reset.pressed.connect(func():
+		Save.tal_reset()
+		_tal_refresh())
+	vb.add_child(reset)
+	var close := Button.new()
+	close.text = "닫기"
+	close.custom_minimum_size = Vector2(0, 38)
+	close.pressed.connect(func():
+		tal_panel.visible = false
+		end_tal.text = "재능 (남은 포인트 %d)" % Save.tal_left())
+	vb.add_child(close)
+	tal_panel.visible = false
+	add_child(tal_panel)
+
+
+func tal_open() -> void:
+	_tal_refresh()
+	tal_panel.visible = true
+
+
+func _tal_step(j: int, dir: int) -> void:
+	var nd: Dictionary = MetaData.TALENTS[tal_tab].nodes[j]
+	var ok := Save.tal_add(nd.k) if dir > 0 else Save.tal_sub(nd.k)
+	if ok:
+		Sound.play("accept", 0.3)
+	_tal_refresh()
+
+
+func _tal_refresh() -> void:
+	tal_head.text = "남은 포인트 %d  (받은 %d · 장수 Lv %d)\n2칸은 같은 가지 1칸에 %d점, 3칸은 1 · 2칸에 %d점 · 효과는 다음 출진부터" % [
+		Save.tal_left(), int(Save.d.pts), Save.lv(), int(MetaData.TIER_NEED[1]), int(MetaData.TIER_NEED[2])]
+	for i in tal_tabs.size():
+		var br: Dictionary = MetaData.TALENTS[i]
+		var n := 0
+		for nd in br.nodes:
+			n += Save.tal_rank(nd.k)
+		tal_tabs[i].text = "%s %d" % [br.n, n] if n > 0 else String(br.n)
+		tal_tabs[i].button_pressed = i == tal_tab
+	var B: Dictionary = MetaData.TALENTS[tal_tab]
+	for j in tal_rows.size():
+		var R: Dictionary = tal_rows[j]
+		var nd: Dictionary = B.nodes[j]
+		var r := Save.tal_rank(nd.k)
+		var open := Save.tal_open(nd.k)
+		var now := MetaData.talent_desc(nd, maxi(r, 1))
+		var txt := "%s  %d/%d\n%s" % [nd.n, r, int(nd.max), now if r > 0 else "다음: " + now]
+		if r > 0 and r < int(nd.max):
+			txt += "  (다음 " + MetaData.talent_desc(nd, r + 1) + ")"
+		if not open:
+			txt += "\n— 잠김: 아래 칸에 %d점" % int(MetaData.TIER_NEED[int(nd.tier)])
+		R.l.text = txt
+		R.l.modulate = Color(1, 1, 1, 1.0 if open else 0.5)
+		R.plus.disabled = not open or r >= int(nd.max) or Save.tal_left() <= 0
+		R.minus.disabled = r <= 0
 
 
 func _build_pause() -> void:

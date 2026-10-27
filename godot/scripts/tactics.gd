@@ -137,7 +137,7 @@ func area_mul() -> float:
 
 
 func gauge_mul() -> float:
-	return 1.0 + _per("spirit")
+	return 1.0 + _per("spirit") + b.talv("gauge")
 
 
 ## 수치 하나: 진화했으면 evo 값, 배열이면 지금 레벨 값

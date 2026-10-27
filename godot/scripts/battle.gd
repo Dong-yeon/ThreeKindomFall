@@ -121,6 +121,9 @@ var pick_deal := ""
 var deal_log: Array[Dictionary] = []
 ## 판 끝 판 밖 보상(D-232, Save.add_run이 돌려준 것 — 결과 창 · 봇 · 사람 기록)
 var meta_got := {}
+## 재능 효과(D-234, Save.tal_fx — 출진 때 한 번) · 이번 판 남은 책략 다시 뽑기
+var tal := {}
+var rerolls := 0
 ## 사람 플레이 기록(D-221 — 웹 ?playtest=1 · PC --playtest일 때만, 아니면 null) · 이 판의 seed(--seed 또는 기록이 켜졌을 때 정한 값, 그 밖엔 -1)
 var playtest: Playtest = null
 var run_seed := -1
@@ -237,10 +240,15 @@ func _ready() -> void:
 	tactics.setup(self)
 	hero = Hero.new()
 	hero.setup(self, hero_data, Stage1.START)
-	# 공유 장수 레벨(D-232, Save · MetaData.PER_LV): 최대 체력 · 공격을 조금
-	hero.max_hp = roundf(hero.max_hp * Save.hp_mul())
+	# 공유 장수 레벨(D-232, Save · MetaData.PER_LV): 최대 체력 · 공격을 조금. 재능(D-234)도 여기서
+	tal = Save.tal_fx()
+	hero.max_hp = roundf(hero.max_hp * Save.hp_mul() * (1.0 + talv("hp")))
 	hero.hp = hero.max_hp
-	hero.atk *= Save.atk_mul()
+	hero.atk *= Save.atk_mul() * (1.0 + talv("atk"))
+	rerolls = int(talv("reroll"))
+	start_march += int(talv("march"))
+	home_max *= 1.0 + talv("home")
+	home_hp = home_max
 	hero.wpn_mul = Save.weapon_mul(hero_data.id)
 	world.add_child(hero)
 	hero_min = hero.hp
@@ -281,6 +289,8 @@ func _ready() -> void:
 func _start() -> void:
 	state = "play"
 	hud.hide_tap()
+	# 재능 '출진 전 계책'(D-234): 시작하자마자 책략 고르기
+	lvl_q += int(talv("plan"))
 	Sound.music("fight", 0.3)
 	banner(Stage1.NAME, "황건 진영 3곳: 수비탑을 부숴야 진영장을 칠 수 있어요")
 
@@ -545,8 +555,13 @@ func _field_tick(dt: float) -> void:
 		_open_pick()
 
 
+## 재능 효과 값(D-234, 없으면 0)
+func talv(k: String) -> float:
+	return float(tal.get(k, 0.0))
+
+
 func gain_xp(v: float) -> void:
-	xp += v
+	xp += v * (1.0 + talv("xp"))
 	while xp >= TacticsData.xp_need(lvl):
 		xp -= TacticsData.xp_need(lvl)
 		lvl += 1
@@ -582,6 +597,16 @@ func _close_pick() -> void:
 	pick_deal = ""
 	hud.hide_pick()
 	state = "play"
+
+
+## 책략 다시 뽑기(D-234, 재능 '다시 생각'): 같은 고르기(보통 · 적장 거래)를 새 카드 3장으로
+func reroll() -> void:
+	if state != "pick" or rerolls <= 0:
+		return
+	rerolls -= 1
+	pick_opts = tactics.options(3)
+	Sound.play("accept", 0.3)
+	hud.show_pick(pick_opts, pick_deal)
 
 
 ## 적장 거래(D-230): 일기토를 피해 없이 이긴 뒤 — 같은 고르기 화면에 '적장의 병법서'로(카드를 고르면 받음, '거래하지 않음'이면 거절)
@@ -1524,7 +1549,7 @@ func _tick_blades(dt: float) -> void:
 					if e.dead:
 						who.kills += 1
 			else:
-				hurt_enemy(e, float(bl.dmg) * (1.0 + hero_data.lead_bonus if lead else 1.0))
+				hurt_enemy(e, float(bl.dmg) * (1.0 + hero_data.lead_bonus + talv("lead") if lead else 1.0))
 			n += 1
 			if n <= 6:
 				add_fx({"k": "spark", "pos": e.position + Vector2(0, -4), "t": 0.18, "a": dir.angle(), "c": bl.c})
