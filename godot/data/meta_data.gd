@@ -11,6 +11,17 @@ const PER_LV := {"hp": 0.03, "atk": 0.025, "pts": 1}
 const REWARD := {"xp_lv": 4.0, "xp_clear": 60.0, "kill": 0.02, "camp": 20.0, "lead": 30.0, "cyz": 60.0, "clear": 100.0, "lose": 0.5}
 
 
+## 출진할 수 있는 장수(D-236 장수 교체 — 군영 '장수 막사'에서 고름). 해금은 나중(지금은 둘 다 처음부터)
+const HEROES := ["res://data/heroes/guan_yu.tres", "res://data/heroes/zhang_fei.tres"]
+
+
+static func hero_path(id: String) -> String:
+	for p in HEROES:
+		if String(p).get_file().get_basename() == id:
+			return p
+	return String(HEROES[0])
+
+
 ## 대표 무기 강화(D-233, D-213 — 장수마다 따로, 전공): 강화 Lv 1당 그 장수 기본 공격 피해 + per(곱), 최대 max.
 ## 값(Lv → Lv+1) = cost_a + cost_b · Lv. 등급 이름은 grades의 [이 Lv부터, 이름] (모양은 그림 에셋 때 — 지금 날아가는 무기 색은 연격 단계를 보여 줌)
 const WEAPON := {"per": 0.08, "max": 9, "cost_a": 300, "cost_b": 200, "grades": [[0, "쇠"], [3, "옥"], [6, "금"]]}

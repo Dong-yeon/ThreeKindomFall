@@ -22,7 +22,8 @@ const VILLAGE := {"n": "탁현 마을", "pos": Vector2(690, 2590), "r": 56.0, "a
 ## 스토리 동료(D-212 · D-215): 마을 습격이 시작되면 장비(hero)가 마을 동쪽 from에서 달려와 등무를 맡음 — 장수를 호위하지 않고 자기 목표로.
 ## 체력 = 장수 데이터 max_hp × hp, 공격 = attack × atk(동료라 약하게), 받는 피해 × take. 장수급은 체력 floor 아래로 못 깎음(마무리는 출진 장수).
 ## 마을이 끝나거나(구함 · 불탐) 체력이 retreat 아래로 내려가면 exit 쪽으로 물러남
-const COMPANION := {"hero": "res://data/heroes/zhang_fei.tres", "from": Vector2(815, 2620), "exit": Vector2(835, 2640),
+## alt(D-236 장수 교체): 출진 장수가 그 동료 본인이면 대신 오는 동료
+const COMPANION := {"hero": "res://data/heroes/zhang_fei.tres", "alt": "res://data/heroes/guan_yu.tres", "from": Vector2(815, 2620), "exit": Vector2(835, 2640),
 	"hp": 6.0, "atk": 0.1, "take": 0.5, "floor": 0.25, "retreat": 0.25}
 ## 적 밀도(D-211): 들판 증원 수 · 장수를 쫓는 무리 상한에 곱하는 시간 배율 = 1 + 판 시간 / per초.
 ## 0초 값은 D-186 · D-189 손잡이 그대로 — 진영을 일찍 끝내도 들판이 점점 붐벼 할 일이 남게

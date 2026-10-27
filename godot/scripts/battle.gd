@@ -225,6 +225,15 @@ var _sep_mv := PackedByteArray()
 
 
 func _ready() -> void:
+	# 출진 장수(D-236): --hero=<id>(봇 · 점검) > 저장(군영 '장수 막사') > 씬 기본(관우)
+	var hero_arg := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--hero="):
+			hero_arg = a.substr(7)
+	if hero_arg != "":
+		hero_data = load(MetaData.hero_path(hero_arg))
+	elif Save.on:
+		hero_data = Save.hero_data()
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--seed="):
 			run_seed = int(a.substr(7))
@@ -705,6 +714,9 @@ func _village_tick(dt: float) -> void:
 func _companion_come() -> void:
 	var C: Dictionary = Stage1.COMPANION
 	var hd: HeroData = load(C.hero)
+	# 출진 장수가 그 동료 본인이면 다른 동료(D-236 — 장비로 출진하면 관우가 옴)
+	if hd != null and hd.id == hero_data.id:
+		hd = load(C.alt)
 	if hd == null:
 		return
 	var at: Vector2 = C.from

@@ -4,6 +4,8 @@ extends Control
 ## 창이 열려 있는 동안 천하 지도는 걷기를 받지 않음(is_open).
 
 signal closed
+## 장수 막사(D-236)에서 출진 장수를 바꿈
+signal hero_changed(hd: HeroData)
 
 const INK := Color(0.11, 0.09, 0.07)
 
@@ -16,6 +18,8 @@ var tal_head: Label
 var tal_tab := 0
 var tal_tabs: Array[Button] = []
 var tal_rows: Array[Dictionary] = []
+var hero_panel: PanelContainer
+var hero_btns: Array[Button] = []
 
 
 func setup(hero: HeroData) -> void:
@@ -24,10 +28,92 @@ func setup(hero: HeroData) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_forge()
 	_build_tal()
+	_build_hero()
 
 
 func is_open() -> bool:
-	return forge_panel.visible or tal_panel.visible
+	return forge_panel.visible or tal_panel.visible or hero_panel.visible
+
+
+## 창 틀(가운데 · 종이색) — 장수 막사
+func _panel(w: float) -> Array:
+	var p := PanelContainer.new()
+	p.set_anchors_preset(Control.PRESET_CENTER)
+	p.custom_minimum_size = Vector2(w, 0)
+	p.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	p.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("f4ecd8")
+	sb.border_color = Color("3a2a1a")
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(10)
+	sb.set_content_margin_all(14)
+	p.add_theme_stylebox_override("panel", sb)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	p.add_child(vb)
+	return [p, vb]
+
+
+## 장수 막사(D-236): 출진할 장수 고르기 — 장수마다 체력 · 걸음 · 기본 공격 · 대표 무기(강화 Lv) · 무쌍. 고른 장수는 금빛 테두리
+func _build_hero() -> void:
+	var pv := _panel(300)
+	hero_panel = pv[0]
+	var vb: VBoxContainer = pv[1]
+	var title := _label(18, Color("3a2a1a"), 0)
+	title.text = "장수 막사 — 출진 장수"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(title)
+	var note := _label(11, Color("5a4a36"), 0)
+	note.text = "장수 레벨 · 재능은 모든 장수가 함께 써요. 무기 강화는 장수마다 따로"
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size = Vector2(272, 0)
+	vb.add_child(note)
+	for path in MetaData.HEROES:
+		var h: HeroData = load(path)
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(272, 84)
+		btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		btn.focus_mode = Control.FOCUS_NONE
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.pressed.connect(func():
+			Save.set_hero(h.id)
+			hd = h
+			hero_changed.emit(h)
+			_hero_refresh())
+		btn.set_meta("hd", h)
+		vb.add_child(btn)
+		hero_btns.append(btn)
+	var close := Button.new()
+	close.text = "닫기"
+	close.custom_minimum_size = Vector2(0, 40)
+	close.pressed.connect(func():
+		hero_panel.visible = false
+		closed.emit())
+	vb.add_child(close)
+	hero_panel.visible = false
+	add_child(hero_panel)
+
+
+func hero_open() -> void:
+	_hero_refresh()
+	hero_panel.visible = true
+
+
+func _hero_refresh() -> void:
+	for btn in hero_btns:
+		var h: HeroData = btn.get_meta("hd")
+		var on := h.id == Save.hero_id()
+		btn.text = "%s%s\n체력 %d · 걸음 %d · %s\n%s 강화 Lv %d" % [h.display_name, "  (출진)" if on else "", int(h.max_hp), int(h.move_speed),
+			h.basic.display_name if h.basic != null else "-", h.weapon_name, Save.weapon_lv(h.id)]
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color("6a5a46") if not on else Color("7a5a1a")
+		sb.border_color = Color("e2b23a") if on else Color("3a2a1a")
+		sb.set_border_width_all(3 if on else 1)
+		sb.set_corner_radius_all(8)
+		sb.set_content_margin_all(10)
+		for st in ["normal", "hover", "pressed", "focus"]:
+			btn.add_theme_stylebox_override(st, sb)
 
 
 func _label(size: int, col: Color, outline := 3) -> Label:

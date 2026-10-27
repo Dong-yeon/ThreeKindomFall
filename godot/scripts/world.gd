@@ -41,6 +41,9 @@ func _ready() -> void:
 	for a in args:
 		if a.begins_with("--shots="):
 			shot_dir = a.substr(8)
+	# 출진 장수(D-236): 저장에서
+	if Save.on:
+		hero_data = Save.hero_data()
 	tex = Sprites.sheet(hero_data.sprite_key)
 	cam = Camera2D.new()
 	add_child(cam)
@@ -94,6 +97,10 @@ func _build_ui() -> void:
 	ui.add_child(meta)
 	meta.setup(hero_data)
 	meta.closed.connect(_refresh_top)
+	meta.hero_changed.connect(func(h: HeroData):
+		hero_data = h
+		tex = Sprites.sheet(h.sprite_key)
+		_refresh_top())
 	_refresh_top()
 
 
@@ -162,7 +169,7 @@ func _refresh_sign() -> void:
 		return
 	var ok := _open(near)
 	sign_lbl.text = "%s\n%s" % [near.n, near.sub if ok else "잠김 — 1장을 평정하면"]
-	sign_btn.text = {"forge": "대장간 들어가기", "tent": "군막 들어가기", "stage1": "출진!"}.get(near.k, "살펴보기")
+	sign_btn.text = {"forge": "대장간 들어가기", "tent": "군막 들어가기", "hero": "장수 막사 들어가기", "stage1": "%s 출진!" % hero_data.display_name}.get(near.k, "살펴보기")
 	sign_btn.disabled = not ok
 
 
@@ -174,6 +181,8 @@ func _enter() -> void:
 			meta.forge_open()
 		"tent":
 			meta.tal_open()
+		"hero":
+			meta.hero_open()
 		"stage1":
 			get_tree().change_scene_to_file(BATTLE_SCENE)
 		_:
@@ -247,7 +256,7 @@ func _draw() -> void:
 	# 군영 울타리
 	draw_rect(Rect2(120, 1080, 480, 250), Color(0.3, 0.22, 0.12, 0.25))
 	draw_rect(Rect2(120, 1080, 480, 250), Color("6a4a2a"), false, 4)
-	_text(Vector2(S.x / 2, 1100), "관우의 군영", 13, Color("fff2c0"))
+	_text(Vector2(S.x / 2, 1100), "유비군 군영", 13, Color("fff2c0"))
 	for P in WorldData.PLACES:
 		_draw_place(P)
 	# 안개
@@ -305,7 +314,7 @@ func _text(at: Vector2, s: String, size: int, col: Color) -> void:
 func _world_test() -> void:
 	await get_tree().create_timer(0.3).timeout
 	_shot("world_start")
-	for k in ["forge", "tent", "stage1"]:
+	for k in ["forge", "tent", "hero", "stage1"]:
 		for P in WorldData.PLACES:
 			if P.k == k:
 				pos = P.pos + Vector2(0, 30)
@@ -315,14 +324,21 @@ func _world_test() -> void:
 			_enter()
 			await get_tree().create_timer(0.3).timeout
 			_shot("world_" + k + "_open")
+			if k == "hero":
+				# 둘째 장수로 바꿔 봄
+				meta.hero_btns[1].pressed.emit()
+				await get_tree().create_timer(0.3).timeout
+				_shot("world_hero_pick")
 			meta.forge_panel.visible = false
 			meta.tal_panel.visible = false
+			meta.hero_panel.visible = false
 	# 안개에 막히는지: 북쪽으로 3초 걸어 봄(키 대신 joy)
 	joy_on = true
 	joy_o = Vector2(180, 400)
 	joy_p = Vector2(180, 300)
 	await get_tree().create_timer(4.0).timeout
 	joy_on = false
+	print("[world] 출진 장수 %s · 저장 %s" % [hero_data.display_name, Save.hero_id()])
 	print("[world] 북쪽으로 걸은 뒤 y=%d (안개 %s · 깬 판 %d)" % [int(pos.y), "켬" if fog_on() else "걷힘", int(Save.d.clears)])
 	_shot("world_north")
 	get_tree().quit(0)

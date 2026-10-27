@@ -18,7 +18,7 @@ func _ready() -> void:
 
 
 func _fresh() -> Dictionary:
-	return {"ver": VER, "lv": 1, "xp": 0, "merit": 0, "pts": 0, "runs": 0, "clears": 0, "weapon": {}, "tal": {}}
+	return {"ver": VER, "lv": 1, "xp": 0, "merit": 0, "pts": 0, "runs": 0, "clears": 0, "weapon": {}, "tal": {}, "hero": "guan_yu"}
 
 
 func _load() -> void:
@@ -36,6 +36,8 @@ func _load() -> void:
 				if got[k] is Dictionary:
 					for h in got[k]:
 						d[k][String(h)] = int(got[k][h])
+			elif d[k] is String:
+				d[k] = String(got[k])
 			else:
 				d[k] = int(got[k])
 
@@ -48,6 +50,20 @@ func write() -> void:
 		push_warning("저장 실패: " + PATH)
 		return
 	f.store_string(JSON.stringify(d))
+
+
+## 출진 장수(D-236): 장수 id · 데이터
+func hero_id() -> String:
+	return String(d.hero)
+
+
+func hero_data() -> HeroData:
+	return load(MetaData.hero_path(hero_id())) as HeroData
+
+
+func set_hero(id: String) -> void:
+	d.hero = id
+	write()
 
 
 func lv() -> int:
