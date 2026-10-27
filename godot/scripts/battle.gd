@@ -11,6 +11,8 @@ signal finished(win: bool)
 const W := Stage1.W
 const H := Stage1.H
 const GRID := 30.0
+## 천하 지도(D-235) — 결과 창 '천하 지도로'
+const WORLD_SCENE := "res://scenes/world.tscn"
 const STICK_DEAD := 8.0
 const STICK_FULL := 50.0
 ## 화면 밖 이만큼까지는 인물을 다시 그림(장각 그림 높이 ~90px · 띄워짐 · 화면 흔들림을 덮음)

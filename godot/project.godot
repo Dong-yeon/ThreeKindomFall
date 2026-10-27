@@ -12,7 +12,7 @@ config_version=5
 
 config/name="ThreeKingdomFall"
 config/description="삼국지 액션 — 1장 전장(웹 프로토타입 v0.18 이식, 말 없음)"
-run/main_scene="res://scenes/battle.tscn"
+run/main_scene="res://scenes/world.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
