@@ -1,32 +1,54 @@
-[gd_resource type="Resource" script_class="HeroData" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="HeroData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://data/hero_data.gd" id="1_hero"]
 [ext_resource type="Script" path="res://data/basic_attack.gd" id="2_basic"]
 
 [sub_resource type="Resource" id="Basic_spear"]
 script = ExtResource("2_basic")
-display_name = "일직선 창"
+display_name = "장팔사모 삼연"
 glyph = "창"
 shape = "spear"
-cooldown = 0.9
-seek = 230.0
-mult = 6.0
+cooldown = 0.7
+seek = 200.0
+mult = 4.5
 speed = 460.0
-reach = 300.0
-width = 64.0
-thickness = 7.0
+reach = 260.0
+width = 70.0
+thickness = 9.0
 bulge = 0.0
 pierce = -1
-count = 1
-spread = 0.25
-push = 8.0
+count = 3
+spread = 0.45
+push = 10.0
 hit_stop = 0.035
 shake = 0.05
-level_desc = PackedStringArray("피해 +20%", "창이 길어져요(+15%)", "더 자주 날려요", "창 +1(두 자루)")
+level_desc = PackedStringArray("피해 +20%", "창이 길어져요(+15%)", "더 자주 찔러요", "창 +2(다섯 자루)")
 level_mult = PackedFloat32Array(1, 1.2, 1.2, 1.2, 1.2)
 level_size = PackedFloat32Array(1, 1, 1.15, 1.15, 1.15)
 level_cd = PackedFloat32Array(1, 1, 1, 0.85, 0.85)
-level_extra = PackedInt32Array(0, 0, 0, 0, 1)
+level_extra = PackedInt32Array(0, 0, 0, 0, 2)
+
+[sub_resource type="Resource" id="Basic_roar"]
+script = ExtResource("2_basic")
+display_name = "장판 호령"
+glyph = "張"
+shape = "spear"
+cooldown = 0.55
+seek = 230.0
+mult = 6.5
+speed = 500.0
+reach = 300.0
+width = 90.0
+thickness = 12.0
+bulge = 0.0
+pierce = -1
+count = 5
+spread = 0.42
+push = 18.0
+hit_stop = 0.04
+shake = 0.07
+tint = Color(0.95, 0.45, 0.35, 1)
+tint2 = Color(0.55, 0.15, 0.1, 1)
 
 [resource]
 script = ExtResource("1_hero")
@@ -40,4 +62,11 @@ max_hp = 190.0
 attack = 10.0
 move_speed = 135.0
 radius = 12.0
+damage_reduction = 0.15
 basic = SubResource("Basic_spear")
+basic_evo = SubResource("Basic_roar")
+basic_evo_pair = "gap"
+basic_evo_desc = "창이 다섯 자루 큰 붉은 창이 돼 앞을 휩쓸어요"
+musou_name = "장판교 호통"
+musou_radius = 140.0
+musou_blast_radius = 220.0

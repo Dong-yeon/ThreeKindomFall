@@ -1,5 +1,5 @@
 # 정원지 대군 조정 확인용: run_bot_test.py를 seed 여러 개로 돌려 대군 지표를 모은다.
-# 실행: python godot/tools/army_sweep.py --seeds 1-10 --out godot/out/sweep_new [--proj <godot 폴더>] [--par 5]
+# 실행: python godot/tools/army_sweep.py --seeds 1-10 --out godot/out/sweep_new [--proj <godot 폴더>] [--par 5] [--hero zhang_fei]
 #   seed마다 원본 출력(seedN.txt)을 남기고, 끝에 표: 판 결과 · 길이 · 대군과 처음 만난 곳(본진까지 px) · 대군전 길이 · 부장 · 정원지 처치 시간.
 # 이미 있는 seedN.txt는 다시 돌리지 않음(--redo로 다시).
 import argparse, os, re, subprocess, sys, statistics
@@ -13,11 +13,11 @@ def tsec(s):
     return int(m) * 60 + int(ss)
 
 
-def run(seed, out, proj, redo):
+def run(seed, out, proj, redo, hero=''):
     path = os.path.join(out, 'seed%d.txt' % seed)
     if os.path.exists(path) and not redo:
         return
-    cmd = [sys.executable, '-X', 'utf8', os.path.join(proj, 'tools', 'run_bot_test.py'), '--seed', str(seed)]
+    cmd = [sys.executable, '-X', 'utf8', os.path.join(proj, 'tools', 'run_bot_test.py'), '--seed', str(seed)] + (['--hero', hero] if hero else [])
     r = subprocess.run(cmd, capture_output=True)
     open(path, 'wb').write(r.stdout)
 
@@ -101,6 +101,7 @@ def main():
     ap.add_argument('--proj', default=os.path.abspath(os.path.join(HERE, '..')))
     ap.add_argument('--par', type=int, default=5)
     ap.add_argument('--redo', action='store_true')
+    ap.add_argument('--hero', default='', help='출진 장수 id(D-236)')
     a = ap.parse_args()
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')
@@ -108,7 +109,7 @@ def main():
     seeds = list(range(int(lo), int(hi or lo) + 1))
     os.makedirs(a.out, exist_ok=True)
     with ThreadPoolExecutor(a.par) as ex:
-        list(ex.map(lambda s: run(s, a.out, a.proj, a.redo), seeds))
+        list(ex.map(lambda s: run(s, a.out, a.proj, a.redo, a.hero), seeds))
     agg = {}
     print('seed 모드  결과              길이   출진   첫 만남(본진까지)  대군전   처치 시간(곁에서 싸운 시간, 없으면 만남→격파)  부장 격파 자리(본진까지)')
     for s in seeds:

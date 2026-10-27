@@ -29,6 +29,7 @@ def main():
     ap.add_argument('--modes', default='normal,god')
     ap.add_argument('--max-time', type=float, default=900)
     ap.add_argument('--late-village', type=float, default=0, help='시험용(D-215): 마을 습격 뒤 이 초 동안 봇이 마을로 가지 않음(동료 혼자 버티는지)')
+    ap.add_argument('--hero', default='', help='출진 장수 id(D-236, 예: zhang_fei) — 비우면 씬 기본(관우)')
     ap.add_argument('--timeout', type=float, default=900, help='한 판에 기다릴 실제 시간(초)')
     a = ap.parse_args()
     if hasattr(sys.stdout, 'reconfigure'):
@@ -46,6 +47,8 @@ def main():
         cmd = [a.godot, '--path', PROJ, '--headless', '--fixed-fps', '60', '--', '--bot', '--seed=%d' % a.seed, '--max-time=%g' % a.max_time]
         if m == 'god':
             cmd.append('--god')
+        if a.hero:
+            cmd.append('--hero=%s' % a.hero)
         if a.late_village > 0:
             cmd.append('--late-village=%g' % a.late_village)
         procs[m] = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
