@@ -139,6 +139,9 @@ var spy: Enemy = null
 var spy_t := 0.0
 var supply: Ally = null
 var bounty: Enemy = null
+## 두목이 달아나기까지 · 수레 매복 다음까지(D-231)
+var bounty_t := 0.0
+var ambush_t := 0.0
 ## 작은 사건 기록(봇 [small] · 사람 플레이 기록이 같이 씀): {k: spy · cart · bounty, t0, t1(-1 = 진행 중), res}
 var ev_rec: Array[Dictionary] = []
 ## 감옥에서 풀려난 의용병 수 · 본진에 닿은 수(봇 출력)
@@ -2382,6 +2385,21 @@ func _events_tick(dt: float) -> void:
 			ev_end("spy", "놓침")
 			banner("첩자가 달아났어요…", "")
 			spy = null
+	# 현상금 두목(D-231): 제한 시간이 지나면 달아남
+	if _live(bounty):
+		bounty_t -= dt
+		if bounty_t <= 0:
+			bounty.dead = true
+			add_fx({"k": "puff", "pos": bounty.position, "t": 0.4})
+			note("두목 놓침")
+			ev_end("bounty", "놓침")
+			banner("%s%s 달아났어요…" % [bounty.ename, jo(bounty.ename, "이", "가")], "")
+			bounty = null
+	# 보급 수레 매복(D-231): 나와 있는 동안 gap초마다 수레 둘레에서 수레만 노리는 무리
+	if _live(supply) and supply.mode == "escort":
+		ambush_t -= dt
+		if ambush_t <= 0:
+			_cart_ambush()
 	if won or ev_i >= E.times.size() or t < float(E.times[ev_i]) or vil_st == "raid":
 		return
 	var kind: String = ev_order[ev_i % ev_order.size()]
@@ -2413,6 +2431,7 @@ func _events_tick(dt: float) -> void:
 		supply.max_hp = float(C.hp)
 		supply.hp = supply.max_hp
 		supply.spd = float(C.spd)
+		ambush_t = float(C.ambush.gap) * 0.5
 		note("보급 수레 나타남")
 		ev_rec.append({"k": "cart", "t0": t, "t1": -1.0, "res": ""})
 		banner("보급 수레가 본진으로 가요", "지켜 주면 본진에 고기만두 %d개" % int(C.buns))
@@ -2423,12 +2442,40 @@ func _events_tick(dt: float) -> void:
 		bounty.elite = true
 		bounty.ename = nm
 		bounty.r *= 1.3
+		# 닿기 피해는 체력 배율을 따르지 않게(D-231 — 등무 · 대군 부장과 같이. 전엔 × 4~7로 닿으면 한 번에 쓰러짐)
+		bounty.touch = Units.ENEMY["ytbig"].touch
 		bounty.ev_kind = "bounty"
 		bounty.aggro = 99999.0
+		bounty.pat = Stage1.ARMY.charge
+		bounty_t = float(B.limit)
 		note("현상금 두목 나타남")
 		ev_rec.append({"k": "bounty", "t0": t, "t1": -1.0, "res": ""})
-		banner("현상금이 걸린 %s!" % nm, "쓰러뜨리면 보급 상자")
+		banner("현상금이 걸린 %s!" % nm, "%d초 안에 쓰러뜨리면 보급 상자 — 돌진을 피해요" % int(B.limit))
 	Sound.play("alert", 0.4)
+
+
+## 보급 수레 매복(D-231, EVENTS.cart.ambush): 수레 둘레 r px 원 위 걸어올 수 있는 곳에서 n명이 수레만 노림
+func _cart_ambush() -> void:
+	var A: Dictionary = Stage1.EVENTS.cart.ambush
+	ambush_t = float(A.gap)
+	if flow.ver != obs_ver:
+		flow.build(obs, W, H, obs_ver)
+	var cp := supply.position
+	var f := flow.field("p", hero.position, t, 0.2)
+	var a0 := randf() * TAU
+	for da in [0.0, 0.8, -0.8, 1.6, -1.6, 2.4, -2.4, PI]:
+		var at := cp + Vector2.from_angle(a0 + da) * float(A.r)
+		at = Vector2(clampf(at.x, 24, W - 24), clampf(at.y, 24, H - 24))
+		if hit_obs(at, 14) or not flow.reach(f, flow.cell_of(at)):
+			continue
+		var m := mul_y(at.y)
+		for i in int(A.n):
+			var e := spawn("ytdash" if i < int(A.dash) else "ytb", at + Vector2(randf_range(-24, 24), randf_range(-24, 24)), m)
+			e.hunt_ally = supply
+			e.no_eng = true
+			e.aggro = 0.0
+		add_fx({"k": "ring", "pos": at, "t": 0.4, "r": 40.0, "c": Color("d9705e")})
+		return
 
 
 ## 작은 사건 끝을 기록(아직 안 끝난 같은 종류 중 가장 이른 것). res: 잡음 · 놓침 · 도착 · 부서짐 · 격파
@@ -2727,10 +2774,10 @@ func field_target() -> Dictionary:
 	# 작은 사건: 첩자(제한 시간) · 보급 수레가 공격받을 때 · 가까운 현상금 두목
 	if _live(spy):
 		return {"pos": spy.position, "n": "황건 첩자 잡기 (남은 %d초)" % ceili(spy_t), "warn": true}
-	if _live(supply) and supply.mode == "escort" and _enemy_near(supply.position, 40.0):
+	if _live(supply) and supply.mode == "escort" and _enemy_near(supply.position, 120.0):
 		return {"pos": supply.position, "n": "보급 수레 지키기 (%d%%)" % ceili(supply.hp / supply.max_hp * 100), "warn": true}
 	if _live(bounty) and hero.position.distance_to(bounty.position) < 500:
-		return {"pos": bounty.position, "n": "현상금 · %s 격파" % bounty.ename, "warn": true}
+		return {"pos": bounty.position, "n": "현상금 · %s 격파 (남은 %d초)" % [bounty.ename, ceili(bounty_t)], "warn": true}
 	var best := focus_camp()
 	if not best.is_empty():
 		var total: int = best.tws.size()
