@@ -119,6 +119,8 @@ var pick_n := 0
 var deal_q: Array[String] = []
 var pick_deal := ""
 var deal_log: Array[Dictionary] = []
+## 판 끝 판 밖 보상(D-232, Save.add_run이 돌려준 것 — 결과 창 · 봇 · 사람 기록)
+var meta_got := {}
 ## 사람 플레이 기록(D-221 — 웹 ?playtest=1 · PC --playtest일 때만, 아니면 null) · 이 판의 seed(--seed 또는 기록이 켜졌을 때 정한 값, 그 밖엔 -1)
 var playtest: Playtest = null
 var run_seed := -1
@@ -235,6 +237,10 @@ func _ready() -> void:
 	tactics.setup(self)
 	hero = Hero.new()
 	hero.setup(self, hero_data, Stage1.START)
+	# 공유 장수 레벨(D-232, Save · MetaData.PER_LV): 최대 체력 · 공격을 조금
+	hero.max_hp = roundf(hero.max_hp * Save.hp_mul())
+	hero.hp = hero.max_hp
+	hero.atk *= Save.atk_mul()
 	world.add_child(hero)
 	hero_min = hero.hp
 	for c in Stage1.CAMPS:
@@ -1991,6 +1997,12 @@ func finish(win: bool, why: String) -> void:
 		return
 	state = "end" if win else "dead"
 	end_why = why
+	# 판 밖 성장(D-232): 경험 · 전공을 더하고 저장(봇은 Save.on이 꺼져 저장 안 함 — 보상 계산은 같음)
+	var leads := 0
+	for u in army:
+		if float(u.kill_t) >= 0:
+			leads += 1
+	meta_got = Save.add_run(win, lvl, kills, cap_n, leads, cyz_dead)
 	joy_on = false
 	Sound.music("")
 	Sound.play("win" if win else "lose", 0.45)

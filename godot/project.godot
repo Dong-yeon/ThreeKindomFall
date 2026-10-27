@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 Sound="*res://scripts/sound.gd"
+Save="*res://scripts/save.gd"
 
 [display]
 

@@ -130,6 +130,8 @@ func _build(win: bool) -> Dictionary:
 	d.lv = lvd
 	d.lv_end = b.lvl
 	d.picks = b.pick_n
+	# 판 밖(D-232): 출진 때 장수 레벨 · 이번 판 보상
+	d.meta = {"lv": int(b.meta_got.get("lv0", Save.lv())), "got": b.meta_got}
 	# 적장 거래(D-230): 시각 · 적장 · 받음 · 고른 것
 	var deals: Array = []
 	for D in b.deal_log:

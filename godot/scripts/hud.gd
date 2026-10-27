@@ -134,6 +134,9 @@ func setup(battle: Battle) -> void:
 	end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(end_title)
 	end_stats = _label(13, Color("3a2a1a"), 0)
+	# 진화가 여럿이면 한 줄이 길어 패널이 화면 밖으로 넓어졌음(D-232) — 폭을 정하고 줄바꿈
+	end_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	end_stats.custom_minimum_size = Vector2(300, 0)
 	vb.add_child(end_stats)
 	var retry := Button.new()
 	retry.text = "다시 하기"
@@ -318,6 +321,13 @@ func show_end() -> void:
 	if win and b.siege != null and b.siege.beast_t >= 0:
 		# 첫 사신수 해방(D-207 — 3장)
 		end_stats.text += "\n사신수   %s 해방" % SiegeData.BEAST.n
+	# 판 밖 보상(D-232)
+	var M: Dictionary = b.meta_got
+	if not M.is_empty():
+		end_stats.text += "\n\n장수 Lv %d   경험 +%d (%d/%d)" % [int(M.lv), int(M.xp), int(M.xp_now), int(M.need)]
+		if int(M.lv) > int(M.lv0):
+			end_stats.text += "\n레벨 업!   재능 포인트 +%d" % int(M.pts)
+		end_stats.text += "\n전공 +%d   (가진 전공 %d)" % [int(M.merit), int(Save.d.merit)]
 	if pt_lbl != null:
 		pt_lbl.text = b.playtest.summary()
 	end_panel.visible = true
