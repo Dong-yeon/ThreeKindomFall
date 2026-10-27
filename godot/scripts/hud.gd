@@ -42,6 +42,11 @@ var pt_edit: TextEdit
 var _pt_wait := 0.0
 var end_title: Label
 var end_stats: Label
+var end_retry: Button
+## 대장간(D-233): 결과 창 '대장간' → 대표 무기 강화 창(천하 지도가 생기면 거기 대장간으로 옮김)
+var forge_panel: PanelContainer
+var forge_info: Label
+var forge_go: Button
 var vignette: GradientTexture2D
 var slots_ctl: Control
 var pick_panel: PanelContainer
@@ -138,13 +143,20 @@ func setup(battle: Battle) -> void:
 	end_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	end_stats.custom_minimum_size = Vector2(300, 0)
 	vb.add_child(end_stats)
+	var forge := Button.new()
+	forge.text = "대장간 — %s 강화" % b.hero_data.weapon_name
+	forge.custom_minimum_size = Vector2(0, 40)
+	forge.pressed.connect(forge_open)
+	vb.add_child(forge)
 	var retry := Button.new()
 	retry.text = "다시 하기"
 	retry.custom_minimum_size = Vector2(0, 44)
 	retry.pressed.connect(func(): b.get_tree().reload_current_scene())
 	vb.add_child(retry)
+	end_retry = retry
 	end_panel.visible = false
 	add_child(end_panel)
+	_build_forge()
 	_build_pause()
 	if b.playtest != null:
 		_build_playtest()
@@ -894,7 +906,7 @@ func _build_playtest() -> void:
 	pt_edit.visible = false
 	end_vb.add_child(pt_edit)
 	# '다시 하기'는 맨 아래에
-	end_vb.move_child(end_vb.get_child(2), end_vb.get_child_count() - 1)
+	end_vb.move_child(end_retry, end_vb.get_child_count() - 1)
 
 
 func flash_bored() -> void:
@@ -955,6 +967,73 @@ func _pt_fallback() -> void:
 func _pt_note(s: String) -> void:
 	pt_msg.text = s
 	pt_msg.visible = true
+
+
+## 대장간(D-233): 대표 무기 강화 Lv · 등급 · 기본 공격 피해 보정 · 값(전공), '강화' · '닫기'
+func _build_forge() -> void:
+	forge_panel = PanelContainer.new()
+	forge_panel.set_anchors_preset(Control.PRESET_CENTER)
+	forge_panel.custom_minimum_size = Vector2(280, 0)
+	forge_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	forge_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("f4ecd8")
+	sb.border_color = Color("3a2a1a")
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(10)
+	sb.set_content_margin_all(18)
+	forge_panel.add_theme_stylebox_override("panel", sb)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 12)
+	forge_panel.add_child(vb)
+	var title := _label(18, Color("3a2a1a"), 0)
+	title.text = "대장간"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(title)
+	forge_info = _label(13, Color("3a2a1a"), 0)
+	forge_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	forge_info.custom_minimum_size = Vector2(244, 0)
+	vb.add_child(forge_info)
+	forge_go = Button.new()
+	forge_go.custom_minimum_size = Vector2(0, 44)
+	forge_go.pressed.connect(_forge_press)
+	vb.add_child(forge_go)
+	var close := Button.new()
+	close.text = "닫기"
+	close.custom_minimum_size = Vector2(0, 40)
+	close.pressed.connect(func(): forge_panel.visible = false)
+	vb.add_child(close)
+	forge_panel.visible = false
+	add_child(forge_panel)
+
+
+func forge_open() -> void:
+	_forge_refresh()
+	forge_panel.visible = true
+
+
+func _forge_refresh() -> void:
+	var W: Dictionary = MetaData.WEAPON
+	var id: String = b.hero_data.id
+	var lv := Save.weapon_lv(id)
+	var per := float(W.per) * 100.0
+	var txt := "%s의 %s\n%s · 강화 Lv %d / %d\n기본 공격 피해 +%d%%" % [b.hero_data.display_name, b.hero_data.weapon_name, MetaData.weapon_grade(lv), lv, int(W.max), roundi(per * lv)]
+	if lv < int(W.max):
+		var up := MetaData.weapon_grade(lv + 1)
+		txt += " → +%d%%%s" % [roundi(per * (lv + 1)), "  (%s 등급!)" % up if up != MetaData.weapon_grade(lv) else ""]
+		forge_go.text = "강화 — 전공 %d" % MetaData.weapon_cost(lv)
+		forge_go.disabled = int(Save.d.merit) < MetaData.weapon_cost(lv)
+	else:
+		forge_go.text = "더 강화할 수 없어요"
+		forge_go.disabled = true
+	txt += "\n\n가진 전공 %d" % int(Save.d.merit)
+	forge_info.text = txt
+
+
+func _forge_press() -> void:
+	if Save.upgrade_weapon(b.hero_data.id):
+		Sound.play("win", 0.4)
+	_forge_refresh()
 
 
 func _build_pause() -> void:

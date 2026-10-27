@@ -241,6 +241,7 @@ func _ready() -> void:
 	hero.max_hp = roundf(hero.max_hp * Save.hp_mul())
 	hero.hp = hero.max_hp
 	hero.atk *= Save.atk_mul()
+	hero.wpn_mul = Save.weapon_mul(hero_data.id)
 	world.add_child(hero)
 	hero_min = hero.hp
 	for c in Stage1.CAMPS:

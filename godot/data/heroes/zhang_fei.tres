@@ -33,6 +33,7 @@ script = ExtResource("1_hero")
 id = "zhang_fei"
 display_name = "장비"
 flag_glyph = "張"
+weapon_name = "장팔사모"
 sprite_key = "zf"
 sprite_size = 30.0
 max_hp = 190.0

@@ -1,5 +1,5 @@
 extends Node
-## 저장(자동 로드 'Save', D-232): 판 밖 성장 — 공유 장수 레벨 · 경험 · 전공 · 재능 포인트 · 판 수. user://save.json 한 파일(웹은 브라우저 저장소).
+## 저장(자동 로드 'Save', D-232): 판 밖 성장 — 공유 장수 레벨 · 경험 · 전공 · 재능 포인트 · 판 수 · 장수별 대표 무기 강화(D-233). user://save.json 한 파일(웹은 브라우저 저장소).
 ## 봇(--bot)은 읽지도 쓰지도 않음(판마다 같은 Lv1로 — 봇 지표가 저장에 따라 흔들리지 않게). 봇에 저장을 쓰려면 --save.
 
 const PATH := "user://save.json"
@@ -18,7 +18,7 @@ func _ready() -> void:
 
 
 func _fresh() -> Dictionary:
-	return {"ver": VER, "lv": 1, "xp": 0, "merit": 0, "pts": 0, "runs": 0, "clears": 0}
+	return {"ver": VER, "lv": 1, "xp": 0, "merit": 0, "pts": 0, "runs": 0, "clears": 0, "weapon": {}}
 
 
 func _load() -> void:
@@ -30,7 +30,13 @@ func _load() -> void:
 	var got = JSON.parse_string(f.get_as_text())
 	if got is Dictionary:
 		for k in d:
-			if got.has(k):
+			if not got.has(k):
+				continue
+			if d[k] is Dictionary:
+				if got[k] is Dictionary:
+					for h in got[k]:
+						d[k][String(h)] = int(got[k][h])
+			else:
 				d[k] = int(got[k])
 
 
@@ -55,6 +61,25 @@ func hp_mul() -> float:
 
 func atk_mul() -> float:
 	return 1.0 + float(MetaData.PER_LV.atk) * (lv() - 1)
+
+
+## 대표 무기 강화(D-233): 장수 id별 강화 Lv · 기본 공격 피해 배율 · 강화(전공이 모자라거나 최대면 false)
+func weapon_lv(id: String) -> int:
+	return int(d.weapon.get(id, 0))
+
+
+func weapon_mul(id: String) -> float:
+	return 1.0 + float(MetaData.WEAPON.per) * weapon_lv(id)
+
+
+func upgrade_weapon(id: String) -> bool:
+	var lv := weapon_lv(id)
+	if lv >= int(MetaData.WEAPON.max) or int(d.merit) < MetaData.weapon_cost(lv):
+		return false
+	d.merit = int(d.merit) - MetaData.weapon_cost(lv)
+	d.weapon[id] = lv + 1
+	write()
+	return true
 
 
 ## 판 끝 보상을 더하고 저장. 돌려주는 것: {xp, merit, lv0, lv, pts(이번에 받은), xp_now, need}

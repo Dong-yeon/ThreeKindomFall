@@ -506,6 +506,16 @@ func _on_finished(win: bool) -> void:
 	_log("WIN" if win else "LOSE(%s)" % b.end_why)
 	await get_tree().create_timer(1.2).timeout
 	_shot("end")
+	# 대장간(D-233): 스크린샷이면 강화 창을 열어 한 번 누름(전공이 모자라면 못 누름)
+	if shot_dir != "":
+		b.hud.forge_open()
+		await get_tree().create_timer(0.3).timeout
+		_shot("forge")
+		if not b.hud.forge_go.disabled:
+			b.hud.forge_go.pressed.emit()
+			await get_tree().create_timer(0.3).timeout
+			_shot("forge_up")
+		print("[forge] %s 강화 Lv %d · 가진 전공 %d" % [b.hero_data.weapon_name, Save.weapon_lv(b.hero_data.id), int(Save.d.merit)])
 	_result("clear" if win else "lose_" + b.end_why)
 	_quit(0 if win else 1)
 

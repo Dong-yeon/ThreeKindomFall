@@ -7,6 +7,8 @@ extends Resource
 @export var display_name := "관우"
 ## 깃발 글자(본진·점령한 진영).
 @export var flag_glyph := "關"
+## 대표 무기 이름(D-233 — 대장간 강화 화면).
+@export var weapon_name := "청룡언월도"
 
 @export_group("그림")
 ## assets/bb/<키>.png (tools/bb_export.py가 만듦).

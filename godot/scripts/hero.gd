@@ -12,6 +12,8 @@ const GOLD := [Color("fff2b0"), Color("e2a83a")]
 
 var data: HeroData
 var atk := 10.0
+## 대표 무기 강화(D-233, Save.weapon_mul): 기본 공격 피해에만 곱함
+var wpn_mul := 1.0
 var spd := 150.0
 var inv := 0.0
 var stun := 0.0
@@ -111,7 +113,7 @@ func attack_tick(dt: float) -> void:
 	var st := cb_stage()
 	var a := (tg.position - position).angle()
 	face = Vector2.from_angle(a)
-	var dmg: float = power() * A.mult * float(A.at_level(A.level_mult, lv, 1.0)) * CB_MUL[st]
+	var dmg: float = power() * A.mult * float(A.at_level(A.level_mult, lv, 1.0)) * CB_MUL[st] * wpn_mul
 	var size: float = (1.0 + 0.06 * (st - 1)) * float(A.at_level(A.level_size, lv, 1.0)) * T.area_mul()
 	var col: Array = [A.tint, A.tint2] if A.tint.a > 0 else CB_COL[st]
 	var n: int = A.count + int(A.at_level(A.level_extra, lv, 0))
