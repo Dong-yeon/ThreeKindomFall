@@ -68,6 +68,10 @@ var gap_mul := 1.0
 var raid := false
 ## 유비만 노림(본진 기습 돌격병, D-209)
 var hunt_lb := false
+## 보급 수레만 노림(작은 사건 매복, D-231)
+var hunt_ally: Unit = null
+## 첩자 연막(D-231): 다음 연막까지
+var blink_cd := 0.0
 ## 몰려오는 무리(Stage1.SURGE)에서 나옴 — 기록용(처치 · 받은 피해를 따로 셈)
 var surge := false
 ## 호위병(D-205): 따라다니는 진영장 · 진영장에서 떨어진 자리(장수가 멀면 그 자리로)
@@ -227,6 +231,10 @@ func tick(dt: float) -> void:
 	elif hunt_lb and Unit.alive(b.liubei):
 		aim = b.liubei.position
 		key = "lb"
+		at_hero = false
+	elif hunt_ally != null and Unit.alive(hunt_ally):
+		aim = hunt_ally.position
+		key = ""
 		at_hero = false
 	elif (has_post or goal_home) and hp.distance_to(p) > aggro:
 		at_hero = false
@@ -657,6 +665,20 @@ func _flee_tick(dt: float) -> void:
 	slow_t = maxf(0.0, slow_t - dt)
 	last_pos = position
 	var away := position - b.hero.position
+	# 첩자 연막(D-231, Stage1.EVENTS.spy): 장수가 가까우면 blink_d px 멀리(벽 · 못 가는 곳이면 그대로)
+	if ev_kind == "spy":
+		var S: Dictionary = Stage1.EVENTS.spy
+		blink_cd -= dt
+		if blink_cd <= 0 and away.length() < float(S.blink_r):
+			var to := position + (away.normalized() if away.length() > 1 else Vector2(0, -1)).rotated(randf_range(-0.6, 0.6)) * float(S.blink_d)
+			to = to.clamp(Vector2(r + 6, r + 6), Vector2(Battle.W - r - 6, Battle.H - r - 6))
+			if not b.hit_obs(to, r):
+				blink_cd = float(S.blink_cd)
+				b.add_fx({"k": "puff", "pos": position, "t": 0.35})
+				position = to
+				b.add_fx({"k": "puff", "pos": position, "t": 0.25})
+				Sound.play("shoot", 0.25)
+				return
 	var v := away.normalized() if away.length() > 1 else Vector2(0, -1)
 	if stuck > 0.3:
 		v = v.orthogonal() * (slide if slide != 0.0 else 1.0)
