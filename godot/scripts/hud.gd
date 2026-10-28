@@ -324,7 +324,7 @@ func show_end() -> void:
 	for k in T.evo:
 		evos.append(T.evo_name(k))
 	end_stats.text = "걸린 시간   %s\n점령한 진영   %d / 3\n쓰러뜨린 적   %d\n최대 연격   %d\n공적 레벨   %d (공격 %d/%d · 보조 %d/%d)\n진화   %s" % [
-		_fmt_t(b.t), b.cap_n, b.kills, b.hero.cb_max, b.lvl, T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS,
+		_fmt_t(b.t), b.cap_n, b.kills, b.hero.cb_max, b.lvl, T.act_order.size(), T.act_slots(), T.pas_order.size(), T.pas_slots(),
 		", ".join(evos) if not evos.is_empty() else "없음"]
 	var vil := {"saved": "구함", "lost": "불탐", "raid": "습격 중"}
 	end_stats.text += "\n탁현 마을   %s" % vil.get(b.vil_st, "—")
@@ -580,7 +580,7 @@ func _draw_slots_impl() -> void:
 	var x := 10.0
 	for side in 2:
 		var keys: Array[String] = T.act_order if side == 0 else T.pas_order
-		var cap := TacticsData.ACT_SLOTS if side == 0 else TacticsData.PAS_SLOTS
+		var cap := T.act_slots() if side == 0 else T.pas_slots()
 		for i in cap:
 			var r := Rect2(x, y, 18, 18)
 			if i < keys.size():
@@ -739,7 +739,7 @@ func show_pick(opts: Array[Dictionary], deal := "") -> void:
 		pick_sub.text = "피해 없이 이겼어요! 최대 체력 %d%%를 내주면 책략 하나를 %d단계 올려요" % [roundi(float(D.cost) * 100), step]
 	else:
 		pick_title.text = "공적 Lv %d — 책략 고르기" % b.lvl
-		pick_sub.text = "공격 %d/%d · 보조 %d/%d · 진화 %d  ·  공격 Lv5 + 짝 보조 = 진화" % [T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count()]
+		pick_sub.text = "공격 %d/%d · 보조 %d/%d · 진화 %d  ·  공격 Lv5 + 짝 보조 = 진화" % [T.act_order.size(), T.act_slots(), T.pas_order.size(), T.pas_slots(), T.evo_count()]
 	deal_no.visible = deal != ""
 	pick_reroll.visible = b.rerolls > 0
 	pick_reroll.text = "다시 뽑기 (%d번 남음)" % b.rerolls

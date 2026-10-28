@@ -67,3 +67,6 @@ basic_evo = SubResource("Basic_dragon")
 basic_evo_pair = "mu"
 basic_evo_desc = "반달 참격이 세 줄기 큰 청룡 참격이 돼요"
 musou_name = "무쌍 난무"
+rule_name = "기세"
+rule_desc = "멈춰 서 있으면 1초에 걸쳐 기본 공격 피해가 +40%까지(움직이면 사라짐)"
+still_power = 0.4

@@ -613,7 +613,7 @@ func _result(status: String) -> void:
 	print("[picks] " + " · ".join(T.history))
 	print("[result] status=%s time=%.1f kills=%d max_combo=%d cap=%d hero_hp=%d home=%d allies=%d level=%d act=%d/%d pas=%d/%d evos=%d picks=%d dist=%d still=%d min_hp=%d near=%.1f hits_pm=%.1f orbs=%d errors=%d warnings=%d" % [
 		status, b.t, b.kills, h.cb_max, b.cap_n, ceili(h.hp), ceili(b.home_hp / b.home_max * 100), b.allies.size(), b.lvl,
-		T.act_order.size(), TacticsData.ACT_SLOTS, T.pas_order.size(), TacticsData.PAS_SLOTS, T.evo_count(), T.history.size(), int(_dist), int(_still / maxf(b.t, 1.0) * 100.0), int(b.hero_min), _near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0), _errs.lines.size(), _errs.warnings])
+		T.act_order.size(), T.act_slots(), T.pas_order.size(), T.pas_slots(), T.evo_count(), T.history.size(), int(_dist), int(_still / maxf(b.t, 1.0) * 100.0), int(b.hero_min), _near_sum / maxf(_near_t, 0.01), h.hits_taken / maxf(b.t / 60.0, 0.01), int(b.xp_picked / maxf(b.xp_dropped, 1.0) * 100.0), _errs.lines.size(), _errs.warnings])
 
 
 const SMALL_N := {"spy": "첩자", "cart": "수레", "bounty": "두목"}

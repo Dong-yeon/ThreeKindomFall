@@ -35,6 +35,18 @@ extends Resource
 @export var basic_evo_pair := "mu"
 @export var basic_evo_desc := ""
 
+@export_group("장수 규칙(D-238, D-216 4)")
+## 장수마다 다른 판 규칙(데이터로만 — 장수 전용 코드 없음). 장수 막사 창에 이름 · 설명
+@export var rule_name := ""
+@export var rule_desc := ""
+## 멈춰 선 지 still_time초에 걸쳐 기본 공격 피해 + still_power까지(움직이면 0)
+@export var still_power := 0.0
+@export var still_time := 1.0
+## 공격 책략 칸 수 더하기(음수면 적음, 기본 공격 칸 포함 TacticsData.ACT_SLOTS + 이것)
+@export var act_slots_delta := 0
+## 기본 공격 피해 배율
+@export var basic_mul := 1.0
+
 @export_group("무쌍")
 @export var musou_name := "무쌍 난무"
 @export var musou_time := 2.3

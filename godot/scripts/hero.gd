@@ -113,7 +113,7 @@ func attack_tick(dt: float) -> void:
 	var st := cb_stage()
 	var a := (tg.position - position).angle()
 	face = Vector2.from_angle(a)
-	var dmg: float = power() * A.mult * float(A.at_level(A.level_mult, lv, 1.0)) * CB_MUL[st] * wpn_mul
+	var dmg: float = power() * A.mult * float(A.at_level(A.level_mult, lv, 1.0)) * CB_MUL[st] * wpn_mul * rule_mul()
 	var size: float = (1.0 + 0.06 * (st - 1)) * float(A.at_level(A.level_size, lv, 1.0)) * T.area_mul()
 	var col: Array = [A.tint, A.tint2] if A.tint.a > 0 else CB_COL[st]
 	var n: int = A.count + int(A.at_level(A.level_extra, lv, 0))
@@ -121,6 +121,14 @@ func attack_tick(dt: float) -> void:
 		battle.launch_blade(position, a + (i - (n - 1) / 2.0) * A.spread, A, dmg, size, col)
 	Sound.play("shoot", 0.22)
 	cb_t = A.cooldown * float(A.at_level(A.level_cd, lv, 1.0)) / (1.0 + 0.1 * (st - 1))
+
+
+## 장수 규칙(D-238): 기본 공격 피해 배율 × 멈춰 선 기세(still_time초에 걸쳐 + still_power까지)
+func rule_mul() -> float:
+	var m := data.basic_mul
+	if data.still_power > 0:
+		m *= 1.0 + data.still_power * clampf(still / maxf(data.still_time, 0.01), 0.0, 1.0)
+	return m
 
 
 ## 공격력(무력 책략 포함)
@@ -229,6 +237,9 @@ func _draw() -> void:
 
 
 func _draw_impl() -> void:
+	# 장수 규칙 '기세'(D-238): 다 차면 발밑에 금빛 고리
+	if data.still_power > 0 and still >= data.still_time:
+		draw_arc(Vector2(0, 4), 20, 0, TAU, 32, Color(1.0, 0.82, 0.35, 0.8), 2.0)
 	if musou_t > 0:
 		# 금빛은 무적인 동안 짙고, 무적이 끝나면 흐려짐(D-193)
 		var ga := 1.0 if musou_guard() else 0.35

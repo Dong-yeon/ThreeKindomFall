@@ -72,7 +72,7 @@ func _build_hero() -> void:
 	for path in MetaData.HEROES:
 		var h: HeroData = load(path)
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(272, 84)
+		btn.custom_minimum_size = Vector2(272, 120)
 		btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		btn.focus_mode = Control.FOCUS_NONE
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -104,8 +104,8 @@ func _hero_refresh() -> void:
 	for btn in hero_btns:
 		var h: HeroData = btn.get_meta("hd")
 		var on := h.id == Save.hero_id()
-		btn.text = "%s%s\n체력 %d · 걸음 %d · %s\n%s 강화 Lv %d" % [h.display_name, "  (출진)" if on else "", int(h.max_hp), int(h.move_speed),
-			h.basic.display_name if h.basic != null else "-", h.weapon_name, Save.weapon_lv(h.id)]
+		btn.text = "%s%s\n체력 %d · 걸음 %d · %s\n%s 강화 Lv %d\n규칙 '%s' — %s" % [h.display_name, "  (출진)" if on else "", int(h.max_hp), int(h.move_speed),
+			h.basic.display_name if h.basic != null else "-", h.weapon_name, Save.weapon_lv(h.id), h.rule_name, h.rule_desc]
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = Color("6a5a46") if not on else Color("7a5a1a")
 		sb.border_color = Color("e2b23a") if on else Color("3a2a1a")

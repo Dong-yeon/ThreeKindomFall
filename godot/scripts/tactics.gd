@@ -32,6 +32,15 @@ func setup(battle: Battle) -> void:
 
 # ─────────── 이름 · 짝 ───────────
 
+## 칸 수(D-238 장수 규칙 — HeroData.act_slots_delta)
+func act_slots() -> int:
+	return TacticsData.ACT_SLOTS + b.hero_data.act_slots_delta
+
+
+func pas_slots() -> int:
+	return TacticsData.PAS_SLOTS
+
+
 func is_act(k: String) -> bool:
 	return k == "basic" or TacticsData.ACT.has(k)
 
@@ -163,14 +172,14 @@ func options(n := 3) -> Array[Dictionary]:
 			res.append({"k": k, "evo": true})
 		elif level(k) < TacticsData.MAX_LV:
 			pool.append({"k": k, "w": 3.0})
-	if act_order.size() < TacticsData.ACT_SLOTS:
+	if act_order.size() < act_slots():
 		for k in TacticsData.ACT:
 			if not lv.has(k):
 				pool.append({"k": k, "w": 2.0, "new": true})
 	for k in pas_order:
 		if level(k) < TacticsData.MAX_LV:
 			pool.append({"k": k, "w": 2.0})
-	if pas_order.size() < TacticsData.PAS_SLOTS:
+	if pas_order.size() < pas_slots():
 		for k in TacticsData.PAS:
 			if not lv.has(k):
 				pool.append({"k": k, "w": 1.6, "new": true})
