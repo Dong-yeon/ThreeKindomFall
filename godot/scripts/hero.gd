@@ -189,6 +189,8 @@ func hurt(d: float, src := "기타") -> float:
 	# 재능 '투지'(D-234): 체력 30% 아래면 덜 아픔
 	if hp < max_hp * 0.3:
 		d *= 1.0 - battle.talv("grit")
+	# 장비 '철갑'(D-240): 받는 피해 −
+	d *= 1.0 - battle.talv("dr")
 	var got := minf(d, hp)
 	battle.hurt_log[src] = float(battle.hurt_log.get(src, 0.0)) + got
 	battle.last_hurt = src

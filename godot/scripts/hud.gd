@@ -284,7 +284,7 @@ func _refresh_impl() -> void:
 		_playtest_tick()
 	var h := b.hero
 	var T := b.field_target()
-	var title := "%s · %s · 공적 Lv %d" % [String(b.ch.name), _fmt_t(b.t), b.lvl]
+	var title := "%s · %s · 공적 Lv %d%s" % [String(b.ch.name), _fmt_t(b.t), b.lvl, " · 짐 %d(우물에!)" % b.carry.size() if not b.carry.is_empty() else ""]
 	if title_lbl.text != title:
 		title_lbl.text = title
 	var goal := "목표  " + String(T.n)
@@ -339,6 +339,18 @@ func show_end() -> void:
 		if int(M.lv) > int(M.lv0):
 			end_stats.text += "\n레벨 업!   재능 포인트 +%d" % int(M.pts)
 		end_stats.text += "\n전공 +%d   (가진 전공 %d)" % [int(M.merit), int(Save.d.merit)]
+	# 장비(D-240)
+	var G: Dictionary = b.gear_got
+	if not G.is_empty() and (not G.new.is_empty() or int(G.dup) > 0 or int(G.lost) > 0):
+		var names: Array[String] = []
+		for id in G.new:
+			names.append(String(GearData.ITEMS[id].n))
+		var gl := "장비  " + (", ".join(names) + " (창고로)" if not names.is_empty() else "")
+		if int(G.dup) > 0:
+			gl += "  이미 있는 %d개 → 전공 +%d" % [int(G.dup), int(G.merit)]
+		if int(G.lost) > 0:
+			gl += "  잃은 짐 %d개" % int(G.lost)
+		end_stats.text += "\n" + gl
 	if pt_lbl != null:
 		pt_lbl.text = b.playtest.summary()
 	end_panel.visible = true

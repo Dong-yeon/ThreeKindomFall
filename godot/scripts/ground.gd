@@ -31,8 +31,19 @@ func _draw_impl() -> void:
 	if b.siege != null:
 		b.siege.draw_ground(self, V)
 	_arena(V)
+	_well(V)
 	for dr in b.drops:
 		var p: Vector2 = dr.pos
+		if dr.get("k", "bun") == "gear":
+			# 장비 꾸러미(D-240): 푸른 보따리 + 매듭, 둘레가 반짝임
+			var bob := sin(b.t * 4) * 2
+			var q := p + Vector2(0, bob)
+			draw_circle(p + Vector2(0, 9), 10, Color(0, 0, 0, 0.2))
+			draw_arc(q, 16 + sin(b.t * 6) * 2, 0, TAU, 32, Color(0.42, 0.75, 0.88, 0.6), 2)
+			draw_circle(q, 10, Color("3a6ab8"))
+			draw_circle(q, 10, Color("1a2a4a"), false, 1.5)
+			draw_rect(Rect2(q + Vector2(-3, -13), Vector2(6, 5)), Color("e8d090"))
+			continue
 		if dr.get("k", "bun") == "bomb":
 			# 폭탄(D-216): 검은 공 + 타는 심지
 			var bob := sin(b.t * 5) * 2
@@ -209,3 +220,23 @@ func _arena(V: Rect2) -> void:
 			continue
 		draw_rect(Rect2(q + Vector2(-2.5, -12), Vector2(5, 14)), Color("6a4a20"))
 		draw_rect(Rect2(q + Vector2(-2.5, -12), Vector2(5, 3)), Color("a8743a"))
+
+
+## 우물(D-240, GearData.WELL): 돌 테두리 + 물 + 지붕 기둥, 짐을 들고 있으면 둘레가 깜빡임
+func _well(V: Rect2) -> void:
+	var W: Dictionary = GearData.WELL
+	var p: Vector2 = W.pos
+	if not V.grow(40).has_point(p):
+		return
+	if not b.carry.is_empty():
+		draw_arc(p, float(W.r), 0, TAU, 40, Color(0.42, 0.75, 0.88, 0.4 + 0.3 * sin(b.t * 6)), 3)
+	draw_circle(p + Vector2(0, 6), 18, Color(0, 0, 0, 0.2))
+	draw_circle(p, 16, Color("8a8478"))
+	draw_circle(p, 11, Color("3a6a98"))
+	draw_circle(p, 16, Color("3a3024"), false, 2)
+	for dx in [-15.0, 15.0]:
+		draw_line(p + Vector2(dx, 0), p + Vector2(dx, -26), Color("6a4a2a"), 3)
+	draw_line(p + Vector2(-19, -26), p + Vector2(19, -26), Color("8a5a2a"), 4)
+	var f := Fonts.small()
+	draw_string_outline(f, p + Vector2(-30, 30), "우물", HORIZONTAL_ALIGNMENT_CENTER, 60, 10, 3, Color(0.11, 0.09, 0.07))
+	draw_string(f, p + Vector2(-30, 30), "우물", HORIZONTAL_ALIGNMENT_CENTER, 60, 10, Color("e8f0f8"))

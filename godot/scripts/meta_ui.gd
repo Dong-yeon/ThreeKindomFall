@@ -20,6 +20,10 @@ var tal_tabs: Array[Button] = []
 var tal_rows: Array[Dictionary] = []
 var hero_panel: PanelContainer
 var hero_btns: Array[Button] = []
+## 창고(D-240): 장비 끼우기 · 빼기
+var gear_panel: PanelContainer
+var gear_head: Label
+var gear_btns: Array[Button] = []
 
 
 func setup(hero: HeroData) -> void:
@@ -29,10 +33,80 @@ func setup(hero: HeroData) -> void:
 	_build_forge()
 	_build_tal()
 	_build_hero()
+	_build_gear()
 
 
 func is_open() -> bool:
-	return forge_panel.visible or tal_panel.visible or hero_panel.visible
+	return forge_panel.visible or tal_panel.visible or hero_panel.visible or gear_panel.visible
+
+
+## 창고(D-240, GearData): 갑옷 1칸 · 유물 칸(장수 Lv), 장비마다 버튼(누르면 끼우기 · 빼기, 없는 건 흐리게)
+func _build_gear() -> void:
+	var pv := _panel(320)
+	gear_panel = pv[0]
+	var vb: VBoxContainer = pv[1]
+	vb.add_theme_constant_override("separation", 6)
+	var title := _label(18, Color("3a2a1a"), 0)
+	title.text = "창고 — 장비"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(title)
+	gear_head = _label(11, Color("5a4a36"), 0)
+	gear_head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	gear_head.custom_minimum_size = Vector2(292, 0)
+	vb.add_child(gear_head)
+	for id in GearData.ITEMS:
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(292, 40)
+		btn.focus_mode = Control.FOCUS_NONE
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		btn.add_theme_font_size_override("font_size", 11)
+		btn.pressed.connect(func():
+			if Save.toggle_gear(id):
+				Sound.play("accept", 0.3)
+			_gear_refresh())
+		btn.set_meta("id", id)
+		vb.add_child(btn)
+		gear_btns.append(btn)
+	var close := Button.new()
+	close.text = "닫기"
+	close.custom_minimum_size = Vector2(0, 38)
+	close.pressed.connect(func():
+		gear_panel.visible = false
+		closed.emit())
+	vb.add_child(close)
+	gear_panel.visible = false
+	add_child(gear_panel)
+
+
+func gear_open() -> void:
+	_gear_refresh()
+	gear_panel.visible = true
+
+
+func _gear_refresh() -> void:
+	var used := 0
+	for i in Save.relic_slots():
+		if String(Save.d.eq.get("r%d" % i, "")) != "":
+			used += 1
+	var arm := String(Save.d.eq.get("armor", ""))
+	gear_head.text = "갑옷 %s · 유물 %d/%d칸(장수 Lv 2 · 4에 칸이 늘어요)\n판에서 주운 장비를 본진 옆 우물에 맡기면 여기로 와요. 모든 장수가 함께 써요" % [
+		String(GearData.ITEMS[arm].n) if arm != "" else "없음(녹포)", used, Save.relic_slots()]
+	for btn in gear_btns:
+		var id: String = btn.get_meta("id")
+		var it: Dictionary = GearData.ITEMS[id]
+		var have := Save.has_gear(id)
+		var on := Save.equipped(id)
+		btn.text = "%s %s%s — %s" % ["갑옷" if it.slot == "armor" else "유물", it.n, "  (낌)" if on else ("" if have else "  (아직 없음)"), it.d]
+		btn.disabled = not have
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color("7a5a1a") if on else Color("6a5a46")
+		sb.border_color = Color("e2b23a") if on else Color("3a2a1a")
+		sb.set_border_width_all(3 if on else 1)
+		sb.set_corner_radius_all(6)
+		sb.set_content_margin_all(6)
+		for st in ["normal", "hover", "pressed", "focus"]:
+			btn.add_theme_stylebox_override(st, sb)
 
 
 ## 창 틀(가운데 · 종이색) — 장수 막사

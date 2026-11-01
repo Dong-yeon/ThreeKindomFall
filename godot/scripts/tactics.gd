@@ -130,7 +130,7 @@ func hurt_mul() -> float:
 
 
 func cd_mul() -> float:
-	return maxf(0.4, 1.0 - _per("ji"))
+	return maxf(0.4, 1.0 - _per("ji") - b.talv("cd"))
 
 
 func speed_mul() -> float:

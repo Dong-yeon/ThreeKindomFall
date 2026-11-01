@@ -18,7 +18,7 @@ func _ready() -> void:
 
 
 func _fresh() -> Dictionary:
-	return {"ver": VER, "lv": 1, "xp": 0, "merit": 0, "pts": 0, "runs": 0, "clears": 0, "weapon": {}, "tal": {}, "hero": "guan_yu", "ch": {}}
+	return {"ver": VER, "lv": 1, "xp": 0, "merit": 0, "pts": 0, "runs": 0, "clears": 0, "weapon": {}, "tal": {}, "hero": "guan_yu", "ch": {}, "gear": {}, "eq": {}}
 
 
 func _load() -> void:
@@ -35,7 +35,7 @@ func _load() -> void:
 			if d[k] is Dictionary:
 				if got[k] is Dictionary:
 					for h in got[k]:
-						d[k][String(h)] = int(got[k][h])
+						d[k][String(h)] = String(got[k][h]) if got[k][h] is String else int(got[k][h])
 			elif d[k] is String:
 				d[k] = String(got[k])
 			else:
@@ -181,6 +181,75 @@ func tal_fx() -> Dictionary:
 	for br in MetaData.TALENTS:
 		for nd in br.nodes:
 			out[nd.k] = float(nd.v) * tal_rank(nd.k)
+	return out
+
+
+## 장비(D-240, GearData): gear = {id: 1}(가진 것), eq = {"armor": id, "r0": id, "r1": …}(낀 것 — 모든 장수 공유)
+func has_gear(id: String) -> bool:
+	return d.gear.has(id)
+
+
+func relic_slots() -> int:
+	return GearData.relic_slots(lv())
+
+
+## 판에서 가져온 장비를 창고로 — 새 것 · 이미 있어 전공으로 바꾼 것
+func add_gear(ids: Array) -> Dictionary:
+	var fresh: Array[String] = []
+	var dup := 0
+	for id in ids:
+		if has_gear(id):
+			dup += 1
+		else:
+			d.gear[String(id)] = 1
+			fresh.append(String(id))
+	d.merit = int(d.merit) + dup * GearData.DUP_MERIT
+	write()
+	return {"new": fresh, "dup": dup, "merit": dup * GearData.DUP_MERIT}
+
+
+## 끼우기 · 빼기: 갑옷은 바꿔 낌(같은 걸 누르면 뺌), 유물은 빈 칸에 끼우거나(끼워져 있으면 뺌). 칸이 없으면 false
+func toggle_gear(id: String) -> bool:
+	if not has_gear(id):
+		return false
+	var it: Dictionary = GearData.ITEMS[id]
+	if it.slot == "armor":
+		d.eq["armor"] = "" if String(d.eq.get("armor", "")) == id else id
+		write()
+		return true
+	for i in 3:
+		if String(d.eq.get("r%d" % i, "")) == id:
+			d.eq["r%d" % i] = ""
+			write()
+			return true
+	for i in relic_slots():
+		if String(d.eq.get("r%d" % i, "")) == "":
+			d.eq["r%d" % i] = id
+			write()
+			return true
+	return false
+
+
+func equipped(id: String) -> bool:
+	if String(d.eq.get("armor", "")) == id:
+		return true
+	for i in relic_slots():
+		if String(d.eq.get("r%d" % i, "")) == id:
+			return true
+	return false
+
+
+## 출진 때 낀 장비 효과 합(재능과 같은 키)
+func gear_fx() -> Dictionary:
+	var out := {}
+	var ids: Array = [String(d.eq.get("armor", ""))]
+	for i in relic_slots():
+		ids.append(String(d.eq.get("r%d" % i, "")))
+	for id in ids:
+		if id == "" or not GearData.ITEMS.has(id) or not has_gear(id):
+			continue
+		for k in GearData.ITEMS[id].fx:
+			out[k] = float(out.get(k, 0.0)) + float(GearData.ITEMS[id].fx[k])
 	return out
 
 

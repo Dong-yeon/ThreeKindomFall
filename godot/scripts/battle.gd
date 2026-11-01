@@ -126,6 +126,10 @@ var meta_got := {}
 ## 재능 효과(D-234, Save.tal_fx — 출진 때 한 번) · 이번 판 남은 책략 다시 뽑기
 var tal := {}
 var rerolls := 0
+## 장비 · 우물(D-240, GearData): 주워 든 짐 · 우물에 맡긴 것 · 판 끝에 창고로 간 결과(Save.add_gear)
+var carry: Array[String] = []
+var banked: Array[String] = []
+var gear_got := {}
 ## 사람 플레이 기록(D-221 — 웹 ?playtest=1 · PC --playtest일 때만, 아니면 null) · 이 판의 seed(--seed 또는 기록이 켜졌을 때 정한 값, 그 밖엔 -1)
 var playtest: Playtest = null
 var run_seed := -1
@@ -261,6 +265,10 @@ func _ready() -> void:
 	hero.setup(self, hero_data, Stage1.START)
 	# 공유 장수 레벨(D-232, Save · MetaData.PER_LV): 최대 체력 · 공격을 조금. 재능(D-234)도 여기서
 	tal = Save.tal_fx()
+	# 낀 장비(D-240)도 같은 효과 키로 더함
+	var gfx := Save.gear_fx()
+	for k in gfx:
+		tal[k] = float(tal.get(k, 0.0)) + float(gfx[k])
 	hero.max_hp = roundf(hero.max_hp * Save.hp_mul() * (1.0 + talv("hp")))
 	hero.hp = hero.max_hp
 	hero.atk *= Save.atk_mul() * (1.0 + talv("atk"))
@@ -494,7 +502,7 @@ func _update_impl(dt: float) -> void:
 func _field_tick(dt: float) -> void:
 	var p := hero
 	var d := hero_data
-	p.spd = 0.0 if p.stun > 0 else d.move_speed * tactics.speed_mul() * (d.musou_move_mul if p.musou_t > 0 else 1.0)
+	p.spd = 0.0 if p.stun > 0 else d.move_speed * tactics.speed_mul() * (1.0 + talv("spd")) * (d.musou_move_mul if p.musou_t > 0 else 1.0)
 	if siege != null and siege.in_storm:
 		p.spd *= float(SiegeData.SORCERY.storm_slow)
 	# 공격: 무쌍 > 기본 공격(대표 무기가 날아감)
@@ -569,6 +577,10 @@ func _field_tick(dt: float) -> void:
 	tactics.tick(dt)
 	Perf.end()
 	_pickups()
+	_well_tick()
+	# 장비 '군량 수레'(D-240): 초당 회복
+	if talv("regen") > 0 and state == "play":
+		hero.hp = minf(hero.max_hp, hero.hp + talv("regen") * dt)
 	# 적장 거래(D-230)가 먼저, 그다음 레벨업: 판을 멈추고 책략 3개 중 1개 고르기(밀린 만큼 한 번씩)
 	if not deal_q.is_empty() and state == "play":
 		_open_deal(deal_q.pop_front())
@@ -1746,6 +1758,7 @@ func _on_kill(e: Enemy) -> void:
 		hero.heal(hero.max_hp * 0.15)
 		# 보급 상자(D-205): 진영장이 쓰러진 자리
 		drops.append({"k": "chest", "pos": e.position})
+		gear_drop(e.position + Vector2(30, 0), float(GearData.DROP.camp))
 		note("%s 점령" % c.n)
 		var R := camp_rect(c)
 		anchors["camp_" + c.id] = {"pos": Vector2(R.get_center().x, R.end.y + 40), "r": 260.0}
@@ -1791,6 +1804,8 @@ func _on_kill(e: Enemy) -> void:
 	if e.ev_kind != "":
 		# 작은 사건(2026-10-14): 첩자 · 현상금 두목 — 보급 상자
 		drops.append({"k": "chest", "pos": e.position})
+		if e.ev_kind == "bounty":
+			gear_drop(e.position + Vector2(30, 0), float(GearData.DROP.bounty))
 		var what := "첩자 잡음" if e.ev_kind == "spy" else "두목 격파"
 		note(what)
 		ev_end(e.ev_kind, "잡음" if e.ev_kind == "spy" else "격파")
@@ -1811,6 +1826,7 @@ func _on_kill(e: Enemy) -> void:
 		au.kill_t = t
 		au.kill_d = e.position.distance_to(home_pos)
 		drops.append({"k": "chest", "pos": e.position})
+		gear_drop(e.position + Vector2(30, 0), float(GearData.DROP.lead))
 		# 부장마다 고기만두 확정(2026-10-13 — 긴 대군전의 회복)
 		for j in int(Stage1.ARMY.bun):
 			drops.append({"k": "bun", "pos": e.position + Vector2(28, 0).rotated(j * 2.4 + 0.6), "src": "부장"})
@@ -1824,6 +1840,8 @@ func _on_kill(e: Enemy) -> void:
 		note("정원지 격파")
 		cyz_dead = true
 		cyz_dead_t = t
+		# 장 최종 보스(D-240): 장비를 곧바로 짐에(이기면 판이 끝나며 가져감)
+		gear_take(gear_pick())
 		if siege != null:
 			# 2 · 3장: 성문이 열리기 시작(D-206)
 			siege.start_gate()
@@ -1847,6 +1865,46 @@ func _on_kill(e: Enemy) -> void:
 		drops.append({"k": "bun", "pos": e.position, "src": "처치"})
 	elif r < 0.006 + MAGNET_CHANCE:
 		drops.append({"k": "magnet", "pos": e.position})
+
+
+## 장비 꾸러미(D-240, GearData): chance로 떨어뜨림 — 아직 없는 것부터(다 있으면 아무거나 — 판 끝에 전공으로)
+func gear_drop(at: Vector2, chance: float) -> void:
+	if randf() >= chance:
+		return
+	drops.append({"k": "gear", "id": gear_pick(), "pos": at})
+
+
+func gear_pick() -> String:
+	var pool: Array[String] = []
+	for id in GearData.ITEMS:
+		if not Save.has_gear(id) and not carry.has(id) and not banked.has(id):
+			pool.append(id)
+	if pool.is_empty():
+		for id in GearData.ITEMS:
+			pool.append(id)
+	return pool.pick_random()
+
+
+func gear_take(id: String) -> void:
+	carry.append(id)
+	note("장비 주움 · %s" % GearData.ITEMS[id].n)
+	banner("장비를 주웠어요 — %s!" % GearData.ITEMS[id].n, "본진 옆 우물에 맡겨야 가져갈 수 있어요(지면 잃어요)")
+	Sound.play("accept", 0.4)
+
+
+## 우물(D-240): 짐을 든 채 닿으면 맡김
+func _well_tick() -> void:
+	if carry.is_empty():
+		return
+	var W: Dictionary = GearData.WELL
+	if hero.position.distance_to(W.pos) > float(W.r):
+		return
+	banked.append_array(carry)
+	note("우물에 맡김 %d" % carry.size())
+	banner("우물에 맡겼어요 (%d)" % carry.size(), "판이 끝나면 군영 창고로 가요")
+	add_fx({"k": "ring", "pos": W.pos, "t": 0.5, "r": 60.0, "c": Color("6ac0e0")})
+	Sound.play("heal", 0.4)
+	carry.clear()
 
 
 func later(delay: float, fn: Callable) -> void:
@@ -2008,6 +2066,8 @@ func _pickups() -> void:
 			add_fx({"k": "ring", "pos": hero.position, "t": 0.6, "r": 90.0, "c": Color("f0c040")})
 		elif dr.k == "bomb":
 			_bomb_go()
+		elif dr.k == "gear":
+			gear_take(String(dr.id))
 		else:
 			hero.heal(hero.max_hp * 0.3)
 			var src: String = dr.get("src", "처치")
@@ -2059,6 +2119,12 @@ func finish(win: bool, why: String) -> void:
 	for u in army:
 		if float(u.kill_t) >= 0:
 			leads += 1
+	# 장비(D-240): 우물에 맡긴 것 + 이기면 든 짐도 창고로, 지면 짐은 잃음
+	var kept: Array = banked.duplicate()
+	if win:
+		kept.append_array(carry)
+	gear_got = Save.add_gear(kept)
+	gear_got["lost"] = 0 if win else carry.size()
 	meta_got = Save.add_run(win, lvl, kills, cap_n, leads, cyz_dead if ch.army else win, chapter)
 	joy_on = false
 	Sound.music("")

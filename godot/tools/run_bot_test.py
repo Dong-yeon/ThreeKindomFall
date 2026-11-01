@@ -64,12 +64,12 @@ def main():
             out, _ = p.communicate()
         text = out.decode('utf-8', 'replace')
         res = None
-        extra = {'slots': '-', 'evos': '-', 'picks': '-', 'phases': '-', 'events': '-', 'timeline': '-', 'evo_t': '-', 'army': '-', 'village': '-', 'hurt': '-', 'arena': '-', 'heals': '-', 'allies': '-', 'move': '-', 'small': '-', 'lb_hurt': '-', 'deal': '-', 'meta': '-'}
+        extra = {'slots': '-', 'evos': '-', 'picks': '-', 'phases': '-', 'events': '-', 'timeline': '-', 'evo_t': '-', 'army': '-', 'village': '-', 'hurt': '-', 'arena': '-', 'heals': '-', 'allies': '-', 'move': '-', 'small': '-', 'lb_hurt': '-', 'deal': '-', 'meta': '-', 'gear': '-'}
         logged, printed = [], []  # 봇의 Logger가 모은 것(파일:줄 포함) / 엔진 출력에서 찾은 것(봇이 붙기 전 오류도 잡힘)
         for line in text.splitlines():
             if line.startswith('[result]'):
                 res = dict(kv.split('=', 1) for kv in line[len('[result]'):].split())
-            elif line.startswith(('[slots]', '[evos]', '[picks]', '[phases]', '[events]', '[timeline]', '[evo_t]', '[army]', '[village]', '[hurt]', '[arena]', '[heals]', '[allies]', '[move]', '[small]', '[lb_hurt]', '[deal]', '[meta]')):
+            elif line.startswith(('[slots]', '[evos]', '[picks]', '[phases]', '[events]', '[timeline]', '[evo_t]', '[army]', '[village]', '[hurt]', '[arena]', '[heals]', '[allies]', '[move]', '[small]', '[lb_hurt]', '[deal]', '[meta]', '[gear]')):
                 tag, _, rest = line.partition(' ')
                 extra[tag.strip('[]')] = rest.strip()
             elif line.startswith('[error]'):
@@ -109,6 +109,7 @@ def main():
         print('  유비 피해 · 무리: %s' % ex['lb_hurt'])
         print('  적장 거래: %s' % ex['deal'])
         print('  판 밖: %s' % ex['meta'])
+        print('  장비: %s' % ex['gear'])
         print('  대군: %s' % ex['army'])
         print('  사건: %s' % ex['events'])
         print('  시각별 Lv: %s' % ex['timeline'])

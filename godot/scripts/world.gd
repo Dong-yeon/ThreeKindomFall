@@ -169,7 +169,7 @@ func _refresh_sign() -> void:
 		return
 	var ok := _open(near)
 	sign_lbl.text = "%s\n%s" % [near.n, near.sub if ok else "잠김 — 1장을 평정하면"]
-	sign_btn.text = {"forge": "대장간 들어가기", "tent": "군막 들어가기", "hero": "장수 막사 들어가기", "stage1": "%s 출진!" % hero_data.display_name, "stage2": "%s 출진!" % hero_data.display_name}.get(near.k, "살펴보기")
+	sign_btn.text = {"forge": "대장간 들어가기", "tent": "군막 들어가기", "hero": "장수 막사 들어가기", "gear": "창고 들어가기", "stage1": "%s 출진!" % hero_data.display_name, "stage2": "%s 출진!" % hero_data.display_name}.get(near.k, "살펴보기")
 	sign_btn.disabled = not ok
 
 
@@ -183,6 +183,8 @@ func _enter() -> void:
 			meta.tal_open()
 		"hero":
 			meta.hero_open()
+		"gear":
+			meta.gear_open()
 		"stage1", "stage2":
 			# 장(D-239): 전장이 Battle.next_chapter를 읽음
 			Battle.next_chapter = 2 if near.k == "stage2" else 1
@@ -316,7 +318,7 @@ func _text(at: Vector2, s: String, size: int, col: Color) -> void:
 func _world_test() -> void:
 	await get_tree().create_timer(0.3).timeout
 	_shot("world_start")
-	for k in ["forge", "tent", "hero", "stage1"]:
+	for k in ["forge", "tent", "hero", "gear", "stage1"]:
 		for P in WorldData.PLACES:
 			if P.k == k:
 				pos = P.pos + Vector2(0, 30)
@@ -326,6 +328,15 @@ func _world_test() -> void:
 			_enter()
 			await get_tree().create_timer(0.3).timeout
 			_shot("world_" + k + "_open")
+			if k == "gear":
+				# 가진 장비가 있으면 첫 것을 끼워 봄
+				for gb in meta.gear_btns:
+					if not gb.disabled:
+						gb.pressed.emit()
+						break
+				await get_tree().create_timer(0.3).timeout
+				_shot("world_gear_pick")
+				print("[world] 창고 가진 %s · 낀 %s" % [JSON.stringify(Save.d.gear), JSON.stringify(Save.d.eq)])
 			if k == "hero":
 				# 둘째 장수로 바꿔 봄
 				meta.hero_btns[1].pressed.emit()
@@ -334,6 +345,7 @@ func _world_test() -> void:
 			meta.forge_panel.visible = false
 			meta.tal_panel.visible = false
 			meta.hero_panel.visible = false
+			meta.gear_panel.visible = false
 	# 안개에 막히는지: 북쪽으로 3초 걸어 봄(키 대신 joy)
 	joy_on = true
 	joy_o = Vector2(180, 400)

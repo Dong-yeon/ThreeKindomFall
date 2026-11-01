@@ -217,6 +217,8 @@ func on_kill(e: Enemy) -> bool:
 			if not o.dead and o != e:
 				o.dead = true
 		b.note("%s 격파" % bshort())
+		# 장 최종 보스(D-240): 장비를 곧바로 짐에
+		b.gear_take(b.gear_pick())
 		var bn := bfull()
 		b.hit_stop = 0.15
 		b.shake = 0.5

@@ -226,6 +226,9 @@ func _bot_process() -> void:
 		if _wait_d < 0:
 			_wait_d = randf_range(900.0, 1600.0)
 		goal = Vector2(float(Stage1.ARMY.road_x), b.home_pos.y - _wait_d)
+	# 장비 짐(D-240): 일기토가 아니면 우물에 맡기러 감(사람처럼 — 지면 잃으니)
+	if not b.carry.is_empty() and not b.duel():
+		goal = GearData.WELL.pos
 	if late_vil > 0 and b.vil_st == "raid" and b.t - b.vil_t0 < late_vil:
 		if _vil_hold == Vector2.INF:
 			_vil_hold = h.position
@@ -580,6 +583,10 @@ func _result(status: String) -> void:
 		dl.append("%s %s %s%s" % [_fmt(D.t), D.vs, "받음" if D.took else "거절", " · " + String(D.pick) if D.took else ""])
 	print("[deal] 적장 거래 %d번%s · 최대 체력 %d/%d" % [b.deal_log.size(), (" — " + " / ".join(dl)) if not dl.is_empty() else "", int(b.hero.max_hp), int(b.hero_data.max_hp)])
 	var M: Dictionary = b.meta_got
+	var gl: Array[String] = []
+	for id in b.banked:
+		gl.append(String(GearData.ITEMS[id].n))
+	print("[gear] 맡김 %d(%s) · 끝에 든 짐 %d · 창고 %s" % [b.banked.size(), ", ".join(gl), b.carry.size(), JSON.stringify(b.gear_got)])
 	print("[meta] " + ("장수 Lv %d → %d · 경험 +%d · 전공 +%d · 재능 포인트 +%d (저장 %s)" % [int(M.lv0), int(M.lv), int(M.xp), int(M.merit), int(M.pts), "켬" if Save.on else "끔"] if not M.is_empty() else "-"))
 	print("[lb_hurt] " + (" · ".join(lh) if not lh.is_empty() else "-") + " · 무리에게 받은 장수 피해 %d · 무리 처치 %d/%d" % [int(b.surge_hurt), b.surge_kills, b.kills])
 	# 보스 울타리(D-216): 부대 · 생긴 때 · 걸린 시간 · 중심에서 본진까지
