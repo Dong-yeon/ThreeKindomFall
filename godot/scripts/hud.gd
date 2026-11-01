@@ -215,7 +215,7 @@ func show_tap() -> void:
 		vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		tap_panel.add_child(vb)
 		var t1 := _label(22, Color("fff2c0"), 0)
-		t1.text = Stage1.NAME
+		t1.text = String(b.ch.name)
 		t1.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		vb.add_child(t1)
 		var t2 := _label(14, Color("e8c060"), 0)
@@ -284,7 +284,7 @@ func _refresh_impl() -> void:
 		_playtest_tick()
 	var h := b.hero
 	var T := b.field_target()
-	var title := "%s · %s · 공적 Lv %d" % [Stage1.NAME, _fmt_t(b.t), b.lvl]
+	var title := "%s · %s · 공적 Lv %d" % [String(b.ch.name), _fmt_t(b.t), b.lvl]
 	if title_lbl.text != title:
 		title_lbl.text = title
 	var goal := "목표  " + String(T.n)
@@ -310,7 +310,7 @@ func show_end() -> void:
 	var win := b.state == "end"
 	var hn := b.hero_data.display_name
 	if win:
-		end_title.text = "%s 평정!" % Stage1.NAME
+		end_title.text = "%s 평정!" % String(b.ch.name)
 	elif b.end_why == "home":
 		end_title.text = "아군 본진이 함락됐어요"
 	elif b.end_why == "liubei":
@@ -327,7 +327,8 @@ func show_end() -> void:
 		_fmt_t(b.t), b.cap_n, b.kills, b.hero.cb_max, b.lvl, T.act_order.size(), T.act_slots(), T.pas_order.size(), T.pas_slots(),
 		", ".join(evos) if not evos.is_empty() else "없음"]
 	var vil := {"saved": "구함", "lost": "불탐", "raid": "습격 중"}
-	end_stats.text += "\n탁현 마을   %s" % vil.get(b.vil_st, "—")
+	if b.ch.village:
+		end_stats.text += "\n탁현 마을   %s" % vil.get(b.vil_st, "—")
 	if win and b.siege != null and b.siege.beast_t >= 0:
 		# 첫 사신수 해방(D-207 — 3장)
 		end_stats.text += "\n사신수   %s 해방" % SiegeData.BEAST.n
@@ -1023,7 +1024,7 @@ func _build_pause() -> void:
 
 
 func show_pause() -> void:
-	pause_info.text = "%s · %s · 공적 Lv %d · 진영 %d/3" % [Stage1.NAME, _fmt_t(b.t), b.lvl, b.cap_n]
+	pause_info.text = "%s · %s · 공적 Lv %d · 진영 %d/3" % [String(b.ch.name), _fmt_t(b.t), b.lvl, b.cap_n]
 	pause_panel.visible = true
 
 

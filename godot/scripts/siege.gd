@@ -27,6 +27,24 @@ func _init(battle: Battle) -> void:
 	b = battle
 
 
+## 본진 보스(D-239): 장 데이터에 있으면 그것(2장 장보), 없으면 SiegeData.BOSS(장각) · 이름 · 짧은 이름
+func boss_def() -> Dictionary:
+	return b.ch.get("boss", SiegeData.BOSS)
+
+
+## 본진이 열리는 판 시각(D-239): 장 데이터 sorc_at(2장 — 관문이 열리고 오래 기다리지 않게) 또는 SiegeData.SORCERY.at
+func sorc_at() -> float:
+	return float(b.ch.get("sorc_at", SiegeData.SORCERY.at))
+
+
+func bshort() -> String:
+	return String(boss_def().get("short", "장각"))
+
+
+func bfull() -> String:
+	return String(boss_def().get("n", "천공장군 장각"))
+
+
 ## 정원지를 쓰러뜨림 → 성문이 열리기 시작
 func start_gate() -> void:
 	gate_t = 0.0
@@ -63,8 +81,8 @@ func _gate_tick(dt: float) -> void:
 	b.shake = maxf(b.shake, 0.3)
 	Sound.play("win", 0.4)
 	var S: Dictionary = SiegeData.SORCERY
-	if b.t < float(S.at):
-		b.banner("관문이 열렸어요!", "장각 본진 앞으로 — %s에 장각이 요술을 부려요" % Battle.mmss(float(S.at)))
+	if b.t < sorc_at():
+		b.banner("관문이 열렸어요!", "%s 본진 앞으로 — %s에 %s%s 요술을 부려요" % [bshort(), Battle.mmss(sorc_at()), bshort(), Battle.jo(bshort(), "이", "가")])
 
 
 ## 장각의 요술(D-209): 성문이 열리고 SORCERY.at초가 지나면 장각 본진 문이 열리며 장각 · 요술 제단이 나옴(_open_keep).
@@ -73,7 +91,7 @@ func _sorcery_tick(dt: float) -> void:
 	var S: Dictionary = SiegeData.SORCERY
 	var hero := b.hero
 	if b.boss == null:
-		if gate_open and b.t >= float(S.at):
+		if gate_open and b.t >= sorc_at():
 			_open_keep()
 		return
 	if not sorc_on:
@@ -140,9 +158,10 @@ func _open_keep() -> void:
 	var K := b.keep_rect()
 	for dx in [-24, 24]:
 		b.drops.append({"k": "bun", "pos": Vector2(K.get_center().x + dx, K.end.y + 40)})
-	var B: Dictionary = SiegeData.BOSS
+	var B: Dictionary = boss_def()
 	var boss := b.spawn(B.k, K.get_center() + Vector2(0, -40), float(B.m))
 	boss.boss = true
+	boss.ename = bfull()
 	boss.touch = 22
 	b.boss = boss
 	# 요술 제단(D-207): 남아 있는 동안 장각은 보호막
@@ -155,8 +174,8 @@ func _open_keep() -> void:
 	sorc_on = not altars.is_empty()
 	bolt_t = 1.5
 	storm_t = 3.0
-	b.note("장각의 요술")
-	b.banner("장각이 요술을 부려요!", "낙뢰 · 폭풍 — 요술 제단 %d개를 부수면 요술과 보호막이 풀려요" % altars.size())
+	b.note("%s의 요술" % bshort())
+	b.banner("%s%s 요술을 부려요!" % [bshort(), Battle.jo(bshort(), "이", "가")], "낙뢰 · 폭풍 — 요술 제단 %d개를 부수면 요술과 보호막이 풀려요" % altars.size())
 	Sound.play("alert", 0.6)
 
 
@@ -197,13 +216,20 @@ func on_kill(e: Enemy) -> bool:
 		for o in b.enemies:
 			if not o.dead and o != e:
 				o.dead = true
-		b.note("장각 격파")
-		# 첫 사신수(D-207): 쓰러진 자리에 봉인된 빛 구슬 — 장수가 닿으면 풀려나고 판이 끝남
-		beast_pos = e.position.clamp(b.keep_rect().position + Vector2(40, 40), b.keep_rect().end - Vector2(40, 40))
-		var bn: String = e.def.n
-		b.banner("%s%s 쓰러뜨렸어요!" % [bn, Battle.eul(bn)], "봉인된 %s의 빛이 나타났어요 — 다가가 풀어 줘요" % SiegeData.BEAST.n)
+		b.note("%s 격파" % bshort())
+		var bn := bfull()
 		b.hit_stop = 0.15
 		b.shake = 0.5
+		# 사신수가 없는 장(D-239 — 2장): 곧바로 이김
+		if not b.ch.get("beast", true):
+			b.won = true
+			b.banner("%s%s 쓰러뜨렸어요!" % [bn, Battle.eul(bn)], "%s에서 이겼어요" % String(b.ch.name))
+			Sound.play("win", 0.5)
+			b.later(1.8, b.finish.bind(true, ""))
+			return true
+		# 첫 사신수(D-207): 쓰러진 자리에 봉인된 빛 구슬 — 장수가 닿으면 풀려나고 판이 끝남
+		beast_pos = e.position.clamp(b.keep_rect().position + Vector2(40, 40), b.keep_rect().end - Vector2(40, 40))
+		b.banner("%s%s 쓰러뜨렸어요!" % [bn, Battle.eul(bn)], "봉인된 %s의 빛이 나타났어요 — 다가가 풀어 줘요" % SiegeData.BEAST.n)
 		return true
 	if e.k == "altar":
 		var total := altars.size()
@@ -215,9 +241,10 @@ func on_kill(e: Enemy) -> bool:
 			if Unit.alive(b.boss):
 				b.boss.shield = false
 				b.add_fx({"k": "ring", "pos": b.boss.position, "t": 0.5, "r": 90.0, "c": Color("6ac0e0")})
-			b.banner("요술 제단을 다 부쉈어요", "장각의 보호막이 풀렸어요 — 이제 장각을 쳐요")
+			var done: Array = b.ch.get("altars_done", ["요술 제단을 다 부쉈어요", "%s의 보호막이 풀렸어요 — 이제 %s%s 쳐요" % [bshort(), bshort(), Battle.eul(bshort())]])
+			b.banner(String(done[0]), String(done[1]))
 		else:
-			b.banner("요술 제단을 부쉈어요 (%d/%d)" % [total - left, total], "제단이 남아 있는 동안 장각은 다치지 않아요")
+			b.banner("요술 제단을 부쉈어요 (%d/%d)" % [total - left, total], "제단이 남아 있는 동안 %s%s 다치지 않아요" % [bshort(), Battle.jo(bshort(), "은", "는")])
 		return true
 	return false
 
@@ -230,7 +257,7 @@ func target() -> Dictionary:
 		var kp := Vector2(K.get_center().x, K.end.y + 60)
 		if not gate_open:
 			return {"pos": kp, "n": "관문이 열려요"}
-		return {"pos": kp, "n": "장각 본진 앞 — 장각의 요술까지 %s" % Battle.mmss(float(SiegeData.SORCERY.at) - b.t)}
+		return {"pos": kp, "n": "%s 본진 앞 — %s의 요술까지 %s" % [bshort(), bshort(), Battle.mmss(sorc_at() - b.t)]}
 	if beast_pos != Vector2.INF:
 		return {"pos": beast_pos, "n": "봉인된 %s의 빛 — 다가가 풀어 주기" % SiegeData.BEAST.n}
 	# 요술 제단이 남았으면 가까운 제단부터(장각은 보호 중, D-207)
@@ -242,9 +269,9 @@ func target() -> Dictionary:
 			if not a.dead and hero.position.distance_to(a.position) < ad:
 				ad = hero.position.distance_to(a.position)
 				ap = a.position
-		return {"pos": ap, "n": "장각 본진 · 요술 제단 부수기 %d/%d" % [altars.size() - left, altars.size()]}
+		return {"pos": ap, "n": "%s 본진 · 요술 제단 부수기 %d/%d" % [bshort(), altars.size() - left, altars.size()]}
 	var bp: Vector2 = b.boss.position if Unit.alive(b.boss) else K.get_center()
-	return {"pos": bp, "n": "장각 본진 — 천공장군 장각 격파"}
+	return {"pos": bp, "n": "%s 본진 — %s 격파" % [bshort(), bfull()]}
 
 
 ## 정원지를 쓰러뜨린 뒤 진군 부대가 갈 곳과 길찾기 키

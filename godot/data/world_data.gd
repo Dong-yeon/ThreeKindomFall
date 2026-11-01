@@ -14,5 +14,5 @@ const PLACES := [
 	{"k": "tent", "n": "군막", "sub": "재능 — 재능 포인트", "pos": Vector2(510, 1170), "r": 70.0, "glyph": "막"},
 	{"k": "hero", "n": "장수 막사", "sub": "출진할 장수 고르기", "pos": Vector2(360, 1245), "r": 50.0, "glyph": "장"},
 	{"k": "stage1", "n": "1장 탁현 싸움", "sub": "황건적의 난 — 출진", "pos": Vector2(360, 820), "r": 80.0, "glyph": "1"},
-	{"k": "stage2", "n": "2장 장보의 요술", "sub": "준비 중", "pos": Vector2(360, 330), "r": 80.0, "glyph": "2", "need_clear": 1},
+	{"k": "stage2", "n": "2장 장보의 요술", "sub": "요술 제단 · 장보 — 출진", "pos": Vector2(360, 330), "r": 80.0, "glyph": "2", "need_clear": 1},
 ]

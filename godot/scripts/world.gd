@@ -169,7 +169,7 @@ func _refresh_sign() -> void:
 		return
 	var ok := _open(near)
 	sign_lbl.text = "%s\n%s" % [near.n, near.sub if ok else "잠김 — 1장을 평정하면"]
-	sign_btn.text = {"forge": "대장간 들어가기", "tent": "군막 들어가기", "hero": "장수 막사 들어가기", "stage1": "%s 출진!" % hero_data.display_name}.get(near.k, "살펴보기")
+	sign_btn.text = {"forge": "대장간 들어가기", "tent": "군막 들어가기", "hero": "장수 막사 들어가기", "stage1": "%s 출진!" % hero_data.display_name, "stage2": "%s 출진!" % hero_data.display_name}.get(near.k, "살펴보기")
 	sign_btn.disabled = not ok
 
 
@@ -183,7 +183,9 @@ func _enter() -> void:
 			meta.tal_open()
 		"hero":
 			meta.hero_open()
-		"stage1":
+		"stage1", "stage2":
+			# 장(D-239): 전장이 Battle.next_chapter를 읽음
+			Battle.next_chapter = 2 if near.k == "stage2" else 1
 			get_tree().change_scene_to_file(BATTLE_SCENE)
 		_:
 			_say("%s — 아직 준비 중이에요" % near.n)

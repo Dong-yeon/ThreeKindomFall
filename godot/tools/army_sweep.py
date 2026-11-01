@@ -13,11 +13,11 @@ def tsec(s):
     return int(m) * 60 + int(ss)
 
 
-def run(seed, out, proj, redo, hero=''):
+def run(seed, out, proj, redo, hero='', chapter=0):
     path = os.path.join(out, 'seed%d.txt' % seed)
     if os.path.exists(path) and not redo:
         return
-    cmd = [sys.executable, '-X', 'utf8', os.path.join(proj, 'tools', 'run_bot_test.py'), '--seed', str(seed)] + (['--hero', hero] if hero else [])
+    cmd = [sys.executable, '-X', 'utf8', os.path.join(proj, 'tools', 'run_bot_test.py'), '--seed', str(seed)] + (['--hero', hero] if hero else []) + (['--chapter', str(chapter)] if chapter else [])
     r = subprocess.run(cmd, capture_output=True)
     open(path, 'wb').write(r.stdout)
 
@@ -102,6 +102,7 @@ def main():
     ap.add_argument('--par', type=int, default=5)
     ap.add_argument('--redo', action='store_true')
     ap.add_argument('--hero', default='', help='출진 장수 id(D-236)')
+    ap.add_argument('--chapter', type=int, default=0, help='장(D-239)')
     a = ap.parse_args()
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')
@@ -109,7 +110,7 @@ def main():
     seeds = list(range(int(lo), int(hi or lo) + 1))
     os.makedirs(a.out, exist_ok=True)
     with ThreadPoolExecutor(a.par) as ex:
-        list(ex.map(lambda s: run(s, a.out, a.proj, a.redo, a.hero), seeds))
+        list(ex.map(lambda s: run(s, a.out, a.proj, a.redo, a.hero, a.chapter), seeds))
     agg = {}
     print('seed 모드  결과              길이   출진   첫 만남(본진까지)  대군전   처치 시간(곁에서 싸운 시간, 없으면 만남→격파)  부장 격파 자리(본진까지)')
     for s in seeds:

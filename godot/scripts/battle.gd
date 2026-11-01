@@ -158,6 +158,10 @@ var captive_safe := 0
 var boss: Enemy = null
 ## 2 · 3장용 진행(D-211): 성문 열림 · 장각의 요술 · 요술 제단 · 장각 · 사신수. 1장(Stage1.SIEGE = false)엔 없음
 var siege: Siege = null
+## 장(D-239, ChapterData): 천하 지도가 정해 두고 넘김(next_chapter) · 봇 · 점검은 --chapter=
+static var next_chapter := 1
+var chapter := 1
+var ch: Dictionary = ChapterData.get_ch(1)
 ## 탁현 마을(D-208): wait · raid(습격 중) · saved · lost · 남은 시간 · 등무 / 본진 기습을 했나 / 유비(쓰러지면 짐)
 var vil_st := "wait"
 var vil_t := 0.0
@@ -227,9 +231,13 @@ var _sep_mv := PackedByteArray()
 func _ready() -> void:
 	# 출진 장수(D-236): --hero=<id>(봇 · 점검) > 저장(군영 '장수 막사') > 씬 기본(관우)
 	var hero_arg := ""
+	chapter = next_chapter
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--hero="):
 			hero_arg = a.substr(7)
+		elif a.begins_with("--chapter="):
+			chapter = int(a.substr(10))
+	ch = ChapterData.get_ch(chapter)
 	if hero_arg != "":
 		hero_data = load(MetaData.hero_path(hero_arg))
 	elif Save.on:
@@ -268,8 +276,11 @@ func _ready() -> void:
 		d.merge({"cap": false, "lead": null, "al_t": 0.0, "tws": [], "call_t": 0.0, "burn_t": -1.0, "cap_t": -1.0})
 		camps.append(d)
 	_build_obstacles()
-	if Stage1.SIEGE:
+	if Stage1.SIEGE or ch.siege:
 		siege = Siege.new(self)
+	# 정원지가 없는 장(D-239): 처음부터 '정원지를 쓰러뜨린 뒤'로 — 목표 · 진군이 곧바로 Siege 쪽을 봄
+	if not ch.army:
+		cyz_dead = true
 	_setup_allies()
 	_spawn_squads()
 	_spawn_props()
@@ -303,7 +314,7 @@ func _start() -> void:
 	# 재능 '출진 전 계책'(D-234): 시작하자마자 책략 고르기
 	lvl_q += int(talv("plan"))
 	Sound.music("fight", 0.3)
-	banner(Stage1.NAME, "황건 진영 3곳: 수비탑을 부숴야 진영장을 칠 수 있어요")
+	banner(String(ch.name), String(ch.intro))
 
 
 # ─────────── 입력: 끌어서 이동 · 무쌍(스페이스) ───────────
@@ -661,6 +672,8 @@ func decline_deal() -> void:
 ## (가까이 오면 장수에게 덤빔) → limit초 안에 등무를 쓰러뜨리면 구함(_on_kill), 시간이 다 되면 마을이 불타고 남은 습격대는 본진으로
 func _village_tick(dt: float) -> void:
 	var V: Dictionary = Stage1.VILLAGE
+	if not ch.village:
+		return
 	if vil_st == "wait":
 		if t < float(V.at) or hero.position.distance_to(V.pos) <= float(V.far):
 			return
@@ -1045,7 +1058,7 @@ func _vanguard_tick(dt: float) -> void:
 	for i in range(vang.size() - 1, -1, -1):
 		if not is_instance_valid(vang[i]) or vang[i].dead:
 			vang.remove_at(i)
-	if won or army_t0 >= 0 or cap_n < int(Stage1.ARMY.after) or t >= float(Stage1.ARMY.min_t) or duel():
+	if won or not ch.army or army_t0 >= 0 or cap_n < int(Stage1.ARMY.after) or t >= float(Stage1.ARMY.min_t) or duel():
 		return
 	if vang_t < 0:
 		vang_t = float(V.first)
@@ -1085,7 +1098,7 @@ func _vang_front() -> Enemy:
 ## 장수가 부대 대장을 처음 260px 안에서 만난 때 · 그때 본진까지 거리를 적어 둠(봇 출력)
 func _army_tick(dt: float) -> void:
 	var A: Dictionary = Stage1.ARMY
-	if won or cap_n < int(A.after) or t < float(A.min_t):
+	if won or not ch.army or cap_n < int(A.after) or t < float(A.min_t):
 		return
 	if army_t0 < 0:
 		army_t0 = t
@@ -1743,9 +1756,13 @@ func _on_kill(e: Enemy) -> void:
 		Sound.play("win", 0.35)
 		if cap_n >= 3:
 			cap3_t = t
+		# 성문이 있는 장(D-239): 진영 gate_caps곳이면 관문이 열리기 시작(Siege — 1장의 정원지 격파 자리)
+		if ch.siege and siege != null and cap_n == int(ch.get("gate_caps", 3)):
+			siege.start_gate()
+			return
 		# 진영 ARMY.after곳 점령이면 정원지의 대군이 출진(_army_tick) — 아직 ARMY.min_t 전이면 남은 시간을 알림(D-224)
 		var wait := float(Stage1.ARMY.min_t) - t
-		if cap_n >= int(Stage1.ARMY.after) and army_t0 < 0 and wait > 0:
+		if ch.army and cap_n >= int(Stage1.ARMY.after) and army_t0 < 0 and wait > 0:
 			banner("%s 점령! (%d/3)" % [c.n, cap_n], "정원지의 대군이 %s 뒤 출진해요 — 그동안 힘을 길러요" % mmss(wait))
 		elif cap_n < 3:
 			banner("%s 점령! (%d/3)" % [c.n, cap_n], "보급 상자를 주워요 — 진군 부대 %d명이 다음 진영으로 먼저 가요" % MARCH_ON_CAPTURE)
@@ -2042,7 +2059,7 @@ func finish(win: bool, why: String) -> void:
 	for u in army:
 		if float(u.kill_t) >= 0:
 			leads += 1
-	meta_got = Save.add_run(win, lvl, kills, cap_n, leads, cyz_dead)
+	meta_got = Save.add_run(win, lvl, kills, cap_n, leads, cyz_dead if ch.army else win, chapter)
 	joy_on = false
 	Sound.music("")
 	Sound.play("win" if win else "lose", 0.45)

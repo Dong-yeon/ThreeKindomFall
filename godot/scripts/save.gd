@@ -18,7 +18,7 @@ func _ready() -> void:
 
 
 func _fresh() -> Dictionary:
-	return {"ver": VER, "lv": 1, "xp": 0, "merit": 0, "pts": 0, "runs": 0, "clears": 0, "weapon": {}, "tal": {}, "hero": "guan_yu"}
+	return {"ver": VER, "lv": 1, "xp": 0, "merit": 0, "pts": 0, "runs": 0, "clears": 0, "weapon": {}, "tal": {}, "hero": "guan_yu", "ch": {}}
 
 
 func _load() -> void:
@@ -50,6 +50,13 @@ func write() -> void:
 		push_warning("저장 실패: " + PATH)
 		return
 	f.store_string(JSON.stringify(d))
+
+
+## 장마다 깬 수(D-239). 그 전 저장(장 구분 없음)은 깬 수를 1장 것으로 봄
+func ch_clears(n: int) -> int:
+	if n == 1 and not d.ch.has("1"):
+		return int(d.clears)
+	return int(d.ch.get(str(n), 0))
 
 
 ## 출진 장수(D-236): 장수 id · 데이터
@@ -178,7 +185,7 @@ func tal_fx() -> Dictionary:
 
 
 ## 판 끝 보상을 더하고 저장. 돌려주는 것: {xp, merit, lv0, lv, pts(이번에 받은), xp_now, need}
-func add_run(win: bool, plv: int, kills: int, camps: int, leads: int, cyz: bool) -> Dictionary:
+func add_run(win: bool, plv: int, kills: int, camps: int, leads: int, cyz: bool, chapter := 1) -> Dictionary:
 	var R: Dictionary = MetaData.REWARD
 	var xp := roundi(float(R.xp_lv) * plv + (float(R.xp_clear) if win else 0.0))
 	var merit := float(R.kill) * kills + float(R.camp) * camps + float(R.lead) * leads + (float(R.cyz) if cyz else 0.0) + (float(R.clear) if win else 0.0)
@@ -196,5 +203,6 @@ func add_run(win: bool, plv: int, kills: int, camps: int, leads: int, cyz: bool)
 	d.runs = int(d.runs) + 1
 	if win:
 		d.clears = int(d.clears) + 1
+		d.ch[str(chapter)] = ch_clears(chapter) + 1
 	write()
 	return {"xp": xp, "merit": roundi(merit), "lv0": lv0, "lv": lv(), "pts": pts, "xp_now": int(d.xp), "need": MetaData.need(lv())}
