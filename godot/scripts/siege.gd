@@ -21,6 +21,9 @@ var storm_t := 0.0
 var bolts: Array[Dictionary] = []
 var storms: Array[Dictionary] = []
 var in_storm := false
+## 관문 앞 장수(D-241 — 3장 장량, 장 데이터 guard): 쓰러뜨려야 본진이 열림
+var guard: Enemy = null
+var guard_done := false
 
 
 func _init(battle: Battle) -> void:
@@ -81,7 +84,9 @@ func _gate_tick(dt: float) -> void:
 	b.shake = maxf(b.shake, 0.3)
 	Sound.play("win", 0.4)
 	var S: Dictionary = SiegeData.SORCERY
-	if b.t < sorc_at():
+	if b.ch.has("guard"):
+		_spawn_guard()
+	elif b.t < sorc_at():
 		b.banner("관문이 열렸어요!", "%s 본진 앞으로 — %s에 %s%s 요술을 부려요" % [bshort(), Battle.mmss(sorc_at()), bshort(), Battle.jo(bshort(), "이", "가")])
 
 
@@ -91,7 +96,7 @@ func _sorcery_tick(dt: float) -> void:
 	var S: Dictionary = SiegeData.SORCERY
 	var hero := b.hero
 	if b.boss == null:
-		if gate_open and b.t >= sorc_at():
+		if gate_open and b.t >= sorc_at() and (not b.ch.has("guard") or guard_done):
 			_open_keep()
 		return
 	if not sorc_on:
@@ -210,8 +215,38 @@ func _beast_tick(dt: float) -> void:
 		b.finish(true, "")
 
 
+## 관문 앞 장수(D-241): 관문 바로 안쪽(북쪽)에 서서 다가오면 덤빔 · 장수급(일기토 · 패턴)
+func _spawn_guard() -> void:
+	var Gd: Dictionary = b.ch.guard
+	var G: Dictionary = Stage1.GATE
+	var at := Vector2((float(G.x0) + float(G.x1)) / 2, float(G.y) - 60)
+	guard = b.spawn(String(Gd.k), at, float(Gd.m))
+	guard.elite = true
+	guard.ename = String(Gd.n)
+	guard.touch = Units.ENEMY[String(Gd.k)].touch * float(Gd.get("touch", 1.0))
+	guard.r *= 1.4
+	guard.aggro = 320.0
+	guard.has_post = true
+	guard.post = at
+	guard.pat = Stage1.ARMY[String(Gd.get("pat", "slam"))]
+	b.note("%s 나타남" % Gd.n)
+	b.banner("관문이 열렸어요!", "%s%s 관문을 지켜요 — 쓰러뜨려야 %s 본진이 열려요" % [Gd.n, Battle.jo(String(Gd.n), "이", "가"), bshort()])
+
+
 ## 장각 · 요술 제단이 쓰러질 때(처리했으면 true)
 func on_kill(e: Enemy) -> bool:
+	if e == guard:
+		guard_done = true
+		guard = null
+		b.note("%s 격파" % e.ename)
+		b.drops.append({"k": "chest", "pos": e.position})
+		b.gear_drop(e.position + Vector2(30, 0), float(GearData.DROP.lead))
+		b.hit_stop = 0.08
+		b.shake = maxf(b.shake, 0.3)
+		Sound.play("win", 0.4)
+		var wait := sorc_at() - b.t
+		b.banner("%s%s 쓰러뜨렸어요!" % [e.ename, Battle.eul(e.ename)], ("%s 뒤 %s 본진이 열려요" % [Battle.mmss(wait), bshort()]) if wait > 0 else "%s 본진이 열려요" % bshort())
+		return true
 	if e.boss:
 		for o in b.enemies:
 			if not o.dead and o != e:
@@ -259,6 +294,8 @@ func target() -> Dictionary:
 		var kp := Vector2(K.get_center().x, K.end.y + 60)
 		if not gate_open:
 			return {"pos": kp, "n": "관문이 열려요"}
+		if Unit.alive(guard):
+			return {"pos": guard.position, "n": "관문 — %s 격파" % guard.ename, "warn": true}
 		return {"pos": kp, "n": "%s 본진 앞 — %s의 요술까지 %s" % [bshort(), bshort(), Battle.mmss(sorc_at() - b.t)]}
 	if beast_pos != Vector2.INF:
 		return {"pos": beast_pos, "n": "봉인된 %s의 빛 — 다가가 풀어 주기" % SiegeData.BEAST.n}

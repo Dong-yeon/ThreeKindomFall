@@ -2298,6 +2298,9 @@ func _arena_cands() -> Array[Enemy]:
 			out.append(u.lead)
 	if Unit.alive(cyz):
 		out.append(cyz)
+	# 관문 앞 장수(D-241 — 3장 장량)도 일기토
+	if siege != null and Unit.alive(siege.guard):
+		out.append(siege.guard)
 	return out
 
 
@@ -2418,7 +2421,8 @@ func _arena_keep(u: Unit, c: Vector2, R: float) -> void:
 func _arena_off() -> void:
 	var L: Enemy = arena.lead
 	if arena.st == "on":
-		var unit := "정원지"
+		# 기록 이름: 대군 부대 · 정원지, 그 밖(3장 장량 등 — D-241)은 그 장수 이름
+		var unit := "정원지" if L == cyz or L == null or not is_instance_valid(L) else String(L.ename)
 		if L != null and is_instance_valid(L) and L.army_unit >= 0 and L != cyz:
 			unit = String(Stage1.ARMY.units[L.army_unit].n)
 		var ln: String = L.ename if L != null and is_instance_valid(L) else "?"

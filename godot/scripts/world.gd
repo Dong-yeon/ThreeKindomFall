@@ -124,8 +124,9 @@ func fog_on() -> bool:
 	return int(Save.d.clears) < int(WorldData.FOG.clears)
 
 
+## 열렸나: need_ch = 그 장을 깼어야(D-241 — 장마다 깬 수, Save.ch_clears)
 func _open(P: Dictionary) -> bool:
-	return int(Save.d.clears) >= int(P.get("need_clear", 0))
+	return not P.has("need_ch") or Save.ch_clears(int(P.need_ch)) > 0
 
 
 func _process(dt: float) -> void:
@@ -168,8 +169,8 @@ func _refresh_sign() -> void:
 	if near.is_empty():
 		return
 	var ok := _open(near)
-	sign_lbl.text = "%s\n%s" % [near.n, near.sub if ok else "잠김 — 1장을 평정하면"]
-	sign_btn.text = {"forge": "대장간 들어가기", "tent": "군막 들어가기", "hero": "장수 막사 들어가기", "gear": "창고 들어가기", "stage1": "%s 출진!" % hero_data.display_name, "stage2": "%s 출진!" % hero_data.display_name}.get(near.k, "살펴보기")
+	sign_lbl.text = "%s\n%s" % [near.n, near.sub if ok else "잠김 — %d장을 평정하면" % int(near.get("need_ch", 1))]
+	sign_btn.text = {"forge": "대장간 들어가기", "tent": "군막 들어가기", "hero": "장수 막사 들어가기", "gear": "창고 들어가기", }.get(near.k, "%s 출진!" % hero_data.display_name if String(near.k).begins_with("stage") else "살펴보기")
 	sign_btn.disabled = not ok
 
 
@@ -185,9 +186,9 @@ func _enter() -> void:
 			meta.hero_open()
 		"gear":
 			meta.gear_open()
-		"stage1", "stage2":
+		"stage1", "stage2", "stage3":
 			# 장(D-239): 전장이 Battle.next_chapter를 읽음
-			Battle.next_chapter = 2 if near.k == "stage2" else 1
+			Battle.next_chapter = int(String(near.k).substr(5))
 			get_tree().change_scene_to_file(BATTLE_SCENE)
 		_:
 			_say("%s — 아직 준비 중이에요" % near.n)
