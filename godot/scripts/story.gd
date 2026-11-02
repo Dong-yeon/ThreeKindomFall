@@ -36,6 +36,9 @@ func tick(dt: float) -> void:
 	if S.k == "wine":
 		_wine_tick()
 		return
+	if S.k == "trio":
+		_trio_tick()
+		return
 	if st == "wait":
 		if b.t >= float(S.at) and not b.won and not b.duel():
 			_start()
@@ -187,10 +190,7 @@ func on_ally_dead(a: Ally) -> void:
 ## 술이 식기 전에(D-245, 4장): 정한 때마다 연합 장수가 쓰러지는 알림(beats) → 관문 장수(화웅)와 일기토가 시작되면 warm초를 잼 →
 ## 그 안에 쓰러뜨리면 "술이 아직 따뜻해요" + 전공 merit(연의 제5회 — 관우가 데운 술이 식기 전에 화웅을 벰)
 func _wine_tick() -> void:
-	while beat_i < S.beats.size() and b.t >= float(S.beats[beat_i][0]) and b.siege != null and b.siege.gate_open:
-		b.banner(line(S.beats[beat_i][1]), line(S.beats[beat_i][2]))
-		b.note(line(S.beats[beat_i][1]))
-		beat_i += 1
+	_beats()
 	if b.siege == null:
 		return
 	var g: Enemy = b.siege.guard
@@ -201,6 +201,44 @@ func _wine_tick() -> void:
 	if duel_t0 >= 0 and not cold and st == "on" and b.t - duel_t0 > float(S.warm):
 		cold = true
 		b.banner("술이 식었어요…", "그래도 %s%s 베어요" % [g.ename if Unit.alive(g) else "적장", Battle.eul(g.ename if Unit.alive(g) else "적장")])
+
+
+## 관문이 열린 뒤 정한 때마다 알림(beats — [판 시각, 제목, 아랫줄])
+func _beats() -> void:
+	while beat_i < S.beats.size() and b.t >= float(S.beats[beat_i][0]) and b.siege != null and b.siege.gate_open:
+		b.banner(line(S.beats[beat_i][1]), line(S.beats[beat_i][2]))
+		b.note(line(S.beats[beat_i][1]))
+		beat_i += 1
+
+
+## 삼영전(D-247, 5장 trio): 관문 장수(여포)가 나오면 출진 장수가 아닌 장수들(MetaData.HEROES)이 동료로 와서 함께 에워쌈(Companion —
+## 마무리는 출진 장수: 동료는 여포를 conf.floor 아래로 못 깎음). 여포는 일기토가 아님(guard.no_duel)
+func _trio_tick() -> void:
+	_beats()
+	if st != "wait" or b.siege == null or not Unit.alive(b.siege.guard):
+		return
+	st = "on"
+	var g: Enemy = b.siege.guard
+	var names: Array[String] = []
+	var C: Dictionary = S.conf
+	var i := 0
+	for path in MetaData.HEROES:
+		var hd: HeroData = load(path)
+		if hd == null or hd.id == b.hero_data.id:
+			continue
+		var at := g.position + Vector2(-140 + 280 * (i % 2), 160)
+		var c := Companion.new()
+		c.setup_companion(b, hd, C, at, g)
+		b.world.add_child(c)
+		b.allies.append(c)
+		b.companion = c
+		b.cmp_log = {"goal_hp": g.max_hp, "left_t": -1.0, "why": ""}
+		b.cmp_log_update(c)
+		b.add_fx({"k": "ring", "pos": at, "t": 0.5, "r": 28.0, "c": Color("6a9ad8")})
+		names.append(hd.display_name)
+		i += 1
+	b.note("%s — %s" % [S.n, ", ".join(names)])
+	b.later(1.6, b.banner.bind(String(S.n) + "!", "%s%s 함께 %s%s 에워싸요" % [" · ".join(names), Battle.jo(names[-1] if not names.is_empty() else "", "이", "가"), g.ename, Battle.eul(g.ename)]))
 
 
 ## 장 글(D-246): {장수 id: 글, "": 기본}이면 출진 장수 것, {hero}는 출진 장수 이름

@@ -792,7 +792,7 @@ func companion_left(c: Companion) -> void:
 	note("%s 물러남(%s)" % [c.hd.display_name, {"saved": "마을 구함", "lost": "마을 불탐", "hurt": "다침"}.get(c.why, c.why)])
 	if c.why == "hurt":
 		# 마을이 끝나서 물러날 땐 마을 알림(구함 · 불탐)이 대신함
-		banner("%s%s 물러나요" % [c.hd.display_name, jo(c.hd.display_name, "이", "가")], "%s%s 막다 많이 다쳤어요 — 서둘러요" % [Stage1.VILLAGE.ln, eul(Stage1.VILLAGE.ln)])
+		banner("%s%s 물러나요" % [c.hd.display_name, jo(c.hd.display_name, "이", "가")], String(c.C.get("hurt_msg", "%s%s 막다 많이 다쳤어요 — 서둘러요" % [Stage1.VILLAGE.ln, eul(Stage1.VILLAGE.ln)])))
 
 
 ## 늑대 · 들개 무리(D-209): PACK.at초에 한 번, 화면 바로 밖 dirs방향에서 늑대(멈칫 → 덮침) · 들개(빠르게 쫓음)가 장수에게
@@ -2323,7 +2323,7 @@ func _arena_cands() -> Array[Enemy]:
 	if Unit.alive(cyz):
 		out.append(cyz)
 	# 관문 앞 장수(D-241 — 3장 장량)도 일기토
-	if siege != null and Unit.alive(siege.guard):
+	if siege != null and Unit.alive(siege.guard) and not ch.guard.get("no_duel", false):
 		out.append(siege.guard)
 	return out
 

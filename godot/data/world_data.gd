@@ -18,4 +18,5 @@ const PLACES := [
 	{"k": "stage2", "n": "2장 장보의 요술", "sub": "요술 제단 · 장보 — 출진", "pos": Vector2(360, 340), "r": 80.0, "glyph": "2", "need_ch": 1},
 	{"k": "stage3", "n": "3장 광종 결전", "sub": "장량 · 장각 · 청룡 — 출진", "pos": Vector2(360, 110), "r": 80.0, "glyph": "3", "need_ch": 2},
 	{"k": "stage4", "n": "4장 사수관", "sub": "반동탁 연합 · 화웅 — 출진", "pos": Vector2(600, 230), "r": 80.0, "glyph": "4", "need_ch": 3},
+	{"k": "stage5", "n": "5장 호뢰관", "sub": "삼영전여포 — 출진", "pos": Vector2(600, 450), "r": 80.0, "glyph": "5", "need_ch": 4},
 ]

@@ -61,6 +61,9 @@ func start_gate() -> void:
 
 func tick(dt: float) -> void:
 	_gate_tick(dt)
+	# 물러나는 관문 장수(D-247 — 5장 여포): 체력이 guard.retreat 아래면 쓰러진 것으로(물러남 알림은 bye)
+	if Unit.alive(guard) and b.ch.guard.has("retreat") and guard.hp <= guard.max_hp * float(b.ch.guard.retreat):
+		b.hurt_enemy(guard, guard.hp + 1.0)
 	_sorcery_tick(dt)
 	_beast_tick(dt)
 
@@ -253,6 +256,9 @@ func _spawn_guard() -> void:
 	guard.has_post = true
 	guard.post = at
 	guard.pat = Stage1.ARMY[String(Gd.get("pat", "slam"))]
+	# 빠른 장수(D-247 — 5장 여포)
+	guard.spd0 *= float(Gd.get("spd", 1.0))
+	guard.spd = guard.spd0
 	b.note("%s 나타남" % Gd.n)
 	if Gd.has("hi"):
 		b.banner(String(Gd.hi[0]), String(Gd.hi[1]))
@@ -266,8 +272,9 @@ func on_kill(e: Enemy) -> bool:
 		guard_done = true
 		guard = null
 		b.note("%s 격파" % e.ename)
-		# 관문 장수가 마지막(D-245 — 4장 화웅): 곧바로 이김 · 장비
+		# 관문 장수가 마지막(D-245 — 4장 화웅): 곧바로 이김 · 장비. bye가 있으면 그 알림(D-247 — 여포는 물러남)
 		if b.ch.get("guard_final", false):
+			var Gd2: Dictionary = b.ch.guard
 			b.gear_take(b.gear_pick())
 			b.won = true
 			for o in b.enemies:
@@ -275,7 +282,10 @@ func on_kill(e: Enemy) -> bool:
 					o.dead = true
 			b.hit_stop = 0.15
 			b.shake = 0.5
-			b.banner("%s%s 쓰러뜨렸어요!" % [e.ename, Battle.eul(e.ename)], "%s에서 이겼어요" % String(b.ch.name))
+			if Gd2.has("bye"):
+				b.banner(String(Gd2.bye[0]), String(Gd2.bye[1]))
+			else:
+				b.banner("%s%s 쓰러뜨렸어요!" % [e.ename, Battle.eul(e.ename)], "%s에서 이겼어요" % String(b.ch.name))
 			Sound.play("win", 0.5)
 			b.later(1.8, b.finish.bind(true, ""))
 			return true
