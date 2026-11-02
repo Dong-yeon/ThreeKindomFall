@@ -32,6 +32,8 @@ func _draw_impl() -> void:
 		b.siege.draw_ground(self, V)
 	_arena(V)
 	_well(V)
+	if b.story != null:
+		b.story.draw(self, V)
 	for dr in b.drops:
 		var p: Vector2 = dr.pos
 		if dr.get("k", "bun") == "gear":

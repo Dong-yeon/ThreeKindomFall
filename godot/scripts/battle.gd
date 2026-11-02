@@ -165,6 +165,8 @@ var siege: Siege = null
 ## 장(D-239, ChapterData): 천하 지도가 정해 두고 넘김(next_chapter) · 봇 · 점검은 --chapter=
 static var next_chapter := 1
 var chapter := 1
+## 장의 이야기 사건(D-242, Story — ChapterData story)
+var story: Story = null
 var ch: Dictionary = ChapterData.get_ch(1)
 ## 탁현 마을(D-208): wait · raid(습격 중) · saved · lost · 남은 시간 · 등무 / 본진 기습을 했나 / 유비(쓰러지면 짐)
 var vil_st := "wait"
@@ -286,6 +288,8 @@ func _ready() -> void:
 	_build_obstacles()
 	if Stage1.SIEGE or ch.siege:
 		siege = Siege.new(self)
+	if ch.has("story"):
+		story = Story.new(self, ch.story)
 	# 정원지가 없는 장(D-239): 처음부터 '정원지를 쓰러뜨린 뒤'로 — 목표 · 진군이 곧바로 Siege 쪽을 봄
 	if not ch.army:
 		cyz_dead = true
@@ -551,6 +555,8 @@ func _field_tick(dt: float) -> void:
 		_camps_tick(dt)
 		_granary_tick(dt)
 		_events_tick(dt)
+		if story != null:
+			story.tick(dt)
 		_party_tick(dt)
 		_rein_tick(dt)
 		_wave_tick(dt)
@@ -2628,6 +2634,8 @@ func ev_end(k: String, res: String) -> void:
 
 ## 본진으로 가던 의용병 · 보급 수레가 닿음: 의용병 = 본진 수비대 + 유비 회복 / 보급 수레 = 본진에 고기만두 + 유비 회복
 func captive_home(a: Ally) -> void:
+	if story != null and story.on_home(a):
+		return
 	if a.k == "supply":
 		var C: Dictionary = Stage1.EVENTS.cart
 		for j in int(C.buns):
@@ -2896,6 +2904,11 @@ func field_target() -> Dictionary:
 	if not arena.is_empty() and Unit.alive(arena.lead):
 		var AL: Enemy = arena.lead
 		return {"pos": AL.position, "n": "일기토 — %s 격파%s" % [AL.ename, " (곧 울타리)" if arena.st == "warn" else ""], "warn": true}
+	# 장의 이야기 사건(D-242)이 진행 중이면 그쪽
+	if story != null:
+		var ST := story.target()
+		if not ST.is_empty():
+			return ST
 	# 유비가 절반 아래로 다쳤고 둘레에 적이 있으면(D-208 — 쓰러지면 짐)
 	if Unit.alive(liubei) and liubei.hp < liubei.max_hp * 0.5:
 		for e in enemies:

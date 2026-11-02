@@ -146,6 +146,8 @@ func _escort_tick(dt: float) -> void:
 		b.add_fx({"k": "burst", "pos": position, "t": 0.3, "r": 6.0, "c": Color("6a9ad8")})
 		if self == b.supply:
 			b.ev_end("cart", "부서짐")
+		if b.story != null:
+			b.story.on_ally_dead(self)
 
 
 ## 다시 그리기는 Battle._redraw_units가 화면 근처에 있을 때만 부름
@@ -181,5 +183,5 @@ func _draw_impl() -> void:
 	draw_body(face_dir, Sprites.walk_step(mv, b.t + slot, 7), size, 1.0, 0.0, String(def.n).left(1))
 	if hp < max_hp:
 		draw_bar(0, -r - 10, 30.0 if k == "liubei" else 20.0, 3, hp / max_hp, Color("6a9ad8"))
-	if k == "liubei":
+	if k == "liubei" or def.get("label", false):
 		draw_label(def.n, Vector2(0, -r - 18), Color("cfe2f4"))
