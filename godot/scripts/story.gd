@@ -21,6 +21,10 @@ var npc: Ally = null
 var spot := Vector2.ZERO
 var wave_t := 0.0
 var waves := 0
+## 술이 식기 전에(D-245): 다음 알림 차례 · 화웅과 일기토가 시작된 판 시각(-1 = 아직)
+var beat_i := 0
+var duel_t0 := -1.0
+var cold := false
 
 
 func _init(battle: Battle, data: Dictionary) -> void:
@@ -29,6 +33,9 @@ func _init(battle: Battle, data: Dictionary) -> void:
 
 
 func tick(dt: float) -> void:
+	if S.k == "wine":
+		_wine_tick()
+		return
 	if st == "wait":
 		if b.t >= float(S.at) and not b.won and not b.duel():
 			_start()
@@ -177,8 +184,35 @@ func on_ally_dead(a: Ally) -> void:
 		b.banner("동탁이 쓰러졌어요…", "아쉬워하는 사람은 별로 없어요")
 
 
-func on_kill(_e: Enemy) -> void:
-	pass
+## 술이 식기 전에(D-245, 4장): 정한 때마다 연합 장수가 쓰러지는 알림(beats) → 관문 장수(화웅)와 일기토가 시작되면 warm초를 잼 →
+## 그 안에 쓰러뜨리면 "술이 아직 따뜻해요" + 전공 merit(연의 제5회 — 관우가 데운 술이 식기 전에 화웅을 벰)
+func _wine_tick() -> void:
+	while beat_i < S.beats.size() and b.t >= float(S.beats[beat_i][0]) and b.siege != null and b.siege.gate_open:
+		b.banner(String(S.beats[beat_i][1]), String(S.beats[beat_i][2]))
+		b.note(String(S.beats[beat_i][1]))
+		beat_i += 1
+	if b.siege == null:
+		return
+	var g: Enemy = b.siege.guard
+	if duel_t0 < 0 and Unit.alive(g) and not b.arena.is_empty() and b.arena.lead == g and b.arena.st == "on":
+		duel_t0 = b.t
+		st = "on"
+		b.banner("%s — %d초!" % [S.n, int(S.warm)], "데운 술이 식기 전에 %s%s 베어요" % [g.ename, Battle.eul(g.ename)])
+	if duel_t0 >= 0 and not cold and st == "on" and b.t - duel_t0 > float(S.warm):
+		cold = true
+		b.banner("술이 식었어요…", "그래도 %s%s 베어요" % [g.ename if Unit.alive(g) else "적장", Battle.eul(g.ename if Unit.alive(g) else "적장")])
+
+
+func on_kill(e: Enemy) -> void:
+	if S.k != "wine" or st != "on" or b.siege == null or e != b.siege.guard:
+		return
+	var took := b.t - duel_t0
+	if took <= float(S.warm):
+		b.bonus_merit += int(S.merit)
+		_finish("성공")
+		b.later(0.9, b.banner.bind("술이 아직 따뜻해요!", "%.0f초 만에 베었어요 — 전공 +%d" % [took, int(S.merit)]))
+	else:
+		_finish("식음")
 
 
 func _finish(r: String) -> void:
@@ -196,7 +230,7 @@ func _finish(r: String) -> void:
 
 ## 목표 줄(사건이 진행 중일 때만 — 없으면 빈 것)
 func target() -> Dictionary:
-	if st != "on":
+	if st != "on" or S.k == "wine":
 		return {}
 	if S.k == "ambush":
 		var live := _alive_col()

@@ -125,6 +125,8 @@ var deal_log: Array[Dictionary] = []
 var meta_got := {}
 ## 재능 효과(D-234, Save.tal_fx — 출진 때 한 번) · 이번 판 남은 책략 다시 뽑기
 var tal := {}
+## 판 끝에 더 줄 전공(D-245 — 4장 '술이 식기 전에')
+var bonus_merit := 0
 var rerolls := 0
 ## 장비 · 우물(D-240, GearData): 주워 든 짐 · 우물에 맡긴 것 · 판 끝에 창고로 간 결과(Save.add_gear)
 var carry: Array[String] = []
@@ -283,6 +285,12 @@ func _ready() -> void:
 	hero_min = hero.hp
 	for c in Stage1.CAMPS:
 		var d: Dictionary = c.duplicate()
+		# 장마다 진영 이름 · 진영장(D-245 — 4장 동탁군)
+		var ci := Stage1.CAMPS.find(c)
+		if ch.has("camp_names"):
+			d.n = ch.camp_names[ci]
+		if ch.has("camp_leads"):
+			d.ln = ch.camp_leads[ci]
 		d.merge({"cap": false, "lead": null, "al_t": 0.0, "tws": [], "call_t": 0.0, "burn_t": -1.0, "cap_t": -1.0})
 		camps.append(d)
 	_build_obstacles()
@@ -555,7 +563,7 @@ func _field_tick(dt: float) -> void:
 		_camps_tick(dt)
 		_granary_tick(dt)
 		_events_tick(dt)
-		if story != null:
+		if story != null and story.S.k != "wine":
 			story.tick(dt)
 		_party_tick(dt)
 		_rein_tick(dt)
@@ -566,6 +574,9 @@ func _field_tick(dt: float) -> void:
 	_cyz_tick(dt)
 	if siege != null:
 		siege.tick(dt)
+	# '술이 식기 전에'(D-245)는 일기토 중에 재야 해서 밖에서
+	if story != null and story.S.k == "wine":
+		story.tick(dt)
 	Perf.end()
 	Perf.begin(&"충돌")
 	_separate()
@@ -1712,6 +1723,9 @@ func _on_kill(e: Enemy) -> void:
 		return
 	if not e.boss:
 		drop_orb(e.position, TacticsData.xp_of(e.k, e.elite) * e.xp_mul)
+	# 장 이야기 사건(D-245 — 화웅을 술이 식기 전에)
+	if story != null:
+		story.on_kill(e)
 	# 2 · 3장: 장각 · 요술 제단(D-211 — siege.gd)
 	if siege != null and siege.on_kill(e):
 		return
@@ -2132,6 +2146,10 @@ func finish(win: bool, why: String) -> void:
 	gear_got = Save.add_gear(kept)
 	gear_got["lost"] = 0 if win else carry.size()
 	meta_got = Save.add_run(win, lvl, kills, cap_n, leads, cyz_dead if ch.army else win, chapter)
+	if bonus_merit > 0:
+		Save.d.merit = int(Save.d.merit) + bonus_merit
+		Save.write()
+		meta_got.merit = int(meta_got.merit) + bonus_merit
 	joy_on = false
 	Sound.music("")
 	Sound.play("win" if win else "lose", 0.45)
@@ -2565,7 +2583,7 @@ func _events_tick(dt: float) -> void:
 		spy.spd = float(S.spd)
 		spy.spd0 = spy.spd
 		spy.ev_kind = "spy"
-		spy.ename = S.n
+		spy.ename = fac(S.n)
 		spy_t = float(S.limit)
 		note("첩자 나타남")
 		ev_rec.append({"k": "spy", "t0": t, "t1": -1.0, "res": ""})
@@ -2585,7 +2603,7 @@ func _events_tick(dt: float) -> void:
 		var nm: String = B.names[randi() % B.names.size()]
 		bounty = spawn("ytbig", p, mul_y(p.y) * float(B.hp))
 		bounty.elite = true
-		bounty.ename = nm
+		bounty.ename = fac(nm)
 		bounty.r *= 1.3
 		# 닿기 피해는 체력 배율을 따르지 않게(D-231 — 등무 · 대군 부장과 같이. 전엔 × 4~7로 닿으면 한 번에 쓰러짐)
 		bounty.touch = Units.ENEMY["ytbig"].touch
@@ -2900,6 +2918,13 @@ func _path_for_impl(u: Unit, key: String, aim: Vector2) -> Vector2:
 
 ## 지금 가야 할 곳(화살표 · 작은 지도 · 목표 글)
 func field_target() -> Dictionary:
+	var T := _field_target()
+	if ch.has("faction") and T.has("n"):
+		T.n = fac(String(T.n))
+	return T
+
+
+func _field_target() -> Dictionary:
 	# 보스 울타리(D-216): 예고 · 울타리 중엔 그 부장(울타리 밖으로는 못 나감)
 	if not arena.is_empty() and Unit.alive(arena.lead):
 		var AL: Enemy = arena.lead
@@ -3034,4 +3059,9 @@ func add_fx(f: Dictionary) -> void:
 
 
 func banner(title: String, sub: String) -> void:
-	hud.banner(title, sub)
+	hud.banner(fac(title), fac(sub))
+
+
+## 장의 적 세력 이름(D-245, ChapterData faction — 4장 '동탁군'): 1장 글의 '황건'을 바꿔 보여 줌(지도 · 병사 그림은 아직 같음)
+func fac(s: String) -> String:
+	return s.replace("황건", String(ch.faction)) if ch.has("faction") else s
