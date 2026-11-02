@@ -114,6 +114,12 @@ var arena_done := false
 var prop := false
 ## 장각이 예고 중인 다음 공격(-1 = 아직). 0 탄막 · 1 세 갈래 연사 · 2 무리 부르기 · 3 돌진
 var next_kind := -1
+## 본진 보스의 수(D-243 — 장마다 다르게, Siege가 장 데이터 boss.moves · moves2로 바꿈): ring 사방 탄 · volley 연발 · summon 황건 무리 ·
+## rush 돌진(체력 절반 아래) · paper 종이 병사(약한 무리 여럿) · thunder 낙뢰(Siege 낙뢰 예고 원). moves2 = 체력 절반 아래
+var boss_moves: Array = ["ring", "volley", "summon"]
+var boss_moves2: Array = ["ring", "volley", "summon", "rush"]
+var boss_short := "장각"
+var next_move := ""
 var _moving := false
 var _anim_off := 0.0
 ## 이름 첫 글자(그림이 없을 때 동그라미 위에) · 마지막으로 그린 상태(그릴 것이 바뀌었는지 보려고, D-201)
@@ -514,32 +520,50 @@ func _boss_tick(dt: float, dv: Vector2, d: float) -> void:
 		var want := 1.0 if d > 230 else (-0.6 if d < 150 else 0.0)
 		position += dv / d * spd * 1.6 * want * dt
 	if st != 4 and next_kind < 0 and t > BOSS_GAP - BOSS_WARN:
-		phase = (phase + 1) % 4
-		next_kind = phase if hp < max_hp * 0.5 else phase % 3
-		if next_kind == 3:
+		var mv: Array = boss_moves2 if hp < max_hp * 0.5 else boss_moves
+		phase = (phase + 1) % mv.size()
+		next_kind = phase
+		next_move = String(mv[phase])
+		if next_move == "rush":
 			tdir = dv / d
 	if st != 4 and t > BOSS_GAP:
 		t = 0
-		var kind := next_kind
+		var kind := next_move
 		next_kind = -1
-		if kind == 0:
+		var who := boss_short + Battle.jo(boss_short, "이", "가")
+		if kind == "paper":
+			# 종이 병사(D-243 — 장보): 약한 무리 여럿이 보스 둘레에서
+			for i in 12:
+				var e := b.spawn("ytb", position + Vector2.from_angle(randf() * TAU) * randf_range(50, 110), b.time_mul() * 0.35)
+				e.xp_mul = 0.3
+			b.add_fx({"k": "ring", "pos": position, "t": 0.4, "r": 110.0, "c": Color("f4ecd8")})
+			b.banner("%s 종이 병사를 불러내요!" % who, "")
+		elif kind == "thunder":
+			# 낙뢰(D-243 — 장보): 장수 자리 + 둘레 넷에 예고 원(Siege 낙뢰와 같음)
+			if b.siege != null:
+				for i in 5:
+					var at := b.hero.position
+					if i > 0:
+						at += Vector2.from_angle(randf() * TAU) * randf_range(50, 160)
+					b.siege.bolts.append({"pos": at, "t": 0.0})
+		elif kind == "ring":
 			var n := 18 if hp < max_hp * 0.5 else 14
 			var off := randf()
 			for i in n:
 				var a := (i + off) / n * TAU
 				b.shoot(position, Vector2.from_angle(a) * 135, 11, 6, Color("e8c060"))
 			b.add_fx({"k": "ring", "pos": position, "t": 0.3, "r": 60.0, "c": Color("e8c060")})
-		elif kind == 1:
+		elif kind == "volley":
 			for i in 3:
 				b.later(i * 0.26, b.boss_volley.bind(self))
-		elif kind == 2:
+		elif kind == "summon":
 			for i in 8:
 				b.spawn("ytb", position + Vector2(randf_range(-60, 60), randf_range(20, 60)), b.time_mul())
-			b.banner("장각이 황건 무리를 불러내요!", "")
+			b.banner("%s 황건 무리를 불러내요!" % who, "")
 		else:
 			st = 4
 			t = 0
-			b.banner("장각이 누런 바람을 타고 달려들어요!", "")
+			b.banner("%s 누런 바람을 타고 달려들어요!" % who, "")
 
 
 ## 화면 근처에서 매 프레임(Battle._redraw_units): 걷는 방향을 고치고, 그릴 것이 지난번에 그린 것과 다를 때만 다시 그림(D-201).
@@ -615,7 +639,7 @@ func _draw_impl() -> void:
 			# 예고: 공격이 가까울수록 테두리가 굵고 진해짐. 돌진이면 갈 길(0.7초 × 260)을 미리 그림
 			var k := 1.0 if st == 4 else clampf(1.0 - (BOSS_GAP - t) / BOSS_WARN, 0.0, 1.0)
 			draw_oval(Vector2.ZERO, r * 1.35, r * 1.2, Color(0.85, 0.44, 0.37, 0.5 + 0.5 * k), false, 2 + 3 * k)
-			if next_kind == 3 or st == 4:
+			if next_move == "rush" or st == 4:
 				var tip := tdir * 182
 				draw_line(Vector2.ZERO, tip, Color(0.85, 0.3, 0.25, 0.25 + 0.35 * k), r * 1.6)
 				draw_line(tip, tip - tdir.rotated(0.5) * 18, Color(0.9, 0.3, 0.25, 0.8), 3)

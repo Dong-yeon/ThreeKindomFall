@@ -14,6 +14,8 @@ var keep_open := false
 var altars: Array[Enemy] = []
 var beast_pos := Vector2.INF
 var beast_t := -1.0
+## 빛 구슬이 나온 지(D-243 — 닿기 어려운 자리에 나와 판이 안 끝나던 것: wait초가 지나면 스스로 풀려남)
+var beast_wait := 0.0
 ## 장각의 요술: 켜짐 · 다음 낙뢰 · 폭풍까지 · 낙뢰 예고 {pos, t} · 폭풍 {pos, life, hit} · 장수가 폭풍 안
 var sorc_on := false
 var bolt_t := 0.0
@@ -99,11 +101,12 @@ func _sorcery_tick(dt: float) -> void:
 		if gate_open and b.t >= sorc_at() and (not b.ch.has("guard") or guard_done):
 			_open_keep()
 		return
+	# 떨어지는 중인 낙뢰는 요술이 멈춰도 마저 떨어짐(보스의 낙뢰 수 — D-243)
+	_bolts_tick(dt)
 	if not sorc_on:
 		return
 	if altars_left() == 0 or not Unit.alive(b.boss):
 		sorc_on = false
-		bolts.clear()
 		storms.clear()
 		in_storm = false
 		return
@@ -116,21 +119,6 @@ func _sorcery_tick(dt: float) -> void:
 			if i > 0:
 				at += Vector2.from_angle(randf() * TAU) * randf_range(60, 140)
 			bolts.append({"pos": at, "t": 0.0})
-	var keep: Array[Dictionary] = []
-	var struck := false
-	for bo in bolts:
-		bo.t += dt
-		if bo.t < float(S.bolt_warn):
-			keep.append(bo)
-			continue
-		struck = true
-		b.add_fx({"k": "sky", "pos": bo.pos, "t": 0.25})
-		b.add_fx({"k": "ring", "pos": bo.pos, "t": 0.3, "r": float(S.bolt_r), "c": Color("fff2b0")})
-		if hero.position.distance_to(bo.pos) < float(S.bolt_r) + hero.r * 0.5:
-			hero.hurt(float(S.bolt_dmg), "요술")
-	bolts = keep
-	if struck:
-		Sound.play("slam", 0.25)
 	# 폭풍: 화면 바로 밖에서 생겨 장수 쪽으로
 	storm_t -= dt
 	if storm_t <= 0:
@@ -167,6 +155,12 @@ func _open_keep() -> void:
 	var boss := b.spawn(B.k, K.get_center() + Vector2(0, -40), float(B.m))
 	boss.boss = true
 	boss.ename = bfull()
+	# 보스의 수(D-243): 장 데이터에 있으면 그것(2장 장보 — 종이 병사 · 낙뢰), 없으면 장각 것
+	boss.boss_short = bshort()
+	if B.has("moves"):
+		boss.boss_moves = B.moves
+	if B.has("moves2"):
+		boss.boss_moves2 = B.moves2
 	boss.touch = 22
 	b.boss = boss
 	# 요술 제단(D-207): 남아 있는 동안 장각은 보호막
@@ -199,7 +193,8 @@ func _beast_tick(dt: float) -> void:
 		return
 	var Bs: Dictionary = SiegeData.BEAST
 	if beast_t < 0:
-		if b.hero.position.distance_to(beast_pos) < b.hero.r + 14:
+		beast_wait += dt
+		if b.hero.position.distance_to(beast_pos) < b.hero.r + float(Bs.touch) or beast_wait > float(Bs.wait):
 			beast_t = 0.0
 			b.note("사신수 해방")
 			b.banner("%s%s 풀려났어요!" % [Bs.n, "이" if Battle.eul(Bs.n) == "을" else "가"], "황건적의 난을 평정했어요")
@@ -213,6 +208,29 @@ func _beast_tick(dt: float) -> void:
 	if beast_t >= float(Bs.release):
 		beast_pos = Vector2.INF
 		b.finish(true, "")
+
+
+## 낙뢰 예고 → 내리꽂힘(요술 · 보스의 낙뢰 수 공통)
+func _bolts_tick(dt: float) -> void:
+	if bolts.is_empty():
+		return
+	var S: Dictionary = SiegeData.SORCERY
+	var hero := b.hero
+	var keep: Array[Dictionary] = []
+	var struck := false
+	for bo in bolts:
+		bo.t += dt
+		if bo.t < float(S.bolt_warn):
+			keep.append(bo)
+			continue
+		struck = true
+		b.add_fx({"k": "sky", "pos": bo.pos, "t": 0.25})
+		b.add_fx({"k": "ring", "pos": bo.pos, "t": 0.3, "r": float(S.bolt_r), "c": Color("fff2b0")})
+		if hero.position.distance_to(bo.pos) < float(S.bolt_r) + hero.r * 0.5:
+			hero.hurt(float(S.bolt_dmg), "요술")
+	bolts = keep
+	if struck:
+		Sound.play("slam", 0.25)
 
 
 ## 관문 앞 장수(D-241): 관문 바로 안쪽(북쪽)에 서서 다가오면 덤빔 · 장수급(일기토 · 패턴)

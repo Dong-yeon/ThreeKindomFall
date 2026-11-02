@@ -16,4 +16,5 @@ const ALTAR := {"hp": 1000.0, "r": 18.0, "xp": 10, "pos": [Vector2(270, 215), Ve
 const SORCERY := {"at": 450.0, "bolt_gap": 2.4, "bolts": 3, "bolt_warn": 0.8, "bolt_r": 36.0, "bolt_dmg": 12.0,
 	"storm_gap": 14.0, "storm_life": 12.0, "storm_r": 70.0, "storm_spd": 45.0, "storm_slow": 0.6, "storm_dmg": 5.0}
 ## 첫 사신수(D-207 · D-210 — 3장): 장각을 쓰러뜨린 자리에 봉인된 빛 구슬(그림은 에셋 전까지, D-170) → 장수가 닿으면 release초 동안 풀려나는 연출 뒤 판 끝
-const BEAST := {"n": "청룡", "c": "6ac0e0", "release": 1.8}
+## touch = 닿는 거리(장수 반지름 +) · wait = 이 초가 지나도 못 닿으면 스스로 풀려남(D-243 — 본진 구석에 나와 못 닿아 판이 안 끝난 적이 있음)
+const BEAST := {"n": "청룡", "c": "6ac0e0", "release": 1.8, "touch": 40.0, "wait": 12.0}
