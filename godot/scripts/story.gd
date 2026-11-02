@@ -188,8 +188,8 @@ func on_ally_dead(a: Ally) -> void:
 ## 그 안에 쓰러뜨리면 "술이 아직 따뜻해요" + 전공 merit(연의 제5회 — 관우가 데운 술이 식기 전에 화웅을 벰)
 func _wine_tick() -> void:
 	while beat_i < S.beats.size() and b.t >= float(S.beats[beat_i][0]) and b.siege != null and b.siege.gate_open:
-		b.banner(String(S.beats[beat_i][1]), String(S.beats[beat_i][2]))
-		b.note(String(S.beats[beat_i][1]))
+		b.banner(line(S.beats[beat_i][1]), line(S.beats[beat_i][2]))
+		b.note(line(S.beats[beat_i][1]))
 		beat_i += 1
 	if b.siege == null:
 		return
@@ -203,6 +203,16 @@ func _wine_tick() -> void:
 		b.banner("술이 식었어요…", "그래도 %s%s 베어요" % [g.ename if Unit.alive(g) else "적장", Battle.eul(g.ename if Unit.alive(g) else "적장")])
 
 
+## 장 글(D-246): {장수 id: 글, "": 기본}이면 출진 장수 것, {hero}는 출진 장수 이름
+func line(v) -> String:
+	var s := ""
+	if v is Dictionary:
+		s = String(v.get(b.hero_data.id, v.get("", "")))
+	else:
+		s = String(v)
+	return s.replace("{hero}", b.hero_data.display_name)
+
+
 func on_kill(e: Enemy) -> void:
 	if S.k != "wine" or st != "on" or b.siege == null or e != b.siege.guard:
 		return
@@ -210,7 +220,7 @@ func on_kill(e: Enemy) -> void:
 	if took <= float(S.warm):
 		b.bonus_merit += int(S.merit)
 		_finish("성공")
-		b.later(0.9, b.banner.bind("술이 아직 따뜻해요!", "%.0f초 만에 베었어요 — 전공 +%d" % [took, int(S.merit)]))
+		b.later(0.9, b.banner.bind(line(S.get("won", "술이 아직 따뜻해요!")), "%.0f초 만에 베었어요 — 전공 +%d" % [took, int(S.merit)]))
 	else:
 		_finish("식음")
 
