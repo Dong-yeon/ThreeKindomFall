@@ -14,6 +14,8 @@ const GRID := 30.0
 ## 천하 지도(D-235) — 결과 창 '천하 지도로'
 const WORLD_SCENE := "res://scenes/world.tscn"
 const STICK_DEAD := 8.0
+## 관문 장수가 나와 있을 때 유비(본진 총대장)를 지키러 가는 체력 비율(D-254 — 평소 0.5)
+const LB_GUARD_CUT := 0.25
 const STICK_FULL := 50.0
 ## 화면 밖 이만큼까지는 인물을 다시 그림(장각 그림 높이 ~90px · 띄워짐 · 화면 흔들림을 덮음)
 const DRAW_PAD := 120.0
@@ -2954,7 +2956,10 @@ func _field_target() -> Dictionary:
 		if not ST.is_empty():
 			return ST
 	# 유비가 절반 아래로 다쳤고 둘레에 적이 있으면(D-208 — 쓰러지면 짐)
-	if Unit.alive(liubei) and liubei.hp < liubei.max_hp * 0.5:
+	# 관문 장수가 나와 있으면(D-254) 그쪽이 먼저 — 유비가 아주 위급(LB_GUARD_CUT 아래)할 때만 유비에게
+	# (전엔 유비가 50% 아래 · 둘레에 적이 늘 있어 관문 장수에게 끝내 안 감 — 6장 봇 시간 초과)
+	var lb_cut := LB_GUARD_CUT if siege != null and Unit.alive(siege.guard) else 0.5
+	if Unit.alive(liubei) and liubei.hp < liubei.max_hp * lb_cut:
 		for e in enemies:
 			if not e.dead and not e.building and e.position.distance_to(liubei.position) < 200:
 				return {"pos": liubei.position, "n": "%s%s 지켜요 (%s %d%%)" % [leader(), eul(leader()), leader(), ceili(liubei.hp / liubei.max_hp * 100)], "warn": true}
