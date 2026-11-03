@@ -40,7 +40,9 @@ func setup(b: Battle, key: String, at: Vector2, m: String, anchor_id: String) ->
 	cd = randf_range(0, 0.6)
 	slot = randf() * TAU
 	tint = Color(def.c)
-	tex = Sprites.sheet(def.spr)
+	# 출진 장수가 이 아군과 같은 사람이면 다른 그림(D-250 — 유비 출진이면 본진 총대장은 간옹)
+	var spr: String = def.alt_spr if def.has("alt_spr") and b.hero_data.id == String(def.get("hero", "")) else def.spr
+	tex = Sprites.sheet(spr)
 
 
 func tick(dt: float) -> void:
