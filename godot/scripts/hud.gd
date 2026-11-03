@@ -413,8 +413,13 @@ func _draw_overlay_impl() -> void:
 		c.draw_texture_rect(vignette, Rect2(Vector2.ZERO, sz), false)
 	_draw_lead_bar(c, font, sz)
 	_draw_surge(c, font, sz)
-	# 목표 화살표(화면 밖일 때)
+	# 피난 중인 백성 무리(D-254): 화면 밖이면 무리마다 작은 화살표(목표 화살표가 가리키는 무리는 빼고)
 	var T := b.field_target()
+	if b.story != null:
+		for fp in b.story.folk_marks():
+			if fp.distance_to(T.pos) > 40:
+				_edge_arrow(c, font, fp, Color("e8d4a0"), 0.75)
+	# 목표 화살표(화면 밖일 때)
 	var tp: Vector2 = T.pos
 	var s := _w2s(tp)
 	var x0 := 16.0
@@ -492,6 +497,38 @@ func _draw_lead_bar(c: Control, font: Font, sz: Vector2) -> void:
 	if L.shield:
 		name += " (보호막)"
 	_text(c, font, name, Vector2(x0 + w / 2, y + 20), 12, Color("fff2c0"))
+
+
+## 화면 밖 자리를 가리키는 작은 화살표 + 걸음 수(D-254 — 백성 무리). 화면 안이면 안 그림
+func _edge_arrow(c: Control, font: Font, tp: Vector2, col: Color, k: float) -> void:
+	var sz := c.size
+	var s := _w2s(tp)
+	var x0 := 16.0
+	var x1 := sz.x - 16
+	var y0 := TOP_H + 16
+	var y1 := sz.y - 16
+	if s.x >= x0 and s.x <= x1 and s.y >= y0 and s.y <= y1:
+		return
+	var hc := _w2s(b.hero.position)
+	var a := (s - hc).angle()
+	var r := INF
+	if cos(a) > 0.01:
+		r = minf(r, (x1 - hc.x) / cos(a))
+	if cos(a) < -0.01:
+		r = minf(r, (x0 - hc.x) / cos(a))
+	if sin(a) > 0.01:
+		r = minf(r, (y1 - hc.y) / sin(a))
+	if sin(a) < -0.01:
+		r = minf(r, (y0 - hc.y) / sin(a))
+	var ap := hc + Vector2.from_angle(a) * r
+	var pts := PackedVector2Array()
+	for q in [Vector2(12, 0), Vector2(-8, -9), Vector2(-4, 0), Vector2(-8, 9)]:
+		pts.append(ap + (q * k).rotated(a))
+	c.draw_colored_polygon(pts, col)
+	pts.append(pts[0])
+	c.draw_polyline(pts, INK, 2)
+	var lp := Vector2(clampf(ap.x - cos(a) * 22, x0 + 22, x1 - 22), clampf(ap.y - sin(a) * 16, y0 + 6, y1 - 6))
+	_text(c, font, "백성 %d보" % roundi(tp.distance_to(b.hero.position) / 10), lp, 10, col)
 
 
 func _draw_minimap(c: Control, sz: Vector2) -> void:

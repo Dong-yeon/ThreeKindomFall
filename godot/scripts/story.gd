@@ -29,6 +29,8 @@ var duel_t0 := -1.0
 var cold := false
 ## 서주 백성(D-252): 지금 피난 중인 백성 · 구한 수 · 잃은 수
 var folks: Array[Ally] = []
+## 무리마다 백성 묶음(D-254 — 화면 밖 무리 화살표)
+var folk_grps: Array = []
 var saved := 0
 var lost := 0
 
@@ -83,7 +85,6 @@ func _start() -> void:
 		waves = 0
 		wave_t = 0.0
 		b.note("%s — 시작" % S.n)
-		b.banner(line(S.hi[0]), line(S.hi[1]))
 	else:
 		var p := Vector2.INF
 		for _k in 8:
@@ -178,21 +179,51 @@ func _rescue_tick(dt: float) -> void:
 
 
 ## 백성 무리 하나(D-252): 본진에서 먼 둘레에 per명 + 추격대
-func _folk_wave() -> void:
+## 나온 자리의 방향(장수에게서 — 알림 글, D-254). 못 나왔으면 빈 글
+func _folk_wave() -> String:
 	var p := Vector2.INF
 	for _k in 8:
 		p = b.ring_pos(randf() * TAU)
 		if p != Vector2.INF and p.distance_to(b.home_pos) > 900:
 			break
 	if p == Vector2.INF:
-		return
+		return ""
 	var grp: Array = []
 	for j in int(S.per):
 		var a := b.ally_spawn(String(S.npc), p + Vector2((j - 1) * 24.0, randf_range(-10, 10)), "escort", "")
 		folks.append(a)
 		grp.append(a)
+	folk_grps.append(grp)
 	_pursuers(p, grp)
 	b.note("%s — 무리 %d" % [S.n, waves])
+	return dir_name(p - b.hero.position)
+
+
+## 알림 자리에 다른 알림이 떠 있으면 그것이 사라진 뒤에 띄움(D-254)
+func _say(title: String, sub: String) -> void:
+	if b.hud.banner_t > 0.3:
+		b.later(b.hud.banner_t, _say.bind(title, sub))
+		return
+	b.banner(title, sub)
+
+
+## 방향 이름(화면 위 = 북쪽): 여덟 방위
+static func dir_name(d: Vector2) -> String:
+	const N := ["동쪽", "남동쪽", "남쪽", "남서쪽", "서쪽", "북서쪽", "북쪽", "북동쪽"]
+	return N[posmod(roundi(d.angle() / (PI / 4)), 8)]
+
+
+## 화면 밖 무리 화살표(D-254): 무리마다 아직 피난 중인 백성 하나의 자리
+func folk_marks() -> Array[Vector2]:
+	var out: Array[Vector2] = []
+	if S.k != "folk" or st != "on":
+		return out
+	for grp in folk_grps:
+		for a in grp:
+			if is_instance_valid(a) and not a.dead and a.mode == "escort":
+				out.append(a.position)
+				break
+	return out
 
 
 func _folk_tick(dt: float) -> void:
@@ -200,9 +231,13 @@ func _folk_tick(dt: float) -> void:
 	if wave_t <= 0 and waves < int(S.waves):
 		waves += 1
 		wave_t = float(S.gap)
-		_folk_wave()
-		if waves > 1:
-			b.banner("백성 무리가 또 쫓겨 와요!", "본진까지 지켜 줘요 (%d/%d)" % [waves, int(S.waves)])
+		var dn := _folk_wave()
+		var from := "%s에서 " % dn if dn != "" else ""
+		# 진영 부대 알림(45초마다)과 같은 때가 많아 — 다른 알림이 끝난 뒤에(D-254)
+		if waves == 1:
+			b.later(0.2, _say.bind(line(S.hi[0]), "%s와요 — %s" % [from, line(S.hi[1])]))
+		else:
+			b.later(0.2, _say.bind("백성 무리가 %s또 쫓겨 와요!" % from, "본진까지 지켜 줘요 (%d/%d)" % [waves, int(S.waves)]))
 	if waves >= int(S.waves) and _folks_alive().is_empty():
 		_folk_end()
 
