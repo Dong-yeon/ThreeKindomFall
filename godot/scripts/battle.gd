@@ -2154,7 +2154,17 @@ func finish(win: bool, why: String) -> void:
 		kept.append_array(carry)
 	gear_got = Save.add_gear(kept)
 	gear_got["lost"] = 0 if win else carry.size()
+	# 장수 해금(D-249): 이번 판으로 새로 열린 장수(결과 창)
+	var locked: Array[String] = []
+	for hid in MetaData.HERO_UNLOCK:
+		if not Save.hero_open(hid):
+			locked.append(hid)
 	meta_got = Save.add_run(win, lvl, kills, cap_n, leads, cyz_dead if ch.army else win, chapter)
+	var fresh: Array[String] = []
+	for hid in locked:
+		if Save.hero_open(hid) and Save.on:
+			fresh.append((load(MetaData.hero_path(hid)) as HeroData).display_name)
+	meta_got["heroes"] = fresh
 	if bonus_merit > 0:
 		Save.d.merit = int(Save.d.merit) + bonus_merit
 		Save.write()

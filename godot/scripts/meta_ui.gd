@@ -178,6 +178,12 @@ func _hero_refresh() -> void:
 	for btn in hero_btns:
 		var h: HeroData = btn.get_meta("hd")
 		var on := h.id == Save.hero_id()
+		# 잠긴 장수(D-249): 흐리게 · 누를 수 없음 · 여는 조건
+		if not Save.hero_open(h.id):
+			btn.disabled = true
+			btn.text = "%s  (잠김)\n%d장을 평정하면 장수 막사에 와요" % [h.display_name, int(MetaData.HERO_UNLOCK[h.id])]
+			continue
+		btn.disabled = false
 		btn.text = "%s%s\n체력 %d · 걸음 %d · %s\n%s 강화 Lv %d\n규칙 '%s' — %s" % [h.display_name, "  (출진)" if on else "", int(h.max_hp), int(h.move_speed),
 			h.basic.display_name if h.basic != null else "-", h.weapon_name, Save.weapon_lv(h.id), h.rule_name, h.rule_desc]
 		var sb := StyleBoxFlat.new()

@@ -339,6 +339,9 @@ func show_end() -> void:
 		if int(M.lv) > int(M.lv0):
 			end_stats.text += "\n레벨 업!   재능 포인트 +%d" % int(M.pts)
 		end_stats.text += "\n전공 +%d   (가진 전공 %d)" % [int(M.merit), int(Save.d.merit)]
+		# 장수 해금(D-249)
+		if not M.get("heroes", []).is_empty():
+			end_stats.text += "\n새 장수 — %s%s 장수 막사에 왔어요!" % [", ".join(M.heroes), Battle.jo(String(M.heroes[-1]), "이", "가")]
 	# 장비(D-240)
 	var G: Dictionary = b.gear_got
 	if not G.is_empty() and (not G.new.is_empty() or int(G.dup) > 0 or int(G.lost) > 0):

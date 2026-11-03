@@ -339,8 +339,11 @@ func _world_test() -> void:
 				_shot("world_gear_pick")
 				print("[world] 창고 가진 %s · 낀 %s" % [JSON.stringify(Save.d.gear), JSON.stringify(Save.d.eq)])
 			if k == "hero":
-				# 둘째 장수로 바꿔 봄
-				meta.hero_btns[1].pressed.emit()
+				# 열린 다른 장수로 바꿔 봄(잠긴 장수는 못 누름 — D-249)
+				for hb in meta.hero_btns:
+					if not hb.disabled and (hb.get_meta("hd") as HeroData).id != Save.hero_id():
+						hb.pressed.emit()
+						break
 				await get_tree().create_timer(0.3).timeout
 				_shot("world_hero_pick")
 			meta.forge_panel.visible = false

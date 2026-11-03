@@ -61,7 +61,13 @@ func ch_clears(n: int) -> int:
 
 ## 출진 장수(D-236): 장수 id · 데이터
 func hero_id() -> String:
-	return String(d.hero)
+	# 잠긴 장수가 저장돼 있으면(해금 전 저장 · D-249) 처음 장수로
+	return String(d.hero) if hero_open(String(d.hero)) else MetaData.hero_path("").get_file().get_basename()
+
+
+## 장수 해금(D-249, MetaData.HERO_UNLOCK): 그 장을 깼으면 열림
+func hero_open(id: String) -> bool:
+	return not MetaData.HERO_UNLOCK.has(id) or ch_clears(int(MetaData.HERO_UNLOCK[id])) > 0
 
 
 func hero_data() -> HeroData:
@@ -271,7 +277,8 @@ func add_run(win: bool, plv: int, kills: int, camps: int, leads: int, cyz: bool,
 		pts += int(MetaData.PER_LV.pts)
 	d.runs = int(d.runs) + 1
 	if win:
-		d.clears = int(d.clears) + 1
+		# 장마다 깬 수를 먼저(D-249 — 전엔 깬 수를 먼저 올려 1장 첫 판이 2로 찍힘)
 		d.ch[str(chapter)] = ch_clears(chapter) + 1
+		d.clears = int(d.clears) + 1
 	write()
 	return {"xp": xp, "merit": roundi(merit), "lv0": lv0, "lv": lv(), "pts": pts, "xp_now": int(d.xp), "need": MetaData.need(lv())}
