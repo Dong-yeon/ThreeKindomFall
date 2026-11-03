@@ -1802,7 +1802,7 @@ func _on_kill(e: Enemy) -> void:
 			cap3_t = t
 		# 성문이 있는 장(D-239): 진영 gate_caps곳이면 관문이 열리기 시작(Siege — 1장의 정원지 격파 자리)
 		if ch.siege and siege != null and cap_n == int(ch.get("gate_caps", 3)):
-			siege.start_gate()
+			siege.start_gate("%s 점령! (%d/3)" % [c.n, cap_n], "진영을 모두 점령했어요 — 관문이 열려요")
 			return
 		# 진영 ARMY.after곳 점령이면 정원지의 대군이 출진(_army_tick) — 아직 ARMY.min_t 전이면 남은 시간을 알림(D-224)
 		var wait := float(Stage1.ARMY.min_t) - t
