@@ -29,7 +29,7 @@ var duel_t0 := -1.0
 var cold := false
 ## 서주 백성(D-252): 지금 피난 중인 백성 · 구한 수 · 잃은 수
 var folks: Array[Ally] = []
-## 무리마다 백성 묶음(D-254 — 화면 밖 무리 화살표)
+## 무리마다 백성 묶음(D-256 — 화면 밖 무리 화살표)
 var folk_grps: Array = []
 var saved := 0
 var lost := 0
@@ -179,7 +179,7 @@ func _rescue_tick(dt: float) -> void:
 
 
 ## 백성 무리 하나(D-252): 본진에서 먼 둘레에 per명 + 추격대
-## 나온 자리의 방향(장수에게서 — 알림 글, D-254). 못 나왔으면 빈 글
+## 나온 자리의 방향(장수에게서 — 알림 글, D-256). 못 나왔으면 빈 글
 func _folk_wave() -> String:
 	var p := Vector2.INF
 	for _k in 8:
@@ -205,7 +205,7 @@ static func dir_name(d: Vector2) -> String:
 	return N[posmod(roundi(d.angle() / (PI / 4)), 8)]
 
 
-## 화면 밖 무리 화살표(D-254): 무리마다 아직 피난 중인 백성 하나의 자리
+## 화면 밖 무리 화살표(D-256): 무리마다 아직 피난 중인 백성 하나의 자리
 func folk_marks() -> Array[Vector2]:
 	var out: Array[Vector2] = []
 	if S.k != "folk" or st != "on":
@@ -225,7 +225,7 @@ func _folk_tick(dt: float) -> void:
 		wave_t = float(S.gap)
 		var dn := _folk_wave()
 		var from := "%s에서 " % dn if dn != "" else ""
-		# 진영 부대 알림(45초마다)과 같은 때가 많음 — 알림 차례(D-255)가 줄을 세움
+		# 진영 부대 알림(45초마다)과 같은 때가 많음 — 알림 차례(D-257)가 줄을 세움
 		if waves == 1:
 			b.banner(line(S.hi[0]), "%s와요 — %s" % [from, line(S.hi[1])])
 		else:

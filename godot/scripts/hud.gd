@@ -18,7 +18,7 @@ var banner_box: VBoxContainer
 var banner_title: Label
 var banner_sub: Label
 var banner_t := 0.0
-## 알림 차례(D-255): 지금 알림이 가벼운 것(minor)인지 · 떠 있은 시간 · 기다리는 알림 [제목, 아랫줄]
+## 알림 차례(D-257): 지금 알림이 가벼운 것(minor)인지 · 떠 있은 시간 · 기다리는 알림 [제목, 아랫줄]
 ## 중요한 알림은 BANNER_MIN초는 보이고 그 사이 온 알림은 줄을 섬(BANNER_QMAX개까지 — 넘치면 오래된 것부터 버림),
 ## 가벼운 알림(무쌍 이름 · 자석 · 폭탄)은 중요한 알림이 떠 있거나 줄이 있으면 버림(곧 낡는 소식이라)
 const BANNER_SHOW := 2.6
@@ -441,7 +441,7 @@ func _draw_overlay_impl() -> void:
 		c.draw_texture_rect(vignette, Rect2(Vector2.ZERO, sz), false)
 	_draw_lead_bar(c, font, sz)
 	_draw_surge(c, font, sz)
-	# 피난 중인 백성 무리(D-254): 화면 밖이면 무리마다 작은 화살표(목표 화살표가 가리키는 무리는 빼고)
+	# 피난 중인 백성 무리(D-256): 화면 밖이면 무리마다 작은 화살표(목표 화살표가 가리키는 무리는 빼고)
 	var T := b.field_target()
 	if b.story != null:
 		for fp in b.story.folk_marks():
@@ -527,7 +527,7 @@ func _draw_lead_bar(c: Control, font: Font, sz: Vector2) -> void:
 	_text(c, font, name, Vector2(x0 + w / 2, y + 20), 12, Color("fff2c0"))
 
 
-## 화면 밖 자리를 가리키는 작은 화살표 + 걸음 수(D-254 — 백성 무리). 화면 안이면 안 그림
+## 화면 밖 자리를 가리키는 작은 화살표 + 걸음 수(D-256 — 백성 무리). 화면 안이면 안 그림
 func _edge_arrow(c: Control, font: Font, tp: Vector2, col: Color, k: float) -> void:
 	var sz := c.size
 	var s := _w2s(tp)
