@@ -1,9 +1,13 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # ThreeKingdomFall
 
 장수를 바꿔 가며 하는 삼국지 액션 게임(세로 화면 모바일). 천하 지도를 걸어 다니며 출진하고(Thronefall식 허브), 전장에서는 지도 위 목표를 점령하며 적 무리를 베어 나간다(무쌍 액션식).
 
-- 지금 상태: 웹 프로토타입 v0.18(`prototype/web`)에서 손맛과 큰 구조를 검증함. Godot 4.7 이식 1단계 = 1장 전장(말 없이 · 기본 공격은 날아가는 대표 무기, `godot/`, D-171 · D-173~175).
-- 다음: PC에서 웹판과 손맛 비교 → 천하 지도·장비 → 장수 교체.
+- 지금 상태: 웹 프로토타입 v0.18(`prototype/web`)에서 손맛과 큰 구조를 검증함. 본 개발은 Godot(`godot/`, 말 없이 · 기본 공격은 날아가는 대표 무기, D-170 · D-171) — 천하 지도 · 저장 · 대장간 · 장비, 1~5장(황건 편 → 사수관 · 호뢰관), 출진 장수 관우 · 장비 · 유비(`data/heroes/*.tres`, 장을 평정하면 해금 D-249)까지 들어가 있음.
+- 다음 할 일은 정해 두지 않는다 — 최근 흐름은 `docs/decision-log.md` 끝 항목을 본다(지금 D-249까지).
 - 현재 기획 요약: `docs/current-design.md` / 결정 기록: `docs/decision-log.md`(D-1~, 이전 저장소 Happy-Unhappy에서 이어짐)
 
 ## 작업 규칙
@@ -33,12 +37,13 @@
 - 실행 파일: `C:\Tools\Godot-4.7.2\Godot_v4.7.2-stable_win64_console.exe`(콘솔판). 렌더러 Compatibility, 화면 360×640 기준 세로(`keep_width`라 긴 화면은 아래위가 더 보임).
 - 처음 받으면: `python godot/tools/bb_export.py`(B.B.Bits 캐릭터 시트 → `godot/assets/bb/`, 구매 에셋 `assets/three-kingdom/`이 그 PC에 있어야 함) → `Godot… --path godot --headless --import`. 그림이 없어도 돌아감(인물이 동그라미).
 - 소리: `godot/assets/sfx/`(Ninja Adventure CC0, 커밋돼 있음). 다시 만들 땐 `python godot/tools/na_sounds.py`(웹판 `c3_na_data.js`에서 꺼냄). 창 없는 실행(봇)에서는 소리를 끔.
-- 구조: `data/`(장수 `HeroData`·기본 공격 `BasicAttack`·`heroes/*.tres`, 책략 `tactics_data.gd`, 적·아군 수치 `units.gd`, 1장 지도 `stage_1.gd`), `scripts/`(`battle.gd` 판 진행·목표·생성·충돌, `hero.gd` 기본 공격·연격 수·무쌍, `tactics.gd` 레벨업·책략·진화, `sound.gd` 자동 로드 `Sound`(효과음·배경음), `enemy.gd`·`ally.gd`, `companion.gd` 스토리 동료 장수(D-215 — 장수 데이터로 싸우고 자기 목표로), `flow_field.gd` 길찾기, `ground.gd`·`fx_layer.gd`·`hud.gd` 그리기, `bot.gd` 테스트 봇, `siege.gd` 황건 편 2 · 3장용 진행 — 1장에선 꺼 둠 · 수치는 `data/siege_data.gd`), `scenes/battle.tscn`. 판 밖(D-232~235): 자동 로드 `Save`(`scripts/save.gd`, `user://save.json` — 장수 레벨 · 전공 · 무기 강화 · 재능, 봇은 안 씀), 수치 `data/meta_data.gd`, 대장간 · 재능 창 `scripts/meta_ui.gd`, 천하 지도 `scenes/world.tscn`(`scripts/world.gd` · `data/world_data.gd`, 시작 장면 — `--bot`이면 곧바로 전장, 점검 `--world-test --shots=<폴더>`), 출진 장수는 군영 장수 막사(D-236 — 봇 · 점검은 `--hero=<id>`), 장마다 켜고 끄는 것은 `data/chapter_data.gd`(D-239 — 봇 `--chapter=2`, 테스트 도구 `--chapter 2`), 장비 · 우물은 `data/gear_data.gd`(D-240 — 군영 창고).
+- 구조: `data/`(장수 `HeroData`·기본 공격 `BasicAttack`·`heroes/*.tres`, 책략 `tactics_data.gd`, 적·아군 수치 `units.gd`, 1장 지도 `stage_1.gd`), `scripts/`(`battle.gd` 판 진행·목표·생성·충돌, `hero.gd` 기본 공격·연격 수·무쌍, `tactics.gd` 레벨업·책략·진화, `sound.gd` 자동 로드 `Sound`(효과음·배경음), `enemy.gd`·`ally.gd`, `companion.gd` 스토리 동료 장수(D-215 — 장수 데이터로 싸우고 자기 목표로), `flow_field.gd` 길찾기, `story.gd` 장마다 하나인 이야기 사건(매복 · 구출 등, D-242 — 수치는 `chapter_data.gd`의 story), `terrain.gd` 움직이지 않는 지형(세로 640px 조각, 점령 등 바뀔 때만 다시 그림 — 웹 성능 때문) · `ground.gd` 매 프레임 그리는 바닥 위 것 · `fx_layer.gd`·`hud.gd` 그리기, `bot.gd` 테스트 봇, `siege.gd` 황건 편 2 · 3장용 진행 — 1장에선 꺼 둠 · 수치는 `data/siege_data.gd`), `scenes/battle.tscn`. 판 밖(D-232~235): 자동 로드 `Save`(`scripts/save.gd`, `user://save.json` — 장수 레벨 · 전공 · 무기 강화 · 재능, 봇은 안 씀), 수치 `data/meta_data.gd`, 대장간 · 재능 창 `scripts/meta_ui.gd`, 천하 지도 `scenes/world.tscn`(`scripts/world.gd` · `data/world_data.gd`, 시작 장면 — `--bot`이면 곧바로 전장, 점검 `--world-test --shots=<폴더>`), 출진 장수는 군영 장수 막사(D-236 — 봇 · 점검은 `--hero=<id>`), 장마다 켜고 끄는 것은 `data/chapter_data.gd`(D-239 — 봇 `--chapter=2`, 테스트 도구 `--chapter 2`), 장비 · 우물은 `data/gear_data.gd`(D-240 — 군영 창고).
+  - `battle.gd`는 3,000줄이 넘는다 — 통째로 읽지 말고 함수 이름으로 찾아 읽는다.
   - 흐름: `Battle._ready()`가 장수·책략·진영·아군·적 무리·HUD를 모두 코드로 만든다(씬에 미리 놓인 유닛 없음). `hero`·`enemy`·`ally`는 공통 `Unit`(`unit.gd`, position = 발밑, 길찾기 캐시)을 잇는다. 캐릭터 그림은 `Sprites.sheet(키)`(`assets/bb/<키>.png`, 없으면 null → 동그라미). 성능 구간 측정은 `Perf.begin/end`(`--perf`일 때만 켜짐).
   - 명령줄 옵션은 `--` 뒤 사용자 인자: `battle.gd`가 `--seed=` · `--wave-hp=` · `--bot`(봇 붙임) · `--playtest`(사람 플레이 기록, D-221 — 웹은 주소에 `?playtest=1`, `scripts/playtest.gd`가 판 끝에 JSON을 `user://playtest/`에 최근 10판 저장 · 결과 창 '기록 복사'), `bot.gd`가 `--god` · `--max-time=` · `--shots=` · `--shot-at=초,초…` · `--perf` · `--selftest-pause` · `--late-village=초`(마을에 늦게 감, D-215)를 읽는다.
 - 조작(PC): 마우스 끌기 = 터치 끌기, 방향키·WASD 이동, 스페이스·K 무쌍.
 - 자동 전투 테스트: `python godot/tools/run_bot_test.py`(headless로 일반·무적 두 판 → 클리어 여부·판 길이·처치·공적 Lv·채운 칸·진화·오류 표와 대군(진영 셋 점령 시각 · 부대를 만난 곳의 본진까지 거리)·사건마다 시각·1분마다 레벨 · 이동 거리·진화 시각·고른 기록, 오류가 있거나 무적이 못 깨면 실패). 단위 테스트·린터는 따로 없고 이 봇 판이 검증이다. 한 판만: `--modes normal`(또는 `god`), 그 밖에 `--seed N` · `--max-time 초` · `--godot <경로>`(환경 변수 `GODOT`도 됨). 여러 seed 대군 지표(판 길이 · 만난 자리 · 부장 처치 시간 · 실패 seed): `python godot/tools/army_sweep.py --seeds 1-10 --out godot/out/<폴더>`(`--proj`로 다른 사본과 비교). 스크린샷: `Godot… --path godot --fixed-fps 60 -- --bot --shots=<폴더>`(진영장 보호막 · 공격 예고 · 상자도 처음 한 장씩). 성능: `… -- --bot --god --perf`(창 모드, D-204). 일시정지 점검: `… --headless -- --bot --selftest-pause`.
-- 내보내기: `export_presets.cfg`에 Android(arm64, APK) · Web(스레드 끔) · Windows 프리셋. 결과는 `godot/build/`(커밋 안 함). 웹은 `py -3 godot/tools/export_web.py`(커밋 해시를 `godot/build_info.txt`에 적고 내보냄 — 플레이 기록에 들어감) → `godot/tools/serve_web.py`(LAN HTTPS). 내보내기 템플릿 4.7.2는 에디터에서 따로 설치(이 PC엔 JDK 17 · Android SDK · 디버그 키스토어는 있음, D-204).
+- 내보내기: `export_presets.cfg`에 Android(arm64, APK) · Web(스레드 끔) · Windows 프리셋. 결과는 `godot/build/`(커밋 안 함). 웹은 `py -3 godot/tools/export_web.py`(커밋 해시를 `godot/build_info.txt`에 적고 내보냄 — 플레이 기록에 들어감) → `godot/tools/serve_web.py`(LAN HTTPS). USB로 꽂은 Android Chrome의 콘솔 · CPU 프로파일은 `py -3 godot/tools/web_console.py --url <페이지>`(adb 필요). 내보내기 템플릿 4.7.2는 에디터에서 따로 설치(이 PC엔 JDK 17 · Android SDK · 디버그 키스토어는 있음, D-204).
 - 글꼴: `godot/assets/fonts/` Galmuri11 · Galmuri9(OFL 1.1, D-196). 이 PC 셸에서는 `python` 대신 `py -3 -X utf8`.
 
 ## 커밋
