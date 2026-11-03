@@ -144,7 +144,7 @@ func musou_go() -> void:
 	musou_t = data.musou_time
 	musou_k = 0.0
 	battle.shake = 0.2
-	battle.banner(data.musou_name + "!", "")
+	battle.banner(data.musou_name + "!", "", true)
 	Sound.play("win", 0.3)
 
 

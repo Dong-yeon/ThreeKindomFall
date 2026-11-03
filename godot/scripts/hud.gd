@@ -18,6 +18,15 @@ var banner_box: VBoxContainer
 var banner_title: Label
 var banner_sub: Label
 var banner_t := 0.0
+## 알림 차례(D-255): 지금 알림이 가벼운 것(minor)인지 · 떠 있은 시간 · 기다리는 알림 [제목, 아랫줄]
+## 중요한 알림은 BANNER_MIN초는 보이고 그 사이 온 알림은 줄을 섬(BANNER_QMAX개까지 — 넘치면 오래된 것부터 버림),
+## 가벼운 알림(무쌍 이름 · 자석 · 폭탄)은 중요한 알림이 떠 있거나 줄이 있으면 버림(곧 낡는 소식이라)
+const BANNER_SHOW := 2.6
+const BANNER_MIN := 1.6
+const BANNER_QMAX := 4
+var banner_minor := false
+var banner_age := 0.0
+var banner_q: Array = []
 var musou_btn: MusouButton
 var end_panel: PanelContainer
 var pause_btn: PauseButton
@@ -235,13 +244,28 @@ func hide_tap() -> void:
 		tap_panel.visible = false
 
 
-func banner(title: String, sub: String) -> void:
+func banner(title: String, sub: String, minor := false) -> void:
 	if banner_title == null:
 		return
+	var busy := banner_t > 0 and not banner_minor
+	if minor:
+		if busy or not banner_q.is_empty():
+			return
+	elif busy and banner_age < BANNER_MIN:
+		banner_q.append([title, sub])
+		if banner_q.size() > BANNER_QMAX:
+			banner_q.pop_front()
+		return
+	_show_banner(title, sub, minor)
+
+
+func _show_banner(title: String, sub: String, minor: bool) -> void:
 	banner_title.text = title
 	banner_sub.text = sub
 	banner_sub.visible = sub != ""
-	banner_t = 2.6
+	banner_t = BANNER_SHOW
+	banner_age = 0.0
+	banner_minor = minor
 
 
 func refresh() -> void:
@@ -295,8 +319,12 @@ func _refresh_impl() -> void:
 	var tags := "%s %d/%d · 진영 %d/3 · 처치 %d · 본진 %d%% · %s %d%%" % [b.hero_data.display_name, ceili(h.hp), roundi(h.max_hp), b.cap_n, b.kills, ceili(b.home_hp / b.home_max * 100), b.leader(), lb]
 	if tags_lbl.text != tags:
 		tags_lbl.text = tags
+	if not banner_q.is_empty() and (banner_t <= 0 or banner_minor or banner_age >= BANNER_MIN):
+		var q: Array = banner_q.pop_front()
+		_show_banner(String(q[0]), String(q[1]), false)
 	if banner_t > 0:
 		banner_t -= get_process_delta_time()
+		banner_age += get_process_delta_time()
 		banner_box.modulate.a = clampf(banner_t / 0.5, 0, 1)
 	musou_btn.visible = b.state == "play"
 	pause_btn.visible = b.state == "play" or b.state == "pause"

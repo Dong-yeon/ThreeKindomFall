@@ -199,14 +199,6 @@ func _folk_wave() -> String:
 	return dir_name(p - b.hero.position)
 
 
-## 알림 자리에 다른 알림이 떠 있으면 그것이 사라진 뒤에 띄움(D-254)
-func _say(title: String, sub: String) -> void:
-	if b.hud.banner_t > 0.3:
-		b.later(b.hud.banner_t, _say.bind(title, sub))
-		return
-	b.banner(title, sub)
-
-
 ## 방향 이름(화면 위 = 북쪽): 여덟 방위
 static func dir_name(d: Vector2) -> String:
 	const N := ["동쪽", "남동쪽", "남쪽", "남서쪽", "서쪽", "북서쪽", "북쪽", "북동쪽"]
@@ -233,11 +225,11 @@ func _folk_tick(dt: float) -> void:
 		wave_t = float(S.gap)
 		var dn := _folk_wave()
 		var from := "%s에서 " % dn if dn != "" else ""
-		# 진영 부대 알림(45초마다)과 같은 때가 많아 — 다른 알림이 끝난 뒤에(D-254)
+		# 진영 부대 알림(45초마다)과 같은 때가 많음 — 알림 차례(D-255)가 줄을 세움
 		if waves == 1:
-			b.later(0.2, _say.bind(line(S.hi[0]), "%s와요 — %s" % [from, line(S.hi[1])]))
+			b.banner(line(S.hi[0]), "%s와요 — %s" % [from, line(S.hi[1])])
 		else:
-			b.later(0.2, _say.bind("백성 무리가 %s또 쫓겨 와요!" % from, "본진까지 지켜 줘요 (%d/%d)" % [waves, int(S.waves)]))
+			b.banner("백성 무리가 %s또 쫓겨 와요!" % from, "본진까지 지켜 줘요 (%d/%d)" % [waves, int(S.waves)])
 	if waves >= int(S.waves) and _folks_alive().is_empty():
 		_folk_end()
 

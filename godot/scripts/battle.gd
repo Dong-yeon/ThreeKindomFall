@@ -2076,7 +2076,7 @@ func _pickups() -> void:
 				if V.has_point(o.pos):
 					o.pull = true
 					n += 1
-			banner("자석!", "구슬 %d개를 끌어와요" % n)
+			banner("자석!", "구슬 %d개를 끌어와요" % n, true)
 			Sound.play("accept", 0.4)
 			add_fx({"k": "ring", "pos": hero.position, "t": 0.5, "r": 120.0, "c": Color("6ac0e0")})
 		elif dr.k == "chest" and dr.get("kind", "") == "village":
@@ -2288,7 +2288,7 @@ func _bomb_go() -> void:
 	shake = maxf(shake, 0.4)
 	hit_stop = maxf(hit_stop, 0.08)
 	Sound.play("slam", 0.5)
-	banner("폭탄!", "화면 안 황건 %d명을 쓸어버렸어요" % n)
+	banner("폭탄!", "화면 안 황건 %d명을 쓸어버렸어요" % n, true)
 
 
 ## 보스 울타리(D-216 1단계, Survivor.io 방식). 대군 부장 · 정원지가 장수 ARENA.trigger 안에 오면 warn초 예고 → 울타리 → 부장이 쓰러지면 사라짐
@@ -3082,8 +3082,9 @@ func add_fx(f: Dictionary) -> void:
 	fx.append(f)
 
 
-func banner(title: String, sub: String) -> void:
-	hud.banner(fac(title), fac(sub))
+## minor = 가벼운 알림(D-255 — 중요한 알림을 덮지 않고, 그때는 버림)
+func banner(title: String, sub: String, minor := false) -> void:
+	hud.banner(fac(title), fac(sub), minor)
 
 
 ## 장의 적 세력 이름(D-245, ChapterData faction — 4장 '동탁군'): 1장 글의 '황건'을 바꿔 보여 줌(지도 · 병사 그림은 아직 같음)
