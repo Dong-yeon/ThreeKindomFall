@@ -1,0 +1,74 @@
+[gd_resource type="Resource" script_class="HeroData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://data/hero_data.gd" id="1_hero"]
+[ext_resource type="Script" path="res://data/basic_attack.gd" id="2_basic"]
+
+[sub_resource type="Resource" id="Basic_twin"]
+script = ExtResource("2_basic")
+display_name = "쌍고검"
+glyph = "검"
+shape = "crescent"
+cooldown = 0.75
+seek = 190.0
+mult = 4.0
+speed = 340.0
+reach = 220.0
+width = 78.0
+thickness = 14.0
+bulge = 20.0
+pierce = -1
+count = 2
+spread = 0.55
+push = 10.0
+hit_stop = 0.035
+shake = 0.05
+level_desc = PackedStringArray("피해 +20%", "검기가 커져요(+15%)", "더 자주 날려요", "검기 +1(세 줄기)")
+level_mult = PackedFloat32Array(1, 1.2, 1.2, 1.2, 1.2)
+level_size = PackedFloat32Array(1, 1, 1.15, 1.15, 1.15)
+level_cd = PackedFloat32Array(1, 1, 1, 0.85, 0.85)
+level_extra = PackedInt32Array(0, 0, 0, 0, 1)
+
+[sub_resource type="Resource" id="Basic_virtue"]
+script = ExtResource("2_basic")
+display_name = "인의의 검"
+glyph = "仁"
+shape = "crescent"
+cooldown = 0.6
+seek = 210.0
+mult = 6.0
+speed = 380.0
+reach = 260.0
+width = 110.0
+thickness = 18.0
+bulge = 26.0
+pierce = -1
+count = 4
+spread = 0.45
+push = 16.0
+hit_stop = 0.04
+shake = 0.06
+tint = Color(0.55, 0.75, 0.98, 1)
+tint2 = Color(0.18, 0.35, 0.65, 1)
+
+[resource]
+script = ExtResource("1_hero")
+id = "liu_bei"
+display_name = "유비"
+flag_glyph = "劉"
+weapon_name = "쌍고검"
+sprite_key = "lb"
+sprite_size = 28.0
+max_hp = 160.0
+attack = 9.0
+move_speed = 145.0
+radius = 12.0
+basic = SubResource("Basic_twin")
+basic_evo = SubResource("Basic_virtue")
+basic_evo_pair = "cmd"
+basic_evo_desc = "쌍고검이 네 줄기 푸른 인의의 검이 돼요"
+musou_name = "인의 난무"
+rule_name = "인덕"
+rule_desc = "시작 진군 부대 +4명 · 아군 공격 +30% · 진영을 점령할 때 진군 부대 +2명"
+rule_march = 4
+rule_ally = 0.3
+rule_capture = 2

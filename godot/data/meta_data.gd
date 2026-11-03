@@ -11,8 +11,8 @@ const PER_LV := {"hp": 0.03, "atk": 0.025, "pts": 1}
 const REWARD := {"xp_lv": 4.0, "xp_clear": 60.0, "kill": 0.02, "camp": 20.0, "lead": 30.0, "cyz": 60.0, "clear": 100.0, "lose": 0.5}
 
 
-## 출진할 수 있는 장수(D-236 장수 교체 — 군영 '장수 막사'에서 고름). 해금은 나중(지금은 둘 다 처음부터)
-const HEROES := ["res://data/heroes/guan_yu.tres", "res://data/heroes/zhang_fei.tres"]
+## 출진할 수 있는 장수(D-236 장수 교체 — 군영 '장수 막사'에서 고름, D-248 유비). 해금은 나중(지금은 모두 처음부터)
+const HEROES := ["res://data/heroes/guan_yu.tres", "res://data/heroes/zhang_fei.tres", "res://data/heroes/liu_bei.tres"]
 
 
 static func hero_path(id: String) -> String:

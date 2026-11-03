@@ -273,6 +273,9 @@ func _ready() -> void:
 	var gfx := Save.gear_fx()
 	for k in gfx:
 		tal[k] = float(tal.get(k, 0.0)) + float(gfx[k])
+	# 장수 규칙 군세(D-248 — 유비 '인덕')도 같은 효과 키로
+	tal["march"] = float(tal.get("march", 0.0)) + hero_data.rule_march
+	tal["ally"] = float(tal.get("ally", 0.0)) + hero_data.rule_ally
 	hero.max_hp = roundf(hero.max_hp * Save.hp_mul() * (1.0 + talv("hp")))
 	hero.hp = hero.max_hp
 	hero.atk *= Save.atk_mul() * (1.0 + talv("atk"))
@@ -834,7 +837,7 @@ func _home_raid_tick() -> void:
 			e.goal_home = true
 		e.aggro = 160
 	note("본진 기습")
-	banner("본진 기습!", "돌격병이 유비를 노려요 — 유비가 쓰러지면 져요")
+	banner("본진 기습!", "돌격병이 %s%s 노려요 — %s%s 쓰러지면 져요" % [leader(), eul(leader()), leader(), jo(leader(), "이", "가")])
 	Sound.play("alert", 0.6)
 
 
@@ -918,6 +921,12 @@ func focus_camp() -> Dictionary:
 			bd = d
 			best = c
 	return best
+
+
+## 본진 총대장 이름(D-248): 보통 유비, 출진 장수가 유비면 간옹(Units.ALLY.liubei.alt_n)
+func leader() -> String:
+	var L: Dictionary = Units.ALLY.liubei
+	return String(L.alt_n) if hero_data.id == String(L.get("hero", "")) else String(L.n)
 
 
 ## 판의 사건 하나를 적어 둠(봇 출력용)
@@ -1164,7 +1173,7 @@ func _army_tick(dt: float) -> void:
 		if dh < float(A.danger):
 			if not u.warned:
 				u.warned = true
-				banner("%s%s 본진에 다가와요!" % [U.n, jo(U.n, "이", "가")], "돌격병이 유비를 노려요 — 막으러 가요")
+				banner("%s%s 본진에 다가와요!" % [U.n, jo(U.n, "이", "가")], "돌격병이 %s%s 노려요 — 막으러 가요" % [leader(), eul(leader())])
 				Sound.play("alert", 0.5)
 			u.hunt_t -= dt
 			if u.hunt_t <= 0:
@@ -1783,7 +1792,7 @@ func _on_kill(e: Enemy) -> void:
 		var R := camp_rect(c)
 		anchors["camp_" + c.id] = {"pos": Vector2(R.get_center().x, R.end.y + 40), "r": 260.0}
 		c.al_t = 0.0
-		for i in MARCH_ON_CAPTURE:
+		for i in MARCH_ON_CAPTURE + hero_data.rule_capture:
 			ally_spawn("sol", Vector2(R.get_center().x + randf_range(-24, 24), R.end.y + 30 + randf_range(0, 14)), "march", "")
 		add_fx({"k": "ring", "pos": c.pos, "t": 0.6, "r": 150.0, "c": Color("4a7ab8")})
 		Sound.play("win", 0.35)
@@ -1798,7 +1807,7 @@ func _on_kill(e: Enemy) -> void:
 		if ch.army and cap_n >= int(Stage1.ARMY.after) and army_t0 < 0 and wait > 0:
 			banner("%s 점령! (%d/3)" % [c.n, cap_n], "정원지의 대군이 %s 뒤 출진해요 — 그동안 힘을 길러요" % mmss(wait))
 		elif cap_n < 3:
-			banner("%s 점령! (%d/3)" % [c.n, cap_n], "보급 상자를 주워요 — 진군 부대 %d명이 다음 진영으로 먼저 가요" % MARCH_ON_CAPTURE)
+			banner("%s 점령! (%d/3)" % [c.n, cap_n], "보급 상자를 주워요 — 진군 부대 %d명이 다음 진영으로 먼저 가요" % (MARCH_ON_CAPTURE + hero_data.rule_capture))
 		return
 	if e == deng:
 		if vil_st == "raid":
@@ -2671,7 +2680,7 @@ func captive_home(a: Ally) -> void:
 		liubei.hp = minf(liubei.max_hp, liubei.hp + liubei.max_hp * float(Stage1.OBJ.cage.heal))
 	add_fx({"k": "ring", "pos": a.position, "t": 0.4, "r": 24.0, "c": Color("8fe08a")})
 	if captive_safe == 1 or captive_safe % 3 == 0:
-		banner("의용병이 본진에 닿았어요", "본진 수비대가 늘고 유비가 기운을 차려요")
+		banner("의용병이 본진에 닿았어요", "본진 수비대가 늘고 %s%s 기운을 차려요" % [leader(), jo(leader(), "이", "가")])
 
 
 ## 군량 더미(2026-10-14): 첫 더미를 부순 뒤 limit초가 지나도 남아 있으면 부순 더미가 다시 쌓임
@@ -2938,7 +2947,7 @@ func _field_target() -> Dictionary:
 	if Unit.alive(liubei) and liubei.hp < liubei.max_hp * 0.5:
 		for e in enemies:
 			if not e.dead and not e.building and e.position.distance_to(liubei.position) < 200:
-				return {"pos": liubei.position, "n": "유비를 지켜요 (유비 %d%%)" % ceili(liubei.hp / liubei.max_hp * 100), "warn": true}
+				return {"pos": liubei.position, "n": "%s%s 지켜요 (%s %d%%)" % [leader(), eul(leader()), leader(), ceili(liubei.hp / liubei.max_hp * 100)], "warn": true}
 	if home_hp < home_max * 0.4:
 		for e in enemies:
 			if not e.dead and e.goal_home and e.position.distance_to(home_pos) < 400:

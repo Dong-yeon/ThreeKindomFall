@@ -184,4 +184,4 @@ func _draw_impl() -> void:
 	if hp < max_hp:
 		draw_bar(0, -r - 10, 30.0 if k == "liubei" else 20.0, 3, hp / max_hp, Color("6a9ad8"))
 	if k == "liubei" or def.get("label", false):
-		draw_label(def.n, Vector2(0, -r - 18), Color("cfe2f4"))
+		draw_label(b.leader() if k == "liubei" else String(def.n), Vector2(0, -r - 18), Color("cfe2f4"))

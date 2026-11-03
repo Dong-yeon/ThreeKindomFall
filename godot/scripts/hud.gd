@@ -292,7 +292,7 @@ func _refresh_impl() -> void:
 		goal_lbl.text = goal
 	# 아군 수 자리에 유비 체력(D-208 — 유비가 쓰러지면 짐)
 	var lb := ceili(b.liubei.hp / b.liubei.max_hp * 100) if Unit.alive(b.liubei) else 0
-	var tags := "%s %d/%d · 진영 %d/3 · 처치 %d · 본진 %d%% · 유비 %d%%" % [b.hero_data.display_name, ceili(h.hp), roundi(h.max_hp), b.cap_n, b.kills, ceili(b.home_hp / b.home_max * 100), lb]
+	var tags := "%s %d/%d · 진영 %d/3 · 처치 %d · 본진 %d%% · %s %d%%" % [b.hero_data.display_name, ceili(h.hp), roundi(h.max_hp), b.cap_n, b.kills, ceili(b.home_hp / b.home_max * 100), b.leader(), lb]
 	if tags_lbl.text != tags:
 		tags_lbl.text = tags
 	if banner_t > 0:
@@ -314,7 +314,7 @@ func show_end() -> void:
 	elif b.end_why == "home":
 		end_title.text = "아군 본진이 함락됐어요"
 	elif b.end_why == "liubei":
-		end_title.text = "유비가 쓰러졌어요"
+		end_title.text = "%s%s 쓰러졌어요" % [b.leader(), Battle.jo(b.leader(), "이", "가")]
 	elif b.end_why == "army":
 		end_title.text = "정원지의 대군이 본진에 닿았어요"
 	else:

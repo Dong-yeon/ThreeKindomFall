@@ -46,6 +46,10 @@ extends Resource
 @export var act_slots_delta := 0
 ## 기본 공격 피해 배율
 @export var basic_mul := 1.0
+## 군세(D-248 — 유비 '인덕'): 시작 진군 부대 +명 · 아군 공격 +비율 · 진영 점령 때 진군 부대 +명
+@export var rule_march := 0
+@export var rule_ally := 0.0
+@export var rule_capture := 0
 
 @export_group("무쌍")
 @export var musou_name := "무쌍 난무"
