@@ -6,7 +6,7 @@ extends RefCounted
 ##   대열이 trigger px 안에 들 때 매복병이 양옆에서 덮치고 대열이 slow초 휘청임 → 대열을 다 쓰러뜨리면 보급 상자 + 경험. 대열이 자리를 지나치면 매복 실패.
 ## rescue(3장 동탁 구출): at초에 황건에게 쫓기는 동탁이 화면 밖에서 나타나 본진으로 도망(escort) — 추격대는 동탁만 노리고 gap초마다 더 옴(waves번) →
 ##   본진에 닿으면 구함(경험 xp) · 동탁은 고맙다는 말도 없이 무시하고 감(연의 제1회) / 쓰러지면 실패(벌은 없음).
-## folk(6장 서주 백성 피난, D-251): at초부터 gap초마다 waves번, 백성 per명이 화면 밖에서 나타나 본진으로 피난(escort) — 조조군 추격대(cnt명)가 백성을 노림 →
+## folk(6장 서주 백성 피난, D-252): at초부터 gap초마다 waves번, 백성 per명이 화면 밖에서 나타나 본진으로 피난(escort) — 조조군 추격대(cnt명)가 백성을 노림 →
 ##   본진에 닿은 백성마다 전공 merit · 경험 xp, 다 끝나면 구한 수 알림 · 절반 넘게 구하면 thanks(연의 제11~12회 — 도겸이 서주를 맡기려 함)
 ## Battle이 tick · target · on_kill · on_home · on_ally_dead · draw를 부름. 결과는 Battle.note와 res(봇 · 기록)
 
@@ -27,7 +27,7 @@ var waves := 0
 var beat_i := 0
 var duel_t0 := -1.0
 var cold := false
-## 서주 백성(D-251): 지금 피난 중인 백성 · 구한 수 · 잃은 수
+## 서주 백성(D-252): 지금 피난 중인 백성 · 구한 수 · 잃은 수
 var folks: Array[Ally] = []
 var saved := 0
 var lost := 0
@@ -177,7 +177,7 @@ func _rescue_tick(dt: float) -> void:
 		_pursuers(npc.position)
 
 
-## 백성 무리 하나(D-251): 본진에서 먼 둘레에 per명 + 추격대
+## 백성 무리 하나(D-252): 본진에서 먼 둘레에 per명 + 추격대
 func _folk_wave() -> void:
 	var p := Vector2.INF
 	for _k in 8:

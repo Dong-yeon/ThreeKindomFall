@@ -7,7 +7,7 @@ class_name ChapterData
 ## story 글의 {hero}는 출진 장수 이름, 글 대신 {장수 id: 글, "": 기본}이면 장수마다 다른 대사(D-246 — 특정 장수 전용 코드 없이 데이터로),
 ## faction · camp_names · camp_leads = 적 세력 이름(글의 '황건'을 바꿔 보여 줌) · 진영 이름 · 진영장(D-245 — 4장 동탁군),
 ## guard.spd · no_duel · retreat · bye = 빠르기 배율 · 일기토 아님 · 체력이 이만큼 아래면 물러남(= 쓰러진 것) · 그때 알림(D-247 — 5장 여포),
-## story folk = 피난(D-251 — at초부터 gap초마다 waves번, 백성 per명이 쫓기며 본진으로 · 구한 백성마다 전공 merit · 경험 xp, 절반 넘게 구하면 thanks),
+## story folk = 피난(D-252 — at초부터 gap초마다 waves번, 백성 per명이 쫓기며 본진으로 · 구한 백성마다 전공 merit · 경험 xp, 절반 넘게 구하면 thanks),
 ## story trio = 삼영전(관문 장수가 나오면 출진 장수가 아닌 장수들이 동료로 와서 함께 싸움, conf = Companion 수치),
 ## guard.time = 관문 장수가 그때 나옴(없으면 관문이 열리자마자) · guard.hi = 나올 때 알림 · guard_final = 관문 장수를 쓰러뜨리면 이김(본진 없음, D-245 — 4장 화웅),
 ## sorc_at = 본진 · 요술이 열리는 판 시각(없으면 SiegeData.SORCERY.at 7:30), beast = 보스를 쓰러뜨리면 첫 사신수 해방(3장) / 아니면 곧바로 이김. altars_done = 요술 제단을 다 부쉈을 때 알림(2장 — 유비가 요술을 깸, D-210)
@@ -49,7 +49,7 @@ const CH := {
 		"guard": {"k": "ytbig", "m": 200.0, "n": "하후돈", "pat": "charge", "touch": 0.75, "time": 360.0,
 			"hi": ["하후돈이 서주성 앞을 막아섰어요!", "조조군 선봉 — 일기토로 베어요"]},
 		"guard_final": true, "beast": false,
-		"story": {"k": "folk", "n": "서주 백성 피난", "at": 150.0, "gap": 45.0, "waves": 4, "per": 3, "cnt": 6, "npc": "folk", "merit": 25, "xp": 15.0,
+		"story": {"k": "folk", "n": "서주 백성 피난", "at": 150.0, "gap": 45.0, "waves": 4, "per": 3, "cnt": 3, "npc": "folk", "merit": 25, "xp": 15.0,
 			"hi": ["조조군이 서주 백성을 쫓아요!", "백성을 본진까지 지켜 줘요"],
 			"thanks": ["도겸: \"서주를 그대에게 맡기고 싶소.\"", "서주 백성의 마음을 얻었어요"]}},
 }
