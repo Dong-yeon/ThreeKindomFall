@@ -26,7 +26,7 @@ const CH := {
 	4: {"name": "4장 사수관", "intro": "동탁군 진영 3곳을 점령하면 사수관 관문이 열려요 — 화웅이 기다려요", "army": false, "village": false, "siege": true,
 		"faction": "동탁군", "camp_names": ["서쪽 동탁군 진영", "동쪽 동탁군 진영", "북쪽 동탁군 진영"],
 		"camp_leads": ["동탁군 장수 호진", "동탁군 역사 대장 조잠", "동탁군 궁대장 장제"], "gate_caps": 3,
-		"guard": {"k": "ytbig", "m": 400.0, "n": "화웅", "pat": "charge", "touch": 0.7, "time": 360.0,
+		"guard": {"k": "ytbig", "m": 400.0, "n": "화웅", "pat": "charge", "touch": 0.85, "time": 360.0,
 			"hi": ["화웅이 관문 앞에 나왔어요!", "\"연합에 나와 겨룰 자가 있느냐!\" — 일기토로 베어요"]},
 		"guard_final": true, "beast": false,
 		"story": {"k": "wine", "n": "술이 식기 전에", "beats": [[300.0, "화웅이 연합의 유섭을 베었어요!", "연합 장수들이 겁을 먹었어요"],
