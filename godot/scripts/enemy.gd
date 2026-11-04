@@ -696,7 +696,10 @@ func _flee_tick(dt: float) -> void:
 		if blink_cd <= 0 and away.length() < float(S.blink_r):
 			var to := position + (away.normalized() if away.length() > 1 else Vector2(0, -1)).rotated(randf_range(-0.6, 0.6)) * float(S.blink_d)
 			to = to.clamp(Vector2(r + 6, r + 6), Vector2(Battle.W - r - 6, Battle.H - r - 6))
-			if not b.hit_obs(to, r):
+			# 장수가 걸어갈 수 있는 곳에만(D-265 — 전엔 내려앉을 자리만 봐서 닫힌 관문 벽 너머로 넘어가 못 잡았음)
+			if b.flow.ver != b.obs_ver:
+				b.flow.build(b.obs, Battle.W, Battle.H, b.obs_ver)
+			if not b.hit_obs(to, r) and b.flow.reach(b.flow.field("p", b.hero.position, b.t, 0.2), b.flow.cell_of(to)):
 				blink_cd = float(S.blink_cd)
 				b.add_fx({"k": "puff", "pos": position, "t": 0.35})
 				position = to
