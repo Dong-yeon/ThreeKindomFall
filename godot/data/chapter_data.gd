@@ -58,7 +58,7 @@ const CH := {
 	7: {"name": "7장 원문사극", "intro": "원술군 진영 3곳을 점령하면 소패 관문이 열려요 — 기령이 기다려요", "army": false, "village": false, "siege": true,
 		"faction": "원술군", "camp_names": ["서쪽 원술군 진영", "동쪽 원술군 진영", "북쪽 원술군 진영"],
 		"camp_leads": ["원술군 장수 뇌박", "원술군 역사 대장 진란", "원술군 궁대장 순정"], "gate_caps": 3,
-		"guard": {"k": "ytbig", "m": 290.0, "n": "기령", "pat": "slam", "touch": 0.9, "time": 360.0, "retreat": 0.3,
+		"guard": {"k": "ytbig", "m": 300.0, "n": "기령", "pat": "slam", "touch": 1.0, "time": 360.0, "retreat": 0.3,
 			"hi": ["기령이 삼첨도를 들고 소패 앞에 나왔어요!", "원술군 대장 — 일기토로 맞서요"],
 			"bye": ["여포가 원문에 세운 화극을 한 발에 맞혔어요!", "\"하늘의 뜻이오\" — 기령이 군사를 물려요"]},
 		"guard_final": true, "beast": false,
