@@ -20,4 +20,5 @@ const PLACES := [
 	{"k": "stage4", "n": "4장 사수관", "sub": "반동탁 연합 · 화웅 — 출진", "pos": Vector2(600, 230), "r": 80.0, "glyph": "4", "need_ch": 3},
 	{"k": "stage5", "n": "5장 호뢰관", "sub": "삼영전여포 — 출진", "pos": Vector2(600, 450), "r": 80.0, "glyph": "5", "need_ch": 4},
 	{"k": "stage6", "n": "6장 서주 구원", "sub": "조조의 서주 침공 · 하후돈 — 출진", "pos": Vector2(120, 330), "r": 80.0, "glyph": "6", "need_ch": 5},
+	{"k": "stage7", "n": "7장 원문사극", "sub": "원술의 기령 · 소패 — 출진", "pos": Vector2(120, 110), "r": 80.0, "glyph": "7", "need_ch": 6},
 ]

@@ -79,8 +79,9 @@ func _start() -> void:
 			e.aggro = 110.0
 			e.xp_mul = Battle.REIN_XP
 			col.append(e)
-		b.note("청주 구원 — 황건 대열")
-		b.banner("황건 대열이 청주로 향해요!", "대열보다 먼저 매복 자리에 가 있으면 매복병이 덮쳐요")
+		b.note(b.fac("%s — 황건 대열" % S.n))
+		var hi: Array = S.get("hi", ["황건 대열이 청주로 향해요!", "대열보다 먼저 매복 자리에 가 있으면 매복병이 덮쳐요"])
+		b.banner(line(hi[0]), line(hi[1]))
 	elif S.k == "folk":
 		waves = 0
 		wave_t = 0.0
