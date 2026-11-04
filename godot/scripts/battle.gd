@@ -10,6 +10,9 @@ signal finished(win: bool)
 
 const W := Stage1.W
 const H := Stage1.H
+## 떨어뜨린 것이 벽 · 물에서 떨어질 거리 · 지도 끝에서 떨어질 거리(D-263 — 장수 반지름 12라 장수가 닿음)
+const DROP_R := 6.0
+const DROP_PAD := 16.0
 const GRID := 30.0
 ## 천하 지도(D-235) — 결과 창 '천하 지도로'
 const WORLD_SCENE := "res://scenes/world.tscn"
@@ -1788,7 +1791,7 @@ func _on_kill(e: Enemy) -> void:
 				add_fx({"k": "burst", "pos": o.position, "t": 0.3, "r": o.r * 0.6, "c": Color("f6e2a0")})
 		hero.heal(hero.max_hp * 0.15)
 		# 보급 상자(D-205): 진영장이 쓰러진 자리
-		drops.append({"k": "chest", "pos": e.position})
+		add_drop({"k": "chest", "pos": e.position})
 		gear_drop(e.position + Vector2(30, 0), float(GearData.DROP.camp))
 		note("%s 점령" % c.n)
 		var R := camp_rect(c)
@@ -1825,7 +1828,7 @@ func _on_kill(e: Enemy) -> void:
 					add_fx({"k": "burst", "pos": o.position, "t": 0.3, "r": o.r * 0.6, "c": Color("f6e2a0")})
 			var V: Dictionary = Stage1.VILLAGE
 			# 마을 상자(D-209): 회복 + 경험(진화 없음)
-			drops.append({"k": "chest", "kind": "village", "pos": e.position})
+			add_drop({"k": "chest", "kind": "village", "pos": e.position})
 			note("탁현 마을 구함")
 			banner("%s을 구했어요!" % V.n, "마을 사람들이 보급 상자를 내줬어요(회복 + 경험)")
 			Sound.play("win", 0.35)
@@ -1834,7 +1837,7 @@ func _on_kill(e: Enemy) -> void:
 		return
 	if e.ev_kind != "":
 		# 작은 사건(2026-10-14): 첩자 · 현상금 두목 — 보급 상자
-		drops.append({"k": "chest", "pos": e.position})
+		add_drop({"k": "chest", "pos": e.position})
 		if e.ev_kind == "bounty":
 			gear_drop(e.position + Vector2(30, 0), float(GearData.DROP.bounty))
 		var what := "첩자 잡음" if e.ev_kind == "spy" else "두목 격파"
@@ -1856,11 +1859,11 @@ func _on_kill(e: Enemy) -> void:
 		var au: Dictionary = army[e.army_unit]
 		au.kill_t = t
 		au.kill_d = e.position.distance_to(home_pos)
-		drops.append({"k": "chest", "pos": e.position})
+		add_drop({"k": "chest", "pos": e.position})
 		gear_drop(e.position + Vector2(30, 0), float(GearData.DROP.lead))
 		# 부장마다 고기만두 확정(2026-10-13 — 긴 대군전의 회복)
 		for j in int(Stage1.ARMY.bun):
-			drops.append({"k": "bun", "pos": e.position + Vector2(28, 0).rotated(j * 2.4 + 0.6), "src": "부장"})
+			add_drop({"k": "bun", "pos": e.position + Vector2(28, 0).rotated(j * 2.4 + 0.6), "src": "부장"})
 		note("%s 격파" % U.n)
 		banner("%s 격파! %s%s 흩어져요" % [e.ename, U.n, jo(U.n, "이", "가")], "보급 상자를 주워요" if not U.get("boss", false) else "보급 상자를 줍고 정원지를 쓰러뜨려요")
 		hit_stop = 0.08
@@ -1893,16 +1896,38 @@ func _on_kill(e: Enemy) -> void:
 		return
 	var r := randf()
 	if r < 0.006:
-		drops.append({"k": "bun", "pos": e.position, "src": "처치"})
+		add_drop({"k": "bun", "pos": e.position, "src": "처치"})
 	elif r < 0.006 + MAGNET_CHANCE:
-		drops.append({"k": "magnet", "pos": e.position})
+		add_drop({"k": "magnet", "pos": e.position})
+
+
+## 떨어뜨리는 것(상자 · 장비 · 고기만두 · 자석 · 폭탄)은 모두 여기로(D-263): 자리가 물 · 벽 · 지도 밖이면
+## 가장 가까운 트인 자리로 옮김 — 밀쳐내기로 물 위에 밀린 적이 쓰러지면 상자가 강 속에 떨어져 아무도 못 주웠음
+## (봇은 둑에 붙어 판 끝까지 멈춤), 장비는 쓰러진 자리 +30px라 지도 동쪽 끝에선 지도 밖이 될 수 있었음
+func add_drop(dr: Dictionary) -> void:
+	dr.pos = drop_spot(dr.pos)
+	drops.append(dr)
+
+
+func drop_spot(p: Vector2) -> Vector2:
+	var lo := Vector2(DROP_PAD, DROP_PAD)
+	var hi := Vector2(W - DROP_PAD, H - DROP_PAD)
+	var q := p.clamp(lo, hi)
+	if not hit_obs(q, DROP_R):
+		return q
+	for k in range(1, 26):
+		for i in 16:
+			var c := (q + Vector2.from_angle(i * TAU / 16.0) * (k * 8.0)).clamp(lo, hi)
+			if not hit_obs(c, DROP_R):
+				return c
+	return q
 
 
 ## 장비 꾸러미(D-240, GearData): chance로 떨어뜨림 — 아직 없는 것부터(다 있으면 아무거나 — 판 끝에 전공으로)
 func gear_drop(at: Vector2, chance: float) -> void:
 	if randf() >= chance:
 		return
-	drops.append({"k": "gear", "id": gear_pick(), "pos": at})
+	add_drop({"k": "gear", "id": gear_pick(), "pos": at})
 
 
 func gear_pick() -> String:
@@ -2258,11 +2283,11 @@ func _prop_loot(e: Enemy) -> void:
 	var P: Dictionary = Stage1.PROPS
 	var r := randf()
 	if r < float(P.bun):
-		drops.append({"k": "bun", "pos": e.position, "src": "물체"})
+		add_drop({"k": "bun", "pos": e.position, "src": "물체"})
 	elif r < float(P.bun) + float(P.bomb):
-		drops.append({"k": "bomb", "pos": e.position})
+		add_drop({"k": "bomb", "pos": e.position})
 	elif r < float(P.bun) + float(P.bomb) + float(P.magnet):
-		drops.append({"k": "magnet", "pos": e.position})
+		add_drop({"k": "magnet", "pos": e.position})
 	else:
 		drop_orb(e.position, float(P.xp_v))
 	add_fx({"k": "puff", "pos": e.position, "t": 0.3})
@@ -2678,7 +2703,7 @@ func captive_home(a: Ally) -> void:
 	if a.k == "supply":
 		var C: Dictionary = Stage1.EVENTS.cart
 		for j in int(C.buns):
-			drops.append({"k": "bun", "pos": home_pos + Vector2(-30 + j * 30, -70), "src": "수레"})
+			add_drop({"k": "bun", "pos": home_pos + Vector2(-30 + j * 30, -70), "src": "수레"})
 		if Unit.alive(liubei):
 			liubei.hp = minf(liubei.max_hp, liubei.hp + liubei.max_hp * float(C.heal))
 		a.dead = true

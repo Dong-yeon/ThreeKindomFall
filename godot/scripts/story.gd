@@ -383,7 +383,7 @@ func _finish(r: String) -> void:
 	res = r
 	b.note("%s %s" % [S.n, r])
 	if S.k == "ambush" and r == "성공":
-		b.drops.append({"k": "chest", "pos": spot})
+		b.add_drop({"k": "chest", "pos": spot})
 		b.gain_xp(float(S.xp))
 		b.banner("%s!" % S.n, "보급 상자 · 경험 +%d" % int(S.xp))
 		Sound.play("win", 0.45)
