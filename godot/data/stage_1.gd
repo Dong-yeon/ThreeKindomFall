@@ -129,9 +129,7 @@ const ARMY := {"after": 2, "min_t": 330.0, "road_x": 420.0, "y0": 790.0, "march"
 	# 부장의 내려찍기(2026-10-13 적 역할): 장수가 range px 안이고 화면에 보이면 cd0~cd1초마다 — 장수 자리에 반지름 r 원을 warn초 예고한 뒤 피해 dmg
 	"slam": {"kind": "slam", "r": 80.0, "dmg": 22.0, "warn": 0.8, "cd0": 6.0, "cd1": 8.0, "range": 200.0},
 	# 부장의 돌진(D-216 1단계): 장수가 range 안이면 cd0~cd1초마다 warn초 멈칫(바닥에 갈 길) → spd px/초로 dur초 일직선(닿으면 부장 닿기 피해 + 밀려남)
-	"charge": {"kind": "charge", "warn": 0.6, "spd": 340.0, "dur": 0.55, "cd0": 5.0, "cd1": 7.0, "range": 230.0},
-	# 몰아치는 돌진(D-268 — 5장 여포): 예고가 짧고 더 빠르고 더 자주(관문 장수 pat "fury")
-	"fury": {"kind": "charge", "warn": 0.45, "spd": 420.0, "dur": 0.6, "cd0": 2.5, "cd1": 3.5, "range": 280.0}, "bun": 1, "pause_camps": true,
+	"charge": {"kind": "charge", "warn": 0.6, "spd": 340.0, "dur": 0.55, "cd0": 5.0, "cd1": 7.0, "range": 230.0}, "bun": 1, "pause_camps": true,
 	"units": [
 		# pat = 부장의 패턴(D-216 1단계): charge = 돌진(ARMY.charge, 직선 예고) · slam = 내려찍기(ARMY.slam, 원형 예고)
 		{"n": "선봉", "lk": "ytbig", "ln": "황건 선봉장 조홍", "lm": 170.0, "count": 60, "at": 0.0, "pat": "charge"},

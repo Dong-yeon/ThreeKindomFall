@@ -37,7 +37,7 @@ const CH := {
 	5: {"name": "5장 호뢰관", "intro": "동탁군 진영 3곳을 점령하면 호뢰관이 열려요 — 여포가 기다려요", "army": false, "village": false, "siege": true,
 		"faction": "동탁군", "camp_names": ["서쪽 동탁군 진영", "동쪽 동탁군 진영", "북쪽 동탁군 진영"],
 		"camp_leads": ["동탁군 장수 이각", "동탁군 역사 대장 곽사", "동탁군 궁대장 서영"], "gate_caps": 3,
-		"guard": {"k": "ytbig", "m": 640.0, "n": "여포", "pat": "fury", "touch": 1.1, "spd": 1.8, "time": 360.0, "no_duel": true, "retreat": 0.3,
+		"guard": {"k": "ytbig", "m": 640.0, "n": "여포", "pat": "charge", "touch": 1.1, "spd": 1.8, "time": 360.0, "no_duel": true, "retreat": 0.3,
 			"hi": ["여포가 방천화극을 들고 나왔어요!", "\"덤벼라!\" — 혼자서는 버거워요"], "bye": ["여포가 호뢰관으로 물러났어요!", "삼형제가 여포를 물리쳤어요"]},
 		"guard_final": true, "beast": false,
 		"story": {"k": "trio", "n": "삼영전여포", "beats": [[300.0, "여포가 연합의 방열을 베었어요!", "공손찬도 쫓겨 달아나요"],
