@@ -591,7 +591,8 @@ func _field_tick(dt: float) -> void:
 	_engage_tick(dt)
 	var dla := duel()
 	for a in allies:
-		if not a.dead and not dla:
+		# 일기토 중엔 울타리 안의 아군(D-269 — 5장 삼영전 동료)만 움직임
+		if not a.dead and (not dla or a.arena_side > 0):
 			a.tick(dt)
 	Perf.end()
 	_arena_tick(dt)
@@ -2412,8 +2413,14 @@ func _arena_on() -> void:
 			add_fx({"k": "puff", "pos": e.position, "t": 0.25})
 		else:
 			e.position = _arena_out_spot(c, R + e.r + 10, e.position)
-	# 일기토: 아군도 모두 울타리 밖에서 지켜봄
+	# 일기토: 아군도 모두 울타리 밖에서 지켜봄 — 관문 장수가 guard.duel_cmp면(D-269 — 5장 삼영전) 동료 장수는 함께 울타리 안으로
+	var with_cmp: bool = siege != null and L == siege.guard and ch.guard.get("duel_cmp", false)
 	for a in allies:
+		if with_cmp and a is Companion and not a.dead:
+			a.arena_side = 1
+			if a.position.distance_to(c) > R - a.r:
+				a.position = c + (a.position - c).normalized() * (R - a.r - 4)
+			continue
 		a.arena_side = -1
 		var ad := a.position - c
 		if ad.length() < R + a.r:
