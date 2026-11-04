@@ -46,7 +46,7 @@ const CH := {
 	6: {"name": "6장 서주 구원", "intro": "조조군 진영 3곳을 점령하면 서주성 관문이 열려요 — 하후돈이 기다려요", "army": false, "village": false, "siege": true,
 		"faction": "조조군", "camp_names": ["서쪽 조조군 진영", "동쪽 조조군 진영", "북쪽 조조군 진영"],
 		"camp_leads": ["조조군 장수 우금", "조조군 역사 대장 악진", "조조군 궁대장 이전"], "gate_caps": 3,
-		"guard": {"k": "ytbig", "m": 200.0, "n": "하후돈", "pat": "charge", "touch": 0.75, "time": 360.0,
+		"guard": {"k": "ytbig", "m": 300.0, "n": "하후돈", "pat": "charge", "touch": 1.1, "time": 360.0,
 			"hi": ["하후돈이 서주성 앞을 막아섰어요!", "조조군 선봉 — 일기토로 베어요"]},
 		"guard_final": true, "beast": false,
 		"story": {"k": "folk", "n": "서주 백성 피난", "at": 150.0, "gap": 45.0, "waves": 4, "per": 3, "cnt": 3, "npc": "folk", "merit": 25, "xp": 15.0,
