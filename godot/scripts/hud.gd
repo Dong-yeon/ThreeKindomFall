@@ -18,6 +18,15 @@ var banner_box: VBoxContainer
 var banner_title: Label
 var banner_sub: Label
 var banner_t := 0.0
+## 알림 차례(D-257): 지금 알림이 가벼운 것(minor)인지 · 떠 있은 시간 · 기다리는 알림 [제목, 아랫줄]
+## 중요한 알림은 BANNER_MIN초는 보이고 그 사이 온 알림은 줄을 섬(BANNER_QMAX개까지 — 넘치면 오래된 것부터 버림),
+## 가벼운 알림(무쌍 이름 · 자석 · 폭탄)은 중요한 알림이 떠 있거나 줄이 있으면 버림(곧 낡는 소식이라)
+const BANNER_SHOW := 2.6
+const BANNER_MIN := 1.6
+const BANNER_QMAX := 4
+var banner_minor := false
+var banner_age := 0.0
+var banner_q: Array = []
 var musou_btn: MusouButton
 var end_panel: PanelContainer
 var pause_btn: PauseButton
@@ -235,13 +244,28 @@ func hide_tap() -> void:
 		tap_panel.visible = false
 
 
-func banner(title: String, sub: String) -> void:
+func banner(title: String, sub: String, minor := false) -> void:
 	if banner_title == null:
 		return
+	var busy := banner_t > 0 and not banner_minor
+	if minor:
+		if busy or not banner_q.is_empty():
+			return
+	elif busy and banner_age < BANNER_MIN:
+		banner_q.append([title, sub])
+		if banner_q.size() > BANNER_QMAX:
+			banner_q.pop_front()
+		return
+	_show_banner(title, sub, minor)
+
+
+func _show_banner(title: String, sub: String, minor: bool) -> void:
 	banner_title.text = title
 	banner_sub.text = sub
 	banner_sub.visible = sub != ""
-	banner_t = 2.6
+	banner_t = BANNER_SHOW
+	banner_age = 0.0
+	banner_minor = minor
 
 
 func refresh() -> void:
@@ -295,8 +319,12 @@ func _refresh_impl() -> void:
 	var tags := "%s %d/%d · 진영 %d/3 · 처치 %d · 본진 %d%% · %s %d%%" % [b.hero_data.display_name, ceili(h.hp), roundi(h.max_hp), b.cap_n, b.kills, ceili(b.home_hp / b.home_max * 100), b.leader(), lb]
 	if tags_lbl.text != tags:
 		tags_lbl.text = tags
+	if not banner_q.is_empty() and (banner_t <= 0 or banner_minor or banner_age >= BANNER_MIN):
+		var q: Array = banner_q.pop_front()
+		_show_banner(String(q[0]), String(q[1]), false)
 	if banner_t > 0:
 		banner_t -= get_process_delta_time()
+		banner_age += get_process_delta_time()
 		banner_box.modulate.a = clampf(banner_t / 0.5, 0, 1)
 	musou_btn.visible = b.state == "play"
 	pause_btn.visible = b.state == "play" or b.state == "pause"
@@ -413,8 +441,13 @@ func _draw_overlay_impl() -> void:
 		c.draw_texture_rect(vignette, Rect2(Vector2.ZERO, sz), false)
 	_draw_lead_bar(c, font, sz)
 	_draw_surge(c, font, sz)
-	# 목표 화살표(화면 밖일 때)
+	# 피난 중인 백성 무리(D-256): 화면 밖이면 무리마다 작은 화살표(목표 화살표가 가리키는 무리는 빼고)
 	var T := b.field_target()
+	if b.story != null:
+		for fp in b.story.folk_marks():
+			if fp.distance_to(T.pos) > 40:
+				_edge_arrow(c, font, fp, Color("e8d4a0"), 0.75)
+	# 목표 화살표(화면 밖일 때)
 	var tp: Vector2 = T.pos
 	var s := _w2s(tp)
 	var x0 := 16.0
@@ -492,6 +525,38 @@ func _draw_lead_bar(c: Control, font: Font, sz: Vector2) -> void:
 	if L.shield:
 		name += " (보호막)"
 	_text(c, font, name, Vector2(x0 + w / 2, y + 20), 12, Color("fff2c0"))
+
+
+## 화면 밖 자리를 가리키는 작은 화살표 + 걸음 수(D-256 — 백성 무리). 화면 안이면 안 그림
+func _edge_arrow(c: Control, font: Font, tp: Vector2, col: Color, k: float) -> void:
+	var sz := c.size
+	var s := _w2s(tp)
+	var x0 := 16.0
+	var x1 := sz.x - 16
+	var y0 := TOP_H + 16
+	var y1 := sz.y - 16
+	if s.x >= x0 and s.x <= x1 and s.y >= y0 and s.y <= y1:
+		return
+	var hc := _w2s(b.hero.position)
+	var a := (s - hc).angle()
+	var r := INF
+	if cos(a) > 0.01:
+		r = minf(r, (x1 - hc.x) / cos(a))
+	if cos(a) < -0.01:
+		r = minf(r, (x0 - hc.x) / cos(a))
+	if sin(a) > 0.01:
+		r = minf(r, (y1 - hc.y) / sin(a))
+	if sin(a) < -0.01:
+		r = minf(r, (y0 - hc.y) / sin(a))
+	var ap := hc + Vector2.from_angle(a) * r
+	var pts := PackedVector2Array()
+	for q in [Vector2(12, 0), Vector2(-8, -9), Vector2(-4, 0), Vector2(-8, 9)]:
+		pts.append(ap + (q * k).rotated(a))
+	c.draw_colored_polygon(pts, col)
+	pts.append(pts[0])
+	c.draw_polyline(pts, INK, 2)
+	var lp := Vector2(clampf(ap.x - cos(a) * 22, x0 + 22, x1 - 22), clampf(ap.y - sin(a) * 16, y0 + 6, y1 - 6))
+	_text(c, font, "백성 %d보" % roundi(tp.distance_to(b.hero.position) / 10), lp, 10, col)
 
 
 func _draw_minimap(c: Control, sz: Vector2) -> void:

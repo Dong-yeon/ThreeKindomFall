@@ -6,6 +6,8 @@ extends RefCounted
 ##   대열이 trigger px 안에 들 때 매복병이 양옆에서 덮치고 대열이 slow초 휘청임 → 대열을 다 쓰러뜨리면 보급 상자 + 경험. 대열이 자리를 지나치면 매복 실패.
 ## rescue(3장 동탁 구출): at초에 황건에게 쫓기는 동탁이 화면 밖에서 나타나 본진으로 도망(escort) — 추격대는 동탁만 노리고 gap초마다 더 옴(waves번) →
 ##   본진에 닿으면 구함(경험 xp) · 동탁은 고맙다는 말도 없이 무시하고 감(연의 제1회) / 쓰러지면 실패(벌은 없음).
+## folk(6장 서주 백성 피난, D-252): at초부터 gap초마다 waves번, 백성 per명이 화면 밖에서 나타나 본진으로 피난(escort) — 조조군 추격대(cnt명)가 백성을 노림 →
+##   본진에 닿은 백성마다 전공 merit · 경험 xp, 다 끝나면 구한 수 알림 · 절반 넘게 구하면 thanks(연의 제11~12회 — 도겸이 서주를 맡기려 함)
 ## Battle이 tick · target · on_kill · on_home · on_ally_dead · draw를 부름. 결과는 Battle.note와 res(봇 · 기록)
 
 var b: Battle
@@ -25,6 +27,12 @@ var waves := 0
 var beat_i := 0
 var duel_t0 := -1.0
 var cold := false
+## 서주 백성(D-252): 지금 피난 중인 백성 · 구한 수 · 잃은 수
+var folks: Array[Ally] = []
+## 무리마다 백성 묶음(D-256 — 화면 밖 무리 화살표)
+var folk_grps: Array = []
+var saved := 0
+var lost := 0
 
 
 func _init(battle: Battle, data: Dictionary) -> void:
@@ -47,6 +55,8 @@ func tick(dt: float) -> void:
 		return
 	if S.k == "ambush":
 		_ambush_tick()
+	elif S.k == "folk":
+		_folk_tick(dt)
 	else:
 		_rescue_tick(dt)
 
@@ -69,8 +79,13 @@ func _start() -> void:
 			e.aggro = 110.0
 			e.xp_mul = Battle.REIN_XP
 			col.append(e)
-		b.note("청주 구원 — 황건 대열")
-		b.banner("황건 대열이 청주로 향해요!", "대열보다 먼저 매복 자리에 가 있으면 매복병이 덮쳐요")
+		b.note(b.fac("%s — 황건 대열" % S.n))
+		var hi: Array = S.get("hi", ["황건 대열이 청주로 향해요!", "대열보다 먼저 매복 자리에 가 있으면 매복병이 덮쳐요"])
+		b.banner(line(hi[0]), line(hi[1]))
+	elif S.k == "folk":
+		waves = 0
+		wave_t = 0.0
+		b.note("%s — 시작" % S.n)
 	else:
 		var p := Vector2.INF
 		for _k in 8:
@@ -90,8 +105,8 @@ func _start() -> void:
 	Sound.play("alert", 0.5)
 
 
-## 동탁 뒤쪽(본진 반대편)에서 추격대 — 동탁만 노림
-func _pursuers(at: Vector2) -> void:
+## 동탁(또는 백성) 뒤쪽(본진 반대편)에서 추격대 — 그 아군만 노림(백성이면 무리 중 하나씩 돌아가며)
+func _pursuers(at: Vector2, prey: Array = []) -> void:
 	var away := (at - b.home_pos).normalized()
 	var m := b.mul_y(at.y)
 	for i in int(S.cnt):
@@ -99,7 +114,7 @@ func _pursuers(at: Vector2) -> void:
 		if b.hit_obs(p, 12):
 			p = at + away * 120
 		var e := b.spawn("ytdash" if i % 6 == 2 else "ytb", p, m)
-		e.hunt_ally = npc
+		e.hunt_ally = npc if prey.is_empty() else prey[i % prey.size()]
 		e.no_eng = true
 		e.aggro = 0.0
 		e.xp_mul = Battle.REIN_XP
@@ -164,8 +179,95 @@ func _rescue_tick(dt: float) -> void:
 		_pursuers(npc.position)
 
 
-## 동탁이 본진에 닿음(Battle.captive_home)
+## 백성 무리 하나(D-252): 본진에서 먼 둘레에 per명 + 추격대
+## 나온 자리의 방향(장수에게서 — 알림 글, D-256). 못 나왔으면 빈 글
+func _folk_wave() -> String:
+	var p := Vector2.INF
+	for _k in 8:
+		p = b.ring_pos(randf() * TAU)
+		if p != Vector2.INF and p.distance_to(b.home_pos) > 900:
+			break
+	if p == Vector2.INF:
+		return ""
+	var grp: Array = []
+	for j in int(S.per):
+		var a := b.ally_spawn(String(S.npc), p + Vector2((j - 1) * 24.0, randf_range(-10, 10)), "escort", "")
+		folks.append(a)
+		grp.append(a)
+	folk_grps.append(grp)
+	_pursuers(p, grp)
+	b.note("%s — 무리 %d" % [S.n, waves])
+	return dir_name(p - b.hero.position)
+
+
+## 방향 이름(화면 위 = 북쪽): 여덟 방위
+static func dir_name(d: Vector2) -> String:
+	const N := ["동쪽", "남동쪽", "남쪽", "남서쪽", "서쪽", "북서쪽", "북쪽", "북동쪽"]
+	return N[posmod(roundi(d.angle() / (PI / 4)), 8)]
+
+
+## 화면 밖 무리 화살표(D-256): 무리마다 아직 피난 중인 백성 하나의 자리
+func folk_marks() -> Array[Vector2]:
+	var out: Array[Vector2] = []
+	if S.k != "folk" or st != "on":
+		return out
+	for grp in folk_grps:
+		for a in grp:
+			if is_instance_valid(a) and not a.dead and a.mode == "escort":
+				out.append(a.position)
+				break
+	return out
+
+
+func _folk_tick(dt: float) -> void:
+	wave_t -= dt
+	if wave_t <= 0 and waves < int(S.waves):
+		waves += 1
+		wave_t = float(S.gap)
+		var dn := _folk_wave()
+		var from := "%s에서 " % dn if dn != "" else ""
+		# 진영 부대 알림(45초마다)과 같은 때가 많음 — 알림 차례(D-257)가 줄을 세움
+		if waves == 1:
+			b.banner(line(S.hi[0]), "%s와요 — %s" % [from, line(S.hi[1])])
+		else:
+			b.banner("백성 무리가 %s또 쫓겨 와요!" % from, "본진까지 지켜 줘요 (%d/%d)" % [waves, int(S.waves)])
+	if waves >= int(S.waves) and _folks_alive().is_empty():
+		_folk_end()
+
+
+func _folks_alive() -> Array[Ally]:
+	var out: Array[Ally] = []
+	# 쓰러지거나 본진에 닿은 백성은 지워짐(freed) — 먼저 걸러 냄
+	var keep: Array[Ally] = []
+	for a in folks:
+		if is_instance_valid(a):
+			keep.append(a)
+			if not a.dead and a.mode == "escort":
+				out.append(a)
+	folks = keep
+	return out
+
+
+func _folk_end() -> void:
+	var tot := int(S.waves) * int(S.per)
+	_finish("%d/%d" % [saved, tot])
+	if saved * 2 > tot:
+		b.later(0.8, b.banner.bind(line(S.thanks[0]), "백성 %d/%d명을 구했어요 — %s" % [saved, tot, line(S.thanks[1])]))
+	else:
+		b.later(0.8, b.banner.bind("백성 %d/%d명을 구했어요" % [saved, tot], "다음엔 더 많이 지켜 줘요"))
+
+
+## 동탁 · 백성이 본진에 닿음(Battle.captive_home)
 func on_home(a: Ally) -> bool:
+	if S.k == "folk" and a in folks:
+		a.dead = true
+		_release(a)
+		saved += 1
+		b.gain_xp(float(S.xp))
+		b.bonus_merit += int(S.merit)
+		b.add_fx({"k": "ring", "pos": b.home_pos, "t": 0.4, "r": 40.0, "c": Color("f0d878")})
+		Sound.play("heal", 0.3)
+		return true
 	if a != npc:
 		return false
 	a.dead = true
@@ -181,7 +283,19 @@ func on_home(a: Ally) -> bool:
 	return true
 
 
+## 노리던 아군이 없어진 추격대는 보통 적처럼
+func _release(a: Ally) -> void:
+	for e in b.enemies:
+		if not e.dead and e.hunt_ally == a:
+			e.hunt_ally = null
+			e.aggro = 260.0
+
+
 func on_ally_dead(a: Ally) -> void:
+	if S.k == "folk" and a in folks:
+		lost += 1
+		_release(a)
+		return
 	if a == npc and st == "on":
 		_finish("실패")
 		b.banner("동탁이 쓰러졌어요…", "아쉬워하는 사람은 별로 없어요")
@@ -286,6 +400,15 @@ func target() -> Dictionary:
 			var c: Vector2 = live[0].position if not live.is_empty() else spot
 			return {"pos": c, "n": "%s — 황건 대열 쓰러뜨리기 (%d명)" % [S.n, live.size()], "warn": true}
 		return {"pos": spot, "n": "%s — 매복 자리로! (대열보다 먼저)" % S.n, "warn": true}
+	if S.k == "folk":
+		var live := _folks_alive()
+		if live.is_empty():
+			return {}
+		var near: Ally = live[0]
+		for a in live:
+			if a.position.distance_to(b.hero.position) < near.position.distance_to(b.hero.position):
+				near = a
+		return {"pos": near.position, "n": "%s — 백성을 본진까지 (%d명 피난 중 · 구함 %d)" % [S.n, live.size(), saved], "warn": true}
 	if Unit.alive(npc):
 		return {"pos": npc.position, "n": "%s — 동탁을 본진까지 (동탁 %d%%)" % [S.n, ceili(npc.hp / npc.max_hp * 100)], "warn": true}
 	return {}

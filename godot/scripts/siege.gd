@@ -50,12 +50,12 @@ func bfull() -> String:
 	return String(boss_def().get("n", "천공장군 장각"))
 
 
-## 정원지를 쓰러뜨림 → 성문이 열리기 시작
-func start_gate() -> void:
+## 정원지를 쓰러뜨림 · 진영을 다 점령함(2~6장) → 성문이 열리기 시작. 알림 글은 부른 쪽이(D-258 — 전엔 늘 '정원지 격파!')
+func start_gate(title := "정원지 격파!", sub := "관문이 열려요") -> void:
 	gate_t = 0.0
 	b.hit_stop = 0.15
 	b.shake = 0.35
-	b.banner("정원지 격파!", "관문이 열려요")
+	b.banner(title, sub)
 	Sound.play("slam", 0.5)
 
 

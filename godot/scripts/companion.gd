@@ -44,6 +44,9 @@ func leave(reason: String) -> void:
 	leaving = true
 	why = reason
 	tg = null
+	# 울타리 안이었으면(D-269 — 5장 삼영전) 울타리 밖으로 나감
+	if arena_side > 0:
+		arena_side = -1
 	battle.companion_left(self)
 
 

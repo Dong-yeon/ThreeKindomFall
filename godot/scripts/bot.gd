@@ -298,6 +298,10 @@ func _bot_process() -> void:
 		var d := maxf(dv.length(), 1.0)
 		if d < 60:
 			v += dv / d / d * 70
+	# 벽 · 지도 끝 · 일기토 울타리에 막히는 방향이면(D-256) 벽을 따라 미끄러지는 성분만, 그것도 막히면(구석) 길찾기의 다음 지점으로
+	# (전엔 적 · 장수급에게서 물러나는 힘이 구석 안쪽을 가리켜 장수가 몇 초씩 0px 움직이며 맞다가 쓰러졌음 — 5장 여포 · 현상금 두목)
+	if v.length() > 0.15:
+		v = _unpin(h, v, to)
 	b.bot_move = v.normalized() if v.length() > 0.15 else Vector2.ZERO
 	if h.mg >= 100 and (near >= 12 or _lead_near(h.position)):
 		h.musou_go()
@@ -649,6 +653,31 @@ func _village_line() -> String:
 
 
 ## 보스 울타리(D-216)가 서 있으면 울타리 안만 갈 수 있음 — 밖의 상자 · 구슬 · 진영장을 노리면 울타리에 붙어 멈춤
+## 이 방향으로 한 걸음(14px) 가도 막히지 않나 — 벽 · 지도 끝 · 일기토 울타리
+func _free(h: Hero, d: Vector2) -> bool:
+	var p := h.position + d.normalized() * 14.0
+	var m := h.r + 4.0
+	if p.x < m or p.x > Battle.W - m or p.y < m or p.y > Battle.H - m:
+		return false
+	# 벽에 붙어 미끄러질 때는 벽까지 거리가 딱 r이라 조금 덜 봄
+	return not b.hit_obs(p, h.r - 3.0) and _reach(p)
+
+
+func _unpin(h: Hero, v: Vector2, to: Vector2) -> Vector2:
+	if _free(h, v):
+		return v
+	var ax := Vector2(v.x, 0)
+	var ay := Vector2(0, v.y)
+	for a in ([ax, ay] if absf(v.x) >= absf(v.y) else [ay, ax]):
+		if a.length() > 0.15 and _free(h, a):
+			return a.normalized() * v.length()
+	var g := to - h.position
+	if g.length() > 1.0 and _free(h, g):
+		return g.normalized()
+	# 다음 지점도 막혔으면 지도 가운데 쪽으로
+	return (Vector2(Battle.W, Battle.H) * 0.5 - h.position).normalized()
+
+
 func _reach(p: Vector2) -> bool:
 	if b.arena.is_empty() or b.arena.st != "on":
 		return true

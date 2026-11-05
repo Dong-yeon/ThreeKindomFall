@@ -14,6 +14,8 @@ const GRID := 30.0
 ## 천하 지도(D-235) — 결과 창 '천하 지도로'
 const WORLD_SCENE := "res://scenes/world.tscn"
 const STICK_DEAD := 8.0
+## 관문 장수가 나와 있을 때 유비(본진 총대장)를 지키러 가는 체력 비율(D-254 — 평소 0.5)
+const LB_GUARD_CUT := 0.25
 const STICK_FULL := 50.0
 ## 화면 밖 이만큼까지는 인물을 다시 그림(장각 그림 높이 ~90px · 띄워짐 · 화면 흔들림을 덮음)
 const DRAW_PAD := 120.0
@@ -589,7 +591,8 @@ func _field_tick(dt: float) -> void:
 	_engage_tick(dt)
 	var dla := duel()
 	for a in allies:
-		if not a.dead and not dla:
+		# 일기토 중엔 울타리 안의 아군(D-269 — 5장 삼영전 동료)만 움직임
+		if not a.dead and (not dla or a.arena_side > 0):
 			a.tick(dt)
 	Perf.end()
 	_arena_tick(dt)
@@ -1800,7 +1803,7 @@ func _on_kill(e: Enemy) -> void:
 			cap3_t = t
 		# 성문이 있는 장(D-239): 진영 gate_caps곳이면 관문이 열리기 시작(Siege — 1장의 정원지 격파 자리)
 		if ch.siege and siege != null and cap_n == int(ch.get("gate_caps", 3)):
-			siege.start_gate()
+			siege.start_gate("%s 점령! (%d/3)" % [c.n, cap_n], "진영을 모두 점령했어요 — 관문이 열려요")
 			return
 		# 진영 ARMY.after곳 점령이면 정원지의 대군이 출진(_army_tick) — 아직 ARMY.min_t 전이면 남은 시간을 알림(D-224)
 		var wait := float(Stage1.ARMY.min_t) - t
@@ -2074,7 +2077,7 @@ func _pickups() -> void:
 				if V.has_point(o.pos):
 					o.pull = true
 					n += 1
-			banner("자석!", "구슬 %d개를 끌어와요" % n)
+			banner("자석!", "구슬 %d개를 끌어와요" % n, true)
 			Sound.play("accept", 0.4)
 			add_fx({"k": "ring", "pos": hero.position, "t": 0.5, "r": 120.0, "c": Color("6ac0e0")})
 		elif dr.k == "chest" and dr.get("kind", "") == "village":
@@ -2286,7 +2289,7 @@ func _bomb_go() -> void:
 	shake = maxf(shake, 0.4)
 	hit_stop = maxf(hit_stop, 0.08)
 	Sound.play("slam", 0.5)
-	banner("폭탄!", "화면 안 황건 %d명을 쓸어버렸어요" % n)
+	banner("폭탄!", "화면 안 황건 %d명을 쓸어버렸어요" % n, true)
 
 
 ## 보스 울타리(D-216 1단계, Survivor.io 방식). 대군 부장 · 정원지가 장수 ARENA.trigger 안에 오면 warn초 예고 → 울타리 → 부장이 쓰러지면 사라짐
@@ -2306,7 +2309,12 @@ func _arena_tick(dt: float) -> void:
 			L.arena_done = true
 			note("일기토 예고 · %s" % L.ename)
 			arena = {"st": "warn", "t": float(A.warn), "lead": L, "c": hero.position, "r": float(A.r), "t0": t, "beat": 0.0, "hurt": 0.0}
-			banner("%s%s 일기토를 청해요!" % [L.ename, jo(L.ename, "이", "가")], "곧 울타리가 쳐져요 — 1:1로 쓰러뜨려야 나갈 수 있어요")
+			# 관문 장수가 일기토 글을 따로 가지면(D-270 — 5장 삼영전 duel_warn · duel_on) 그 글
+			var dw = _guard_line(L, "duel_warn")
+			if dw != null:
+				banner(String(dw[0]), String(dw[1]))
+			else:
+				banner("%s%s 일기토를 청해요!" % [L.ename, jo(L.ename, "이", "가")], "곧 울타리가 쳐져요 — 1:1로 쓰러뜨려야 나갈 수 있어요")
 			Sound.play("alert", 0.5)
 			break
 		return
@@ -2410,17 +2418,34 @@ func _arena_on() -> void:
 			add_fx({"k": "puff", "pos": e.position, "t": 0.25})
 		else:
 			e.position = _arena_out_spot(c, R + e.r + 10, e.position)
-	# 일기토: 아군도 모두 울타리 밖에서 지켜봄
+	# 일기토: 아군도 모두 울타리 밖에서 지켜봄 — 관문 장수가 guard.duel_cmp면(D-269 — 5장 삼영전) 동료 장수는 함께 울타리 안으로
+	var with_cmp: bool = siege != null and L == siege.guard and ch.guard.get("duel_cmp", false)
 	for a in allies:
+		if with_cmp and a is Companion and not a.dead:
+			a.arena_side = 1
+			if a.position.distance_to(c) > R - a.r:
+				a.position = c + (a.position - c).normalized() * (R - a.r - 4)
+			continue
 		a.arena_side = -1
 		var ad := a.position - c
 		if ad.length() < R + a.r:
 			a.position = c + (ad.normalized() if ad.length() > 0.01 else Vector2(0, 1)) * (R + a.r + 10)
 	note("일기토 · %s" % L.ename)
-	banner("일기토!", "%s%s 쓰러뜨려야 울타리가 걷혀요" % [L.ename, eul(L.ename)])
+	var don = _guard_line(L, "duel_on")
+	if don != null:
+		banner(String(don[0]), String(don[1]))
+	else:
+		banner("일기토!", "%s%s 쓰러뜨려야 울타리가 걷혀요" % [L.ename, eul(L.ename)])
 	add_fx({"k": "ring", "pos": c, "t": 0.5, "r": R, "c": Color("e8c060")})
 	shake = maxf(shake, 0.25)
 	Sound.play("slam", 0.5)
+
+
+## 관문 장수의 일기토 글(D-270, ChapterData guard.duel_warn · duel_on — [제목, 아랫줄]). 그 장수가 아니거나 없으면 null
+func _guard_line(L: Enemy, key: String):
+	if siege == null or L != siege.guard or not ch.has("guard") or not ch.guard.has(key):
+		return null
+	return ch.guard[key]
 
 
 ## 울타리 밖으로 밀 자리: 원 둘레(반지름 rr)에서 원래 방향에 가까운 걸을 수 있는 곳(벽 · 물 너머 금지). 없으면 그대로
@@ -2954,7 +2979,10 @@ func _field_target() -> Dictionary:
 		if not ST.is_empty():
 			return ST
 	# 유비가 절반 아래로 다쳤고 둘레에 적이 있으면(D-208 — 쓰러지면 짐)
-	if Unit.alive(liubei) and liubei.hp < liubei.max_hp * 0.5:
+	# 관문 장수가 나와 있으면(D-254) 그쪽이 먼저 — 유비가 아주 위급(LB_GUARD_CUT 아래)할 때만 유비에게
+	# (전엔 유비가 50% 아래 · 둘레에 적이 늘 있어 관문 장수에게 끝내 안 감 — 6장 봇 시간 초과)
+	var lb_cut := LB_GUARD_CUT if siege != null and Unit.alive(siege.guard) else 0.5
+	if Unit.alive(liubei) and liubei.hp < liubei.max_hp * lb_cut:
 		for e in enemies:
 			if not e.dead and not e.building and e.position.distance_to(liubei.position) < 200:
 				return {"pos": liubei.position, "n": "%s%s 지켜요 (%s %d%%)" % [leader(), eul(leader()), leader(), ceili(liubei.hp / liubei.max_hp * 100)], "warn": true}
@@ -3077,8 +3105,9 @@ func add_fx(f: Dictionary) -> void:
 	fx.append(f)
 
 
-func banner(title: String, sub: String) -> void:
-	hud.banner(fac(title), fac(sub))
+## minor = 가벼운 알림(D-257 — 중요한 알림을 덮지 않고, 그때는 버림)
+func banner(title: String, sub: String, minor := false) -> void:
+	hud.banner(fac(title), fac(sub), minor)
 
 
 ## 장의 적 세력 이름(D-245, ChapterData faction — 4장 '동탁군'): 1장 글의 '황건'을 바꿔 보여 줌(지도 · 병사 그림은 아직 같음)

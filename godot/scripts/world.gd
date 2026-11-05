@@ -186,7 +186,7 @@ func _enter() -> void:
 			meta.hero_open()
 		"gear":
 			meta.gear_open()
-		"stage1", "stage2", "stage3", "stage4", "stage5":
+		"stage1", "stage2", "stage3", "stage4", "stage5", "stage6", "stage7":
 			# 장(D-239): 전장이 Battle.next_chapter를 읽음
 			Battle.next_chapter = int(String(near.k).substr(5))
 			get_tree().change_scene_to_file(BATTLE_SCENE)
