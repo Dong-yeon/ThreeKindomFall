@@ -42,7 +42,7 @@ const CH := {
 		"guard_final": true, "beast": false,
 		"story": {"k": "trio", "n": "삼영전여포", "beats": [[300.0, "여포가 연합의 방열을 베었어요!", "공손찬도 쫓겨 달아나요"],
 			[330.0, "여포가 호뢰관 앞에서 날뛰어요", {"": "{hero}: \"내가 상대하겠다!\"", "zhang_fei": "{hero}: \"세 성을 섬긴 종놈아, 게 섰거라!\""}]],
-			"conf": {"hp": 4.0, "atk": 0.25, "take": 0.5, "floor": 0.6, "retreat": 0.2, "exit": Vector2(420, 2800),
+			"conf": {"hp": 4.0, "atk": 0.25, "take": 0.5, "floor": 0.45, "retreat": 0.2, "exit": Vector2(420, 2800),
 				"hurt_msg": "여포에게 많이 다쳤어요 — 서둘러요"}}},
 	6: {"name": "6장 서주 구원", "intro": "조조군 진영 3곳을 점령하면 서주성 관문이 열려요 — 하후돈이 기다려요", "army": false, "village": false, "siege": true,
 		"faction": "조조군", "camp_names": ["서쪽 조조군 진영", "동쪽 조조군 진영", "북쪽 조조군 진영"],
