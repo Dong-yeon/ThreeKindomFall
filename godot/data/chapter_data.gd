@@ -16,7 +16,7 @@ class_name ChapterData
 const CH := {
 	1: {"name": "1장 탁현 싸움", "intro": "황건 진영 3곳: 수비탑을 부숴야 진영장을 칠 수 있어요", "army": true, "village": true, "siege": false},
 	2: {"name": "2장 장보의 요술", "intro": "황건 진영 3곳을 점령하면 관문이 열려요 — 장보의 요술 제단을 부숴요", "army": false, "village": false, "siege": true,
-		"gate_caps": 3, "sorc_at": 360.0, "boss": {"k": "zj", "m": 8.0, "n": "지공장군 장보", "short": "장보",
+		"gate_caps": 3, "sorc_at": 300.0, "boss": {"k": "zj", "m": 12.0, "n": "지공장군 장보", "short": "장보",
 			"moves": ["paper", "thunder", "ring"], "moves2": ["paper", "thunder", "volley", "thunder"]}, "beast": false,
 		"altars_done": ["유비가 짐승 피를 뿌려 요술을 깼어요!", "장보의 보호막이 풀렸어요 — 이제 장보를 쳐요"],
 		"story": {"k": "ambush", "n": "청주 구원", "at": 150.0, "cnt": 36, "hp": 1.5, "march": 32.0, "from": Vector2(420, 840), "y0": 1500.0, "y1": 2400.0, "r": 110.0, "trigger": 300.0, "limit": 120.0,
