@@ -2309,7 +2309,12 @@ func _arena_tick(dt: float) -> void:
 			L.arena_done = true
 			note("일기토 예고 · %s" % L.ename)
 			arena = {"st": "warn", "t": float(A.warn), "lead": L, "c": hero.position, "r": float(A.r), "t0": t, "beat": 0.0, "hurt": 0.0}
-			banner("%s%s 일기토를 청해요!" % [L.ename, jo(L.ename, "이", "가")], "곧 울타리가 쳐져요 — 1:1로 쓰러뜨려야 나갈 수 있어요")
+			# 관문 장수가 일기토 글을 따로 가지면(D-270 — 5장 삼영전 duel_warn · duel_on) 그 글
+			var dw = _guard_line(L, "duel_warn")
+			if dw != null:
+				banner(String(dw[0]), String(dw[1]))
+			else:
+				banner("%s%s 일기토를 청해요!" % [L.ename, jo(L.ename, "이", "가")], "곧 울타리가 쳐져요 — 1:1로 쓰러뜨려야 나갈 수 있어요")
 			Sound.play("alert", 0.5)
 			break
 		return
@@ -2426,10 +2431,21 @@ func _arena_on() -> void:
 		if ad.length() < R + a.r:
 			a.position = c + (ad.normalized() if ad.length() > 0.01 else Vector2(0, 1)) * (R + a.r + 10)
 	note("일기토 · %s" % L.ename)
-	banner("일기토!", "%s%s 쓰러뜨려야 울타리가 걷혀요" % [L.ename, eul(L.ename)])
+	var don = _guard_line(L, "duel_on")
+	if don != null:
+		banner(String(don[0]), String(don[1]))
+	else:
+		banner("일기토!", "%s%s 쓰러뜨려야 울타리가 걷혀요" % [L.ename, eul(L.ename)])
 	add_fx({"k": "ring", "pos": c, "t": 0.5, "r": R, "c": Color("e8c060")})
 	shake = maxf(shake, 0.25)
 	Sound.play("slam", 0.5)
+
+
+## 관문 장수의 일기토 글(D-270, ChapterData guard.duel_warn · duel_on — [제목, 아랫줄]). 그 장수가 아니거나 없으면 null
+func _guard_line(L: Enemy, key: String):
+	if siege == null or L != siege.guard or not ch.has("guard") or not ch.guard.has(key):
+		return null
+	return ch.guard[key]
 
 
 ## 울타리 밖으로 밀 자리: 원 둘레(반지름 rr)에서 원래 방향에 가까운 걸을 수 있는 곳(벽 · 물 너머 금지). 없으면 그대로
