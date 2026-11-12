@@ -159,7 +159,7 @@ func _open_keep() -> void:
 	b.open_door("keep")
 	var K := b.keep_rect()
 	for dx in [-24, 24]:
-		b.drops.append({"k": "bun", "pos": Vector2(K.get_center().x + dx, K.end.y + 40)})
+		b.add_drop({"k": "bun", "pos": Vector2(K.get_center().x + dx, K.end.y + 40)})
 	var B: Dictionary = boss_def()
 	var boss := b.spawn(B.k, K.get_center() + Vector2(0, -40), float(B.m))
 	boss.boss = true
@@ -289,7 +289,7 @@ func on_kill(e: Enemy) -> bool:
 			Sound.play("win", 0.5)
 			b.later(1.8, b.finish.bind(true, ""))
 			return true
-		b.drops.append({"k": "chest", "pos": e.position})
+		b.add_drop({"k": "chest", "pos": e.position})
 		b.gear_drop(e.position + Vector2(30, 0), float(GearData.DROP.lead))
 		b.hit_stop = 0.08
 		b.shake = maxf(b.shake, 0.3)
