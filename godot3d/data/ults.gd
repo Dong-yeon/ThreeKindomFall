@@ -17,6 +17,10 @@ const LIST := {
 		"base": {"add": 8, "max": 8, "life": 15.0, "hp": 60.0, "dmg": 2.0, "cd": 0.6, "reach": 1.7, "arc": 120.0, "speed": 4.8},
 		"evolve": {"name": "도원의 맹세", "chosik": [["w_count", 2], ["t:rain", 2]], "simbeop": ["hp", 2],
 			"mul": {"add": 1.5, "max": 1.5, "life": 1.334, "dmg": 2.0}}},
+	"bagua": {"name": "팔진도", "script": "res://scripts/martial/ult_bagua.gd", "cost": 100.0,   # D-295 제갈량
+		"base": {"dmg": 3.0, "r": 6.0, "dur": 6.0, "slow": 0.4},
+		"evolve": {"name": "동남풍 화공", "chosik": [["w_count", 2], ["t:fire", 2]], "simbeop": ["mu", 2],
+			"mul": {"dmg": 2.5, "r": 1.2, "dur": 1.3}}},
 }
 
 static func params(id: String, evolved: bool) -> Dictionary:

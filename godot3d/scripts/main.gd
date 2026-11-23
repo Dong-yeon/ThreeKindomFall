@@ -187,6 +187,8 @@ func _ready() -> void:
 			weapon.refresh_fx()
 		"indeok":
 			regen += hero.passive.regen
+		"wolong":   # 와룡(D-295): 추가 초식 칸 +1(max_slots) · 책략 계열 피해 ↑(tactic.strat_mul)
+			pass
 	neigong = Neigong.new()
 	allies = preload("res://scripts/allies.gd").new()
 	add_child(allies)
@@ -516,7 +518,7 @@ func _offers() -> Array:
 
 func max_slots() -> int:
 	## 추가 초식 칸: 기본 + 과제 해금(D-292).
-	return TacticTable.MAX_SLOTS + Meta.extra_slots()
+	return TacticTable.MAX_SLOTS + Meta.extra_slots() + int(hero.passive.get("slots", 0))
 
 func _label(key: String) -> String:
 	if key == "heal":
@@ -587,6 +589,8 @@ func _apply_upgrade(key: String) -> void:
 			tac.ch = horde.CH_TACTIC + tactics.size()   # 추가 초식은 슬롯마다 자기 맞음 대기(D-287)
 			tac.setup(tid, player, horde)
 			tac.atk_mul = atk_mul
+			if TacticTable.LIST[tid].get("strat", false):
+				tac.strat_mul = hero.passive.get("strat", 1.0)
 			tactics[tid] = tac
 		return
 	if key != "heal":
@@ -764,6 +768,9 @@ func _martial_tick(delta: float, p2: Vector2) -> void:
 					player.try_dash()
 		else:
 			bot_react = 0.0
+	if player.blinked:   # 축지: 닿은 자리에 잠깐 빛
+		player.blinked = false
+		_blink_fx(p2)
 	if player.is_dashing() and hero.qinggong.has("impact"):
 		var im: Dictionary = hero.qinggong.impact
 		var dd := Vector2(player.dash_dir.x, player.dash_dir.z)
@@ -792,6 +799,22 @@ func _martial_tick(delta: float, p2: Vector2) -> void:
 	if opts.has("stats") and not curve_marks.is_empty() and t >= curve_marks[0]:
 		curve_marks.pop_front()
 		print("CURVE hero=%s t=%d lv=%d kills=%d hp=%d allies=%d ults=%d" % [hero_id, int(t), level, horde.kills, maxf(hero_hp, 0.0), allies.count, ult_casts])
+
+func _blink_fx(at: Vector2) -> void:
+	var ps := CPUParticles3D.new()
+	ps.one_shot = true; ps.amount = 24; ps.lifetime = 0.4; ps.explosiveness = 1.0
+	ps.direction = Vector3.UP; ps.spread = 60.0; ps.initial_velocity_min = 1.5; ps.initial_velocity_max = 3.0
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.1, 0.1, 0.1)
+	ps.mesh = bm
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(0.7, 0.9, 1.0)
+	ps.material_override = m
+	ps.position = Vector3(at.x, 0.8, at.y)
+	add_child(ps)
+	ps.emitting = true
+	get_tree().create_timer(1.0).timeout.connect(ps.queue_free)
 
 func cast_ult(id: String, origin: Vector2, facing: Vector2, is_evolved: bool) -> Ult:
 	## 절기 시전 — 독립 모듈에 시전 맥락만 넘김(나중에 어시스트 호출도 이 함수를 다른 origin · facing으로 부르면 됨).

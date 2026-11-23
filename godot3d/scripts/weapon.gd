@@ -3,6 +3,7 @@ extends Node3D
 ##   sweep  휘두르기 — 부채꼴(반지름 range · 각도 arc°)을 한 번에 벰, 바깥으로 밀어냄
 ##   thrust 찌르기   — 길이 range · 폭 width 직사각형, 줄에 선 적 모두 꿰뚫음, 찌른 방향으로 밀어냄
 ##   fly    날아가기 — 가까운 적 count명에게 하나씩 날림(속도 speed · 거리 range · 꿰뚫음 pierce)
+##   fan    바람 칼날(D-295 제갈량 학우선) — 가까운 적 쪽 부채꼴(spread rad)로 count개, 꿰뚫음 pierce, 멀어질수록 약해짐(falloff)
 ##   boomerang 돌아오는 칼(D-293 유비 쌍고검 회선) — 가까운 적 쪽으로 count자루를 부채꼴(spread rad)로 던짐,
 ##          거리 range까지 날아가며 닿는 적을 모두 베고(꿰뚫음 제한 없음) 장수에게 돌아오며 또 벰(돌아오는 길은 맞음 대기 채널이 따로)
 ## 판정은 horde.gd(hit_arc · hit_line · hit_circle), 여기는 노리기 · 때 · 보이는 것만.
@@ -25,6 +26,7 @@ var mods := {"dmg": 1.0, "cd": 1.0, "area": 1.0, "count": 0, "pierce": 0, "knock
 var dyn := 1.0               # 매 프레임 바뀌는 공격 배율(주화입마 · 광폭 — main이 넣음, D-285)
 var haste := 1.0             # 매 프레임 바뀌는 공격 속도 배율(인덕 — main이 넣음, D-293)
 var blades: Array = []       # boomerang: [{node, pos, dir, left, back}]
+var fans: Array = []         # fan: [{node, pos, dir, left, pierce}] — 바람 칼날(D-295)
 var returns := 0             # 돌아오는 길에 맞힌 수(--stats)
 var outs := 0                # 가는 길에 맞힌 수
 
@@ -64,6 +66,14 @@ func setup(weapon_spec: Dictionary, p: Node3D, h: Node3D) -> void:
 			var bm := BoxMesh.new()
 			bm.size = Vector3(width() * 0.6, 0.05, reach())
 			fx.mesh = bm
+		"fan":
+			var fm := PrismMesh.new()        # 초승달 대신 납작한 세모 칼날(바람)
+			fm.size = Vector3(1.3, 0.7, 0.08)
+			fly_mesh = fm
+			fly_mat = StandardMaterial3D.new()
+			fly_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			fly_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			fly_mat.albedo_color = Color(col, 0.75)
 		"fly", "boomerang":
 			var sw := BoxMesh.new()          # 날아가는 칼(납작한 막대) · 돌아오는 칼은 눕혀서 빙빙 돎
 			sw.size = Vector3(0.18, 0.06, 1.0) if spec.type == "fly" else Vector3(0.16, 0.05, 1.1)
@@ -128,6 +138,16 @@ func tick(delta: float) -> void:
 					n.material_override = fly_mat
 					add_child(n)
 					shots.append({"node": n, "pos": c, "dir": d, "left": reach(), "pierce": fly_pierce()})
+			"fan":
+				var d0: Vector2 = _aim(c)[0]
+				var n_f := fly_count()
+				for k in n_f:
+					var d := d0.rotated(spec.spread * (k - (n_f - 1) * 0.5))
+					var n := MeshInstance3D.new()
+					n.mesh = fly_mesh
+					n.material_override = fly_mat
+					add_child(n)
+					fans.append({"node": n, "pos": c, "dir": d, "left": reach(), "pierce": fly_pierce()})
 			"boomerang":
 				var d0: Vector2 = _aim(c)[0]
 				var n_b := fly_count()
@@ -158,6 +178,20 @@ func tick(delta: float) -> void:
 			node.queue_free()
 			shots.remove_at(k)
 
+	# 바람 칼날(D-295): 멀어질수록 약해짐(끝에서 falloff배)
+	for k in range(fans.size() - 1, -1, -1):
+		var s: Dictionary = fans[k]
+		var step: float = spec.speed * delta
+		s.pos += s.dir * step
+		s.left -= step
+		var f: float = lerpf(spec.falloff, 1.0, clampf(s.left / reach(), 0.0, 1.0))
+		s.pierce -= horde.hit_circle(s.pos, fly_radius(), dmg() * f, knock(), s.dir, s.pierce, c)
+		var node: MeshInstance3D = s.node
+		node.position = Vector3(s.pos.x, 0.8, s.pos.y)
+		node.rotation = Vector3(-PI * 0.5, atan2(s.dir.x, s.dir.y), 0)
+		if s.left <= 0.0 or s.pierce <= 0:
+			node.queue_free()
+			fans.remove_at(k)
 	# 돌아오는 칼(D-293): 나갈 땐 감속, 돌아올 땐 장수 쪽으로 가속
 	for k in range(blades.size() - 1, -1, -1):
 		var b: Dictionary = blades[k]

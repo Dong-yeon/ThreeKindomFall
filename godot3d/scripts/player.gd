@@ -19,6 +19,7 @@ var dash_dir := Vector3.ZERO
 var dash_speed := 0.0
 var iframe_t := 0.0           # 경공 무적 남은 시간(main이 피해 계산 때 봄)
 var dash_count := 0
+var blinked := false          # 이번 프레임에 축지했는가(main이 효과를 그리고 끔)
 var _dash_key_was := false
 var _move_dir := Vector3.ZERO
 var has_goal := false          # 봇(D-289): 목표 자리로 가서 그 둘레를 돎(진영 정예와 싸우기)
@@ -48,6 +49,13 @@ func try_dash(dir: Vector3 = Vector3.ZERO) -> bool:
 	if charge_t <= 0.0:
 		charge_t = qg.cd
 	dash_dir = dir.normalized()
+	if qg.type == "blink":   # 축지(D-295): 순간이동 — 경공 시간 없이 곧바로 그 자리로
+		position += dash_dir * qg.dist
+		iframe_t = maxf(iframe_t, qg.iframe)
+		rotation.y = atan2(dash_dir.x, dash_dir.z)
+		dash_count += 1
+		blinked = true
+		return true
 	dash_t = qg.time
 	dash_speed = qg.dist / qg.time
 	iframe_t = maxf(iframe_t, qg.iframe)

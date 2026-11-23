@@ -28,6 +28,7 @@ const CH_ALLY := 2            # 의용군
 const CH_TACTIC := 3          # 추가 초식 — 슬롯마다 3~7(기본 3칸 + 과제 칸 + 와룡 칸, D-292)
 const CH_RETURN := 8          # 돌아오는 무기(쌍고검 회선 — 가는 길과 같은 적을 또 맞힘, D-293)
 const N_CH := 9
+var slow_zones: Array = []    # 느려지는 자리 [{c: Vector2, r2, f}] — 절기(팔진도, D-295)가 매 프레임 넣고 update가 쓰고 비움
 
 var cap := 0
 var count := 0
@@ -377,6 +378,9 @@ func update(delta: float, player: Vector2) -> float:
 			if cd[k] > 0.0:
 				cd[k] -= delta
 		var spd: float = speed * kd.speed
+		for z in slow_zones:
+			if p.distance_squared_to(z.c) <= z.r2:
+				spd *= z.f
 		if kd.has("ranged"):
 			# 궁병: keep 거리 근처를 유지하며 쏨
 			var rg: Dictionary = kd.ranged
@@ -466,6 +470,7 @@ func update(delta: float, player: Vector2) -> float:
 		mm[g].visible_instance_count = k / 12
 		bufs[g] = b
 	last_update_us = Time.get_ticks_usec() - t0
+	slow_zones.clear()
 	return hits
 
 func _shoot(from: Vector2, dir: Vector2, rg: Dictionary) -> void:

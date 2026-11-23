@@ -5,12 +5,12 @@ class_name HeroTable
 ##   공통: cd 재사용(초) · dmg 한 번 피해 · knock 밀려나는 거리 · seek 이 거리 안 가장 가까운 적을 노림(없으면 가는 쪽).
 ## D-285 무공 킷:
 ##   role 역할 태그 · stars 난이도(★) · star_label · passive 고유 심법(id로 main이 적용) · ult 절기 id(data/ults.gd)
-##   qinggong 경공 — type dash(돌진: dist 거리 · time 걸리는 시간) | leap(도약: + height 높이)
+##   qinggong 경공 — type dash(돌진: dist 거리 · time 걸리는 시간) | leap(도약: + height 높이) | blink(순간이동: dist, D-295)
 ##             · iframe 무적(초) · cd 한 번 충전 시간 · charges 최대 충전 · impact(돌진 중 부딪힌 적: r · dmg · knock, 없으면 안 밀침)
 ## stars(D-292): D-291 봇 측정 반영 — 장비 ★ · 관우 ★★ · 유비 ★★(다시 설계 뒤 다시 잼)
 ##   neigong 내공이 차는 배율(data/martial.gd의 기본값에 곱함) · hp 시작 최대 체력(없으면 100, D-291)
 
-const ORDER := ["guan_yu", "zhang_fei", "liu_bei"]   # 선택 화면 순서 — 처음 열린 장수가 앞(D-292, 잠금은 data/unlocks.gd)
+const ORDER := ["guan_yu", "zhuge_liang", "zhang_fei", "liu_bei"]   # 선택 화면 순서 — 처음 열린 장수가 앞(D-292, 잠금은 data/unlocks.gd)
 
 const HEROES := {
 	"guan_yu": {
@@ -22,6 +22,17 @@ const HEROES := {
 		"ult": "crescent",
 		"qinggong": {"type": "dash", "name": "돌진(짧고 무거움)", "dist": 3.0, "time": 0.18, "iframe": 0.25, "cd": 3.0, "charges": 1,
 			"impact": {"r": 1.4, "dmg": 3.0, "knock": 2.2}},
+		"neigong": 1.0,
+	},
+	"zhuge_liang": {   # D-295 — 원거리 마법사(시작 장수). 모델은 설정화 전 임시(tools/blender/zhuge_liang.py)
+		"name": "제갈량", "glb": "res://assets/models/zhuge_liang.glb",
+		"role": "원거리 · 책략", "stars": 2, "star_label": "붙으면 약함", "hp": 80.0,
+		"weapon": {"name": "학우선 바람날", "type": "fan", "cd": 0.9, "dmg": 2.4, "knock": 0.5, "seek": 11.0,
+			"count": 3, "spread": 0.22, "speed": 16.0, "range": 9.0, "pierce": 4, "radius": 0.6, "falloff": 0.5,
+			"color": Color(0.75, 0.9, 1.0)},
+		"passive": {"id": "wolong", "name": "와룡", "desc": "추가 초식 칸 +1 · 책략 계열 초식 피해 +25%", "slots": 1, "strat": 1.25},
+		"ult": "bagua",
+		"qinggong": {"type": "blink", "name": "축지", "dist": 5.0, "iframe": 0.3, "cd": 3.0, "charges": 2},
 		"neigong": 1.0,
 	},
 	"zhang_fei": {

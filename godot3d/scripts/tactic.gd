@@ -8,6 +8,7 @@ var p: Dictionary
 var player: Node3D
 var horde: Node3D
 var atk_mul := 1.0            # 무력(main이 넣음)
+var strat_mul := 1.0          # 책략 계열 배율(제갈량 와룡 — main이 넣음, D-295)
 var ch := 3                   # 맞음 대기 채널(D-287 — main이 슬롯마다 다르게)
 var cd := 0.5
 var fired := 0                # 발동 횟수(--stats)
@@ -83,7 +84,7 @@ func _disc(r: float, mat: Material) -> MeshInstance3D:
 
 func tick(delta: float) -> void:
 	var c := Vector2(player.position.x, player.position.z)
-	var dmg: float = p.dmg * atk_mul
+	var dmg: float = p.dmg * atk_mul * strat_mul
 	match TacticTable.LIST[id].type:
 		"orbit":
 			spin_a += delta * p.spin
