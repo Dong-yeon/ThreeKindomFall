@@ -89,6 +89,10 @@ var lowhp_t := 0.0            # 체력 30% 아래로 버틴 시간(누적)
 var gems_got := 0
 var run_ended := false
 var cam_ready := false
+var paused := false           # 일시정지(D-300)
+var pause_key_was := false
+var pause_shot_t := 0.0
+var result_ui: Control        # scripts/ui/result.gd(결과 창 · 일시정지)
 var god := false
 var dead := false
 var cleared := false
@@ -209,6 +213,9 @@ func _ready() -> void:
 	flash = hud.flash
 	msg = hud.msg
 	_build_pick(layer)
+	result_ui = preload("res://scripts/ui/result.gd").new()
+	layer.add_child(result_ui)
+	result_ui.setup(self)
 	add_child(layer)
 	if not bench and not opts.has("no-stage"):   # --no-stage: 빈 들판(예전 시험)
 		stage = preload("res://scripts/stage.gd").new()
@@ -302,6 +309,22 @@ func _process(delta: float) -> void:
 	t += delta
 	var p2 := Vector2(player.position.x, player.position.z)
 	_shots_tick()   # 레벨업 고르기로 멈춘 동안에도 찍음
+	# 일시정지(D-300): P · 판 중 Esc(봇은 안 읽음) · 점검 --pause-test는 1초에 염
+	var pk := Input.is_physical_key_pressed(KEY_P) or (Input.is_physical_key_pressed(KEY_ESCAPE) and not dead and not cleared)
+	if (pk and not pause_key_was and not player.auto_walk) or (opts.has("pause-test") and t >= 1.0 and not paused and not ("pause_done" in opts)):
+		opts["pause_done"] = "1"
+		if paused:
+			resume()
+		elif not dead and not cleared and not choosing:
+			paused = true
+			player.set_process(false)
+			result_ui.show_pause(build_text(), hero)
+	pause_key_was = pk
+	if paused:
+		t -= delta   # 판 시간은 멈춤(맨 위에서 더한 것을 되돌림)
+		if opts.has("pause-test"):
+			_pause_test_tick()
+		return
 	if choosing:
 		_pick_input()
 		return
@@ -346,7 +369,7 @@ func _process(delta: float) -> void:
 	if (dead or cleared) and Input.is_physical_key_pressed(KEY_R):
 		get_tree().reload_current_scene()
 		return
-	if (dead or cleared) and Input.is_physical_key_pressed(KEY_ESCAPE):   # 장수 선택으로(새로 연 장수를 고르게, D-292)
+	if (dead or cleared) and Input.is_physical_key_pressed(KEY_ESCAPE) and not pause_key_was:   # 장수 선택으로(새로 연 장수를 고르게, D-292)
 		get_tree().change_scene_to_file("res://scenes/select.tscn")
 		return
 	# 3인칭 고정 각도로 뒤 · 위에서 따라감(마우스 시점은 다음 단계)
@@ -735,12 +758,7 @@ func _on_boss_dead(_fo) -> void:
 func _win() -> void:
 	cleared = true
 	player.set_process(false)
-	if boss_active:
-		msg.text = "여포를 물리쳤다!\n처치 %d · %d초 만에\nR — 다시 · Esc — 장수 선택" % [horde.kills, int(t - boss_t0)]
-	else:
-		msg.text = "버텼습니다!\n10분 · 처치 %d\nR — 다시 · Esc — 장수 선택" % horde.kills
-	msg.visible = true
-	_end_run()
+	_end_run("호뢰관 승리!" if boss_active else "버텼습니다!")
 	print("CLEAR t=%.1f kills=%d hp=%d" % [t, horde.kills, hero_hp])
 
 func _exit_tree() -> void:
@@ -767,13 +785,11 @@ func _exit_tree() -> void:
 func _die() -> void:
 	dead = true
 	player.set_process(false)
-	msg.text = "쓰러졌습니다\n%d초 버팀 · 처치 %d\nR — 다시 · Esc — 장수 선택" % [int(t), horde.kills]
-	msg.visible = true
-	_end_run()
+	_end_run("쓰러졌습니다")
 	print("DEAD t=%.1f kills=%d" % [t, horde.kills])
 
-func _end_run() -> void:
-	## 판 결과를 메타 진행에 넘기고, 새로 깬 과제가 있으면 결과 창에 '새로 해금!'(D-292).
+func _end_run(head: String) -> void:
+	## 판 결과를 메타 진행에 넘기고 결과 창(D-300 — scripts/ui/result.gd)을 띄움. 새로 깬 과제는 '새로 해금!'(D-292).
 	if run_ended:
 		return
 	run_ended = true
@@ -787,11 +803,40 @@ func _end_run() -> void:
 		"camps": stage.broken_log.size() if stage else 0, "lowhp": lowhp_t}
 	var fresh: Array = Meta.end_run(run)
 	print("META run=%s new=%s done=%d saving=%s" % [JSON.stringify(run), ",".join(fresh.map(func(q): return q.id)), Meta.data.done.size(), Meta.saving])
-	if not fresh.is_empty():
-		var lines := []
-		for q in fresh:
-			lines.append("%s — %s" % [q.name, Meta.reward_name(q)])
-		msg.text += "\n\n새로 해금!\n" + "\n".join(lines)
+	if result_ui:
+		var rows := [["장수", "%s  ·  %s" % [hero.name, hero.role]], ["버틴 시간", "%d:%02d" % [int(t) / 60, int(t) % 60]],
+			["처치", str(horde.kills)], ["레벨", str(level)], ["깬 진영", "%d / %d" % [run.camps, StageYellow.CAMPS.size()] if stage else "—"],
+			["여포", "%d초 만에 처치" % int(t - boss_t0) if boss_result == "win" else ("싸우다 쓰러짐" if boss_active else "—")],
+			["절기", "%d번 · %s" % [ult_casts, UltTable.display_name(ult_id, evolved)]]]
+		result_ui.show_result(head, rows, build_text(), fresh)
+
+func build_text() -> String:
+	## 결과 창 · 일시정지에 보일 빌드 한 줄.
+	var parts := [hero.weapon.name]
+	for tid in tactics:
+		parts.append("%s %d" % [TacticTable.LIST[tid].name, tactics[tid].lv])
+	for key in UpgradeTable.LIST:
+		if UpgradeTable.LIST[key].kind == "stat" and ups.get(key, 0) > 0:
+			parts.append("%s %d" % [UpgradeTable.LIST[key].name, ups[key]])
+	return " · ".join(parts)
+
+func resume() -> void:
+	paused = false
+	result_ui.hide_all()
+	if not dead and not cleared:
+		player.set_process(true)
+
+func _pause_test_tick() -> void:
+	## --pause-test --shots=<폴더>: 일시정지 창을 찍고 끝냄.
+	pause_shot_t += get_process_delta_time()
+	if pause_shot_t > 0.3 and pause_shot_t < 1.0 and shots_dir != "":
+		pause_shot_t = 2.0
+		await RenderingServer.frame_post_draw
+		DirAccess.make_dir_recursive_absolute(shots_dir)
+		var path := shots_dir.path_join("pause.png")
+		get_viewport().get_texture().get_image().save_png(path)
+		print("SHOT ", path)
+		get_tree().quit()
 
 func _shots_tick() -> void:
 	if shots_dir != "" and not shot_times.is_empty() and t >= shot_times[0]:
