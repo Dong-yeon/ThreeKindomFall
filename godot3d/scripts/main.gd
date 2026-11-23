@@ -337,7 +337,7 @@ func _process(delta: float) -> void:
 			_apply_wave()
 			if t >= WaveTable.RUN_TIME:
 				_win()
-		var hits: int = horde.update(delta, p2)
+		var hits: float = horde.update(delta, p2)   # 찌르기 1 · 화살은 궁병 배율(D-288)
 		weapon.tick(delta)
 		for tac in tactics.values():
 			tac.tick(delta)
@@ -352,8 +352,8 @@ func _process(delta: float) -> void:
 			_open_pick()
 		hero_hp = minf(hero_hp + regen * delta, max_hp)
 		invuln = maxf(invuln - delta, 0.0)
-		if hits > 0 and invuln <= 0.0 and player.iframe_t <= 0.0 and not god:
-			hero_hp -= enemy_dmg * armor
+		if hits > 0.0 and invuln <= 0.0 and player.iframe_t <= 0.0 and not god:
+			hero_hp -= enemy_dmg * armor * minf(hits, 1.0)
 			invuln = IFRAME
 			flash.color.a = 0.35
 			if hero_hp <= 0.0:
@@ -657,6 +657,7 @@ func _apply_wave() -> void:
 	horde.spawn_hp = w[1]
 	horde.speed = w[2]
 	enemy_dmg = w[3]
+	horde.mix = EnemyTable.mix_at(t)   # 잡병 4종 비율(D-288)
 	if t >= WaveTable.FINAL_AT and not final_shown and msg:   # msg는 _ready 뒤쪽에서 만듦(--start로 9분 뒤 시작할 때)
 		final_shown = true
 		msg.text = "마지막 대군!\n1분만 버티면 된다"
@@ -677,6 +678,8 @@ func _exit_tree() -> void:
 		print("PICKS ", " ".join(pick_log))
 		for tid in tactics:
 			print("TACTIC %s lv=%d fired=%d hits=%d" % [tid, tactics[tid].lv, tactics[tid].fired, tactics[tid].hits])
+		print("ENEMY spawned soldier=%d archer=%d rusher=%d shield=%d arrows_shot=%d arrows_hit=%d" % [
+			horde.spawned_kind[0], horde.spawned_kind[1], horde.spawned_kind[2], horde.spawned_kind[3], horde.arrows_shot, horde.arrows_hit])
 		if neigong:
 			print("MARTIAL hero=%s attacks=%d dashes=%d ults=%d ult_hits=%d zhuhuo=%d evolved=%s stunned=%d allies=%d summoned=%d lost=%d ally_swings=%d ally_hits=%d neigong=%.0f" % [
 				hero_id, weapon.attacks, player.dash_count, ult_casts, ult_hits, neigong.zhuhuo_count, evolved,

@@ -13,18 +13,24 @@ import lowpoly as lp
 
 OUT, FLAGS = lp.args()
 # --variant=militia: 같은 몸에 녹색 두건 · 띠 → 유비의 의용군(D-285, militia.glb · militia_poses.glb)
-MILITIA = "--variant=militia" in FLAGS
-NAME = "militia" if MILITIA else "yellow_turban"
+# --variant=archer|rusher|shield: 황건 궁병 · 돌격병 · 방패병(D-288 — 같은 몸에 무기 · 색만 바꿈)
+VARIANT = ""
+for f in FLAGS:
+    if f.startswith("--variant="):
+        VARIANT = f.split("=", 1)[1]
+MILITIA = VARIANT == "militia"
+NAME = {"militia": "militia", "archer": "yt_archer", "rusher": "yt_rusher", "shield": "yt_shield"}.get(VARIANT, "yellow_turban")
 lp.reset_scene()
 R = math.radians
 
 SKIN    = lp.mat("skin",    "c98e68")       # 그을린 피부
 HAIR    = lp.mat("hair",    "2a221e")       # 머리 · 수염 · 눈
 MUSTARD = lp.mat("mustard", "4f8a3e" if MILITIA else "9a7e3e")       # 탁한 겨자색 두건 · 띠 — 유비의 밝은 노랑(e2b838)과 구분되게 채도 · 밝기를 낮춤(D-280)
-DKBRN   = lp.mat("dkbrown", "4e3a2e")       # 조끼 · 바지 · 감개
+DKBRN   = lp.mat("dkbrown", {"archer": "3e4632", "shield": "34302c"}.get(VARIANT, "4e3a2e"))  # 조끼 · 바지 · 감개(궁병 녹갈 · 방패병 짙게)
 LTBRN   = lp.mat("ltbrown", "8a6e58")       # 속옷 · 소매
 WOOD    = lp.mat("wood",    "5a3e2c")       # 창 자루 · 짚신 끈은 띠 색
 IRON    = lp.mat("iron",    "6e5e56", 0.6, 0.4)  # 녹슨 쇠
+RED     = lp.mat("red",     "8a2a22")       # 돌격병 붉은 띠
 
 b = lp.Body()
 # 앞쪽 = -Y, 발밑 z=0, 키 약 1.75(장수보다 작게). 오른쪽 = -X.
@@ -56,13 +62,36 @@ for side, bone in ((1, "arm_L"), (-1, "arm_R")):
     b.cone(0.08, 0.08, 0.60, 0.68, DKBRN, x=x + 0.015 * side, v=6)    # 손목 감개
 b.bone = "arm_L"
 b.ball(0.065, (0.34, -0.02, 0.55), SKIN, 1)
-b.bone = "arm_R"   # 창 쥔 손 + 창
+b.bone = "arm_R"
 b.ball(0.07, (-0.34, -0.11, 0.57), SKIN, 1)
-PX, PY = -0.36, -0.12
-b.cone(0.025, 0.025, 0.0, 1.95, WOOD, x=PX, y=PY, v=5)                # 나무 자루
-for z in (0.08, 1.78):
-    b.cone(0.035, 0.035, z, z + 0.08, MUSTARD, x=PX, y=PY, v=5)       # 감은 끈
-b.poly([(PX, 1.94), (PX + 0.07, 2.08), (PX, 2.36), (PX - 0.07, 2.08)], PY, 0.03, IRON)  # 녹슨 창날(잎 모양)
+if VARIANT == "archer":      # 궁병: 왼손에 활 · 등에 화살통
+    b.bone = "arm_L"
+    bow = [(0.36, 0.30), (0.46, 0.45), (0.50, 0.70), (0.46, 0.95), (0.36, 1.10), (0.39, 1.10), (0.49, 0.95),
+           (0.53, 0.70), (0.49, 0.45), (0.39, 0.30)]
+    b.poly(bow, -0.10, 0.04, WOOD)
+    b.box(0.01, 0.01, 0.80, (0.37, -0.10, 0.70), LTBRN)               # 활시위
+    b.bone = "torso"
+    b.cone(0.07, 0.07, 0.70, 1.15, WOOD, x=-0.12, y=0.25, v=6, rot=(R(12), R(-15), 0))   # 화살통
+    for dx in (-0.03, 0.03):
+        b.box(0.03, 0.03, 0.10, (-0.16 + dx, 0.28, 1.22), MUSTARD)    # 화살 깃
+elif VARIANT == "rusher":    # 돌격병: 쌍단도 · 붉은 띠
+    for side, bone in ((1, "arm_L"), (-1, "arm_R")):
+        b.bone = bone
+        b.box(0.05, 0.04, 0.12, (0.35 * side, -0.14, 0.55), WOOD)     # 자루
+        b.box(0.07, 0.025, 0.48, (0.36 * side, -0.24, 0.62), IRON, (R(-60), 0, 0))   # 앞으로 내민 칼날
+    b.bone = "torso"
+    b.cone(0.30, 0.30, 0.74, 0.80, RED, v=6)                          # 붉은 띠
+else:                        # 졸병 · 방패병 · 의용군: 창
+    PX, PY = -0.36, -0.12
+    top = 1.60 if VARIANT == "shield" else 1.95                       # 방패병은 짧은 창
+    b.cone(0.025, 0.025, 0.0, top, WOOD, x=PX, y=PY, v=5)                # 나무 자루
+    for z in (0.08, top - 0.17):
+        b.cone(0.035, 0.035, z, z + 0.08, MUSTARD, x=PX, y=PY, v=5)       # 감은 끈
+    b.poly([(PX, top - 0.01), (PX + 0.07, top + 0.13), (PX, top + 0.41), (PX - 0.07, top + 0.13)], PY, 0.03, IRON)  # 녹슨 창날(잎 모양)
+    if VARIANT == "shield":  # 방패병: 왼팔에 큰 둥근 방패
+        b.bone = "arm_L"
+        b.cone(0.34, 0.34, -0.03, 0.03, DKBRN, x=0.30, y=-0.30, v=10, rot=(R(90), 0, 0)).location.z = 0.80
+        b.cone(0.10, 0.06, -0.06, 0.06, MUSTARD, x=0.30, y=-0.34, v=8, rot=(R(90), 0, 0)).location.z = 0.80   # 방패 가운데 징
 
 b.bone = "head"
 b.ball(0.31, (0, 0, 1.22), SKIN, 2, (1.0, 0.95, 1.02))
