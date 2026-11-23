@@ -4,7 +4,7 @@ class_name StageYellow
 ##       그 진영 생성이 멈추고 보상 상자(밟으면 레벨업 카드 1번 + 체력 CHEST_HEAL).
 
 const BOUNDS := Rect2(-70, -70, 140, 140)
-const CAMP_SHARE := 0.3
+const CAMP_SHARE := 0.15        # D-291: 0.3이면 적이 멀리서 늦게 와 처치 · 경험치가 줄어 6분 레벨이 26~34(전 39~41)
 const CHEST_HEAL := 30.0
 const CAMPS := [
 	{"id": "zhangbao",   "name": "장보의 진",  "pos": Vector2(-38, -30), "r": 7.0, "foe": "zhangbao"},

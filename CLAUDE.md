@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 지금 상태: 웹 프로토타입 v0.18(`prototype/web`)에서 손맛과 큰 구조를 검증함. 본 개발은 Godot(`godot/`, 말 없이 · 기본 공격은 날아가는 대표 무기, D-170 · D-171) — 천하 지도 · 저장 · 대장간 · 장비, 1~7장(황건 편 → 사수관 · 호뢰관 → 서주 구원 · 원문사극, 장마다 봇 클리어 80~90%로 맞춤 D-263~269), 출진 장수 관우 · 장비 · 유비(`data/heroes/*.tres`, 장을 평정하면 해금 D-249)까지 들어가 있음.
 - **3D 전환 시작(D-274):** 3D 생존형(PC 가로 · 모바일 고려 안 함)으로 새 Godot 프로젝트 `godot3d/` — 관우(블렌더 코드로 만든 저폴리 `godot3d/tools/blender/guan_yu.py` → `assets/models/guan_yu.glb`) · 적은 황건적. 2D판 `godot/`은 그대로 둔다.
 - **무공 1단계(D-285):** 시작 장면은 장수 선택(`godot3d/scenes/select.tscn`). 무공 체계(초식 · 심법 · 내공 · 절기 · 오의 · 주화입마 · 경공)와 3인 킷 — 수치는 `godot3d/data/`(heroes · martial · ults), 절기는 독립 모듈 `godot3d/scripts/martial/`. 설계 요약 `docs/design-digest.md`, 미완 표 `docs/status.md`.
+- **2단계(D-287~291):** 황건적 스테이지(맵 경계 · 진영 3곳 · 잡병 4종 · 정예 장보 · 장량 · 황건 도사) + 10분 뒤 호뢰관 여포 보스. 적장 공통 `godot3d/scripts/foe/foe.gd` · `data/foes.gd`, 스테이지 `scripts/stage.gd` · `data/stage_yellow.gd`, 잡병 `data/enemies.gd`. 점검 `--boss`(곧바로 보스전) · `--no-stage`.
 - 다음 할 일은 정해 두지 않는다 — 최근 흐름은 `docs/decision-log.md` 끝 항목을 본다(지금 D-273까지 — 하위 세션끼리 번호가 겹쳐 D-260대는 파일 안 순서가 조금 뒤섞임).
 - 현재 기획 요약: `docs/current-design.md` / 결정 기록: `docs/decision-log.md`(D-1~, 이전 저장소 Happy-Unhappy에서 이어짐)
 

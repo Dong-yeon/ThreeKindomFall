@@ -5,19 +5,21 @@ extends Node3D
 const CAP := 1500
 const PICK_R := 0.7            # 이 안이면 먹음
 const PULL_SPEED := 14.0       # 빨려 오는 속도
+const AUTO_PULL := 25.0        # 떨어지고 이만큼 지나면 거리와 상관없이 빨려 옴(D-291 — 진영으로 떠나도 경험치를 안 잃게)
 
 var pos := PackedVector2Array()
 var val := PackedInt32Array()
 var pulled := PackedByteArray()  # 한 번 빨려 오기 시작하면 끝까지
+var age := PackedFloat32Array()
 var count := 0
-var magnet := 2.6               # 줍는 거리(레벨업 '자석'이 늘림)
+var magnet := 4.0               # 줍는 거리(레벨업 '자석'이 늘림)
 var mm: MultiMesh
 var buf := PackedFloat32Array()
 var spin := 0.0
 var oldest := 0
 
 func _ready() -> void:
-	pos.resize(CAP); val.resize(CAP); pulled.resize(CAP)
+	pos.resize(CAP); val.resize(CAP); pulled.resize(CAP); age.resize(CAP)
 	var m := SphereMesh.new()     # 마름모(위아래 뾰족한 저폴리 구)
 	m.radial_segments = 4; m.rings = 2; m.radius = 0.16; m.height = 0.42
 	var mat := StandardMaterial3D.new()
@@ -38,7 +40,7 @@ func _ready() -> void:
 
 func drop(p: Vector2, v := 1) -> void:
 	if count < CAP:
-		pos[count] = p; val[count] = v; pulled[count] = 0
+		pos[count] = p; val[count] = v; pulled[count] = 0; age[count] = 0.0
 		count += 1
 	else:
 		val[oldest] += v
@@ -55,9 +57,10 @@ func update(delta: float, player: Vector2) -> int:
 		if d2 < PICK_R * PICK_R:
 			got += val[i]
 			count -= 1                 # 맨 뒤 것을 이 자리로(순서는 안 지킴)
-			pos[i] = pos[count]; val[i] = val[count]; pulled[i] = pulled[count]
+			pos[i] = pos[count]; val[i] = val[count]; pulled[i] = pulled[count]; age[i] = age[count]
 			continue
-		if pulled[i] == 1 or d2 < m2:
+		age[i] += delta
+		if pulled[i] == 1 or d2 < m2 or age[i] > AUTO_PULL:
 			pulled[i] = 1
 			pos[i] += d / sqrt(d2) * minf(PULL_SPEED * delta, sqrt(d2))
 		i += 1

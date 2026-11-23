@@ -145,6 +145,8 @@ func _ready() -> void:
 	add_child(player)
 	hero_id = opts.get("hero", HeroTable.chosen if HeroTable.chosen != "" else "guan_yu")
 	hero = HeroTable.get_hero(hero_id)
+	max_hp = hero.get("hp", HERO_HP)   # 장수마다 시작 체력(D-291)
+	hero_hp = max_hp
 	if opts.has("select-test"):   # 선택 화면 → 판 진입 점검: 넘어온 장수만 출력
 		print("MAIN hero=%s (선택 화면에서 고름=%s)" % [hero_id, HeroTable.chosen])
 		get_tree().quit()
@@ -634,7 +636,7 @@ func _stage_tick(delta: float, p2: Vector2) -> void:
 				player.goal = c.chest.position
 				player.has_goal = true
 				player.goal_direct = true
-		if not player.has_goal and hero_hp > max_hp * 0.55 and t > 60.0:
+		if not player.has_goal and hero_hp > max_hp * 0.7 and t > 120.0:
 			var best := 1e9
 			for c in stage.alive_camps():
 				var d: float = c.spec.pos.distance_to(p2)

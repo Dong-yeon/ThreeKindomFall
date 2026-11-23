@@ -7,17 +7,17 @@ class_name EnemyTable
 const KINDS := [
 	{"id": "soldier", "name": "졸병",  "glb": "res://assets/models/yellow_turban_poses.glb", "hp": 1.0, "speed": 1.0, "knock": 1.0, "wind": 0.9},
 	{"id": "archer",  "name": "궁병",  "glb": "res://assets/models/yt_archer_poses.glb", "hp": 0.8, "speed": 0.9, "knock": 1.0, "wind": 0.9,
-		"ranged": {"keep": 8.0, "shoot": 2.5, "arrow_speed": 9.0, "arrow_life": 1.6, "arrow_r": 0.55, "arrow_dmg": 0.8}},
-	{"id": "rusher",  "name": "돌격병", "glb": "res://assets/models/yt_rusher_poses.glb", "hp": 0.6, "speed": 1.6, "knock": 1.2, "wind": 0.5},
-	{"id": "shield",  "name": "방패병", "glb": "res://assets/models/yt_shield_poses.glb", "hp": 2.5, "speed": 0.7, "knock": 0.3, "wind": 1.1},
+		"ranged": {"keep": 8.0, "shoot": 2.5, "arrow_speed": 9.0, "arrow_life": 1.6, "arrow_r": 0.55, "arrow_dmg": 0.6}},
+	{"id": "rusher",  "name": "돌격병", "glb": "res://assets/models/yt_rusher_poses.glb", "hp": 0.6, "speed": 1.6, "knock": 1.2, "wind": 0.7},
+	{"id": "shield",  "name": "방패병", "glb": "res://assets/models/yt_shield_poses.glb", "hp": 2.0, "speed": 0.7, "knock": 0.3, "wind": 1.1},
 ]
 
 const MIX := [
 	[0.0,   [1.0, 0.0, 0.0, 0.0]],
-	[60.0,  [0.8, 0.1, 0.1, 0.0]],
-	[180.0, [0.6, 0.15, 0.15, 0.1]],
-	[360.0, [0.45, 0.2, 0.2, 0.15]],
-	[540.0, [0.4, 0.2, 0.25, 0.15]],
+	[120.0, [1.0, 0.0, 0.0, 0.0]],
+	[240.0, [0.75, 0.1, 0.1, 0.05]],
+	[420.0, [0.6, 0.15, 0.15, 0.1]],
+	[540.0, [0.55, 0.15, 0.18, 0.12]],
 ]
 
 static func mix_at(t: float) -> Array:
