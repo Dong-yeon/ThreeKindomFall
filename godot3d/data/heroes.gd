@@ -35,10 +35,10 @@ const HEROES := {
 	"liu_bei": {
 		"name": "유비", "glb": "res://assets/models/liu_bei.glb",
 		"role": "소환 · 지원", "stars": 3, "star_label": "대기만성",
-		"weapon": {"name": "쌍고검", "type": "fly", "cd": 0.65, "dmg": 2.0, "knock": 0.5, "seek": 12.0,
+		"weapon": {"name": "쌍고검", "type": "fly", "cd": 0.65, "dmg": 1.7, "knock": 0.5, "seek": 12.0,
 			"count": 1, "speed": 15.0, "range": 11.0, "pierce": 3, "radius": 0.6, "color": Color(1.0, 0.92, 0.6)},
-		"passive": {"id": "indeok", "name": "인덕", "desc": "의용군 공격·체력 +20%(레벨마다 +5%) · 근검: 초당 회복 +0.6",
-			"ally_mul": 1.2, "ally_per_lv": 0.05, "regen": 0.6},
+		"passive": {"id": "indeok", "name": "인덕", "desc": "의용군 공격·체력 +20%(레벨마다 +16%) · 근검: 초당 회복 +0.6",
+			"ally_mul": 1.2, "ally_per_lv": 0.16, "regen": 0.6},
 		"ult": "militia",
 		"qinggong": {"type": "leap", "name": "이단 도약", "dist": 4.0, "time": 0.45, "height": 1.6, "iframe": 0.45, "cd": 3.5, "charges": 2},
 		"neigong": 1.0,

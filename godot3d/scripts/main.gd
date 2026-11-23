@@ -586,6 +586,7 @@ func _martial_tick(delta: float, p2: Vector2) -> void:
 	allies.enemy_dmg = enemy_dmg
 	if hero.passive.id == "indeok":
 		allies.mul = hero.passive.ally_mul + hero.passive.ally_per_lv * (level - 1)
+	allies.level = level
 	allies.update(delta, p2)
 	# 점검: --dash-at=초[,초…] 그 시각에 경공(이단 도약은 두 시각을 가깝게 주면 공중에서 한 번 더)
 	if opts.has("dash-at"):
@@ -631,7 +632,7 @@ func cast_ult(id: String, origin: Vector2, facing: Vector2, is_evolved: bool) ->
 	var u: Ult = UltTable.make(id)
 	add_child(u)
 	u.cast({"origin": origin, "facing": facing.normalized() if facing.length() > 0.01 else Vector2(0, 1),
-		"horde": horde, "allies": allies, "atk_mul": atk_mul * dyn, "evolved": is_evolved,
+		"horde": horde, "allies": allies, "atk_mul": atk_mul * dyn, "evolved": is_evolved, "level": level,
 		"spec": UltTable.params(id, is_evolved)})
 	active_ults.append(u)
 	ult_casts += 1
@@ -664,9 +665,9 @@ func _exit_tree() -> void:
 		for tid in tactics:
 			print("TACTIC %s lv=%d fired=%d hits=%d" % [tid, tactics[tid].lv, tactics[tid].fired, tactics[tid].hits])
 		if neigong:
-			print("MARTIAL hero=%s attacks=%d dashes=%d ults=%d ult_hits=%d zhuhuo=%d evolved=%s stunned=%d allies=%d summoned=%d lost=%d neigong=%.0f" % [
+			print("MARTIAL hero=%s attacks=%d dashes=%d ults=%d ult_hits=%d zhuhuo=%d evolved=%s stunned=%d allies=%d summoned=%d lost=%d ally_swings=%d ally_hits=%d neigong=%.0f" % [
 				hero_id, weapon.attacks, player.dash_count, ult_casts, ult_hits, neigong.zhuhuo_count, evolved,
-				horde.stun_total, allies.count, allies.summoned, allies.lost, neigong.value])
+				horde.stun_total, allies.count, allies.summoned, allies.lost, allies.swings, allies.hits, neigong.value])
 
 func _die() -> void:
 	dead = true

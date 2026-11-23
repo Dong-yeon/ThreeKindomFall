@@ -41,6 +41,7 @@ var spawn_hp := HP          # 새로 나오는 적의 체력(D-282 시간표가 
 var speed := SPEED           # 적 걷는 속도(시간표가 올림)
 var last_update_us := 0
 var hit_count := 0          # 지금까지 맞힌 수(D-285 — main이 늘어난 만큼 내공으로)
+var ally_cd := PackedFloat32Array()   # 의용군 전용 맞음 대기(D-286 — 장수 공격과 따로: 같이 쓰면 화계 등에 막혀 의용군 휘두름의 43%가 헛침)
 var stun := PackedFloat32Array()   # 남은 기절 시간(사자후) — 기절하면 안 움직이고 안 찌름
 var stun_total := 0         # 기절시킨 수(점검용)
 
@@ -48,7 +49,7 @@ func setup(max_count: int) -> void:
 	cap = max_count
 	rng.seed = 11
 	pos.resize(cap); phase.resize(cap); face.resize(cap); next.resize(cap)
-	hp.resize(cap); hit_cd.resize(cap); atk.resize(cap); lunge.resize(cap); stun.resize(cap)
+	hp.resize(cap); hit_cd.resize(cap); atk.resize(cap); lunge.resize(cap); stun.resize(cap); ally_cd.resize(cap)
 	head.resize(GRID * GRID)
 	var src: Node = load(POSES_GLB).instantiate()
 	for i in FRAMES:
@@ -78,12 +79,16 @@ func _respawn(i: int, center: Vector2, near := 22.0) -> void:
 	atk[i] = rng.randf() * ATK_WIND * 0.5   # 처음 찌르는 때를 흩어 둠
 	lunge[i] = 0.0
 	stun[i] = 0.0
+	ally_cd[i] = 0.0
 
 # ── 맞히기(D-281: 장수 무기마다 모양이 달라 판정을 나눔) ──
-func _damage(i: int, push: Vector2, dmg: float, knock: float, center: Vector2) -> bool:
-	## 피해 · 밀려남. 죽으면 먼 고리에서 다시 나오고 true.
+func _damage(i: int, push: Vector2, dmg: float, knock: float, center: Vector2, ally := false) -> bool:
+	## 피해 · 밀려남. 죽으면 먼 고리에서 다시 나오고 true. ally면 의용군 전용 맞음 대기를 씀.
 	hp[i] -= dmg
-	hit_cd[i] = HIT_CD
+	if ally:
+		ally_cd[i] = HIT_CD
+	else:
+		hit_cd[i] = HIT_CD
 	hit_count += 1
 	atk[i] = 0.0
 	lunge[i] = 0.0
@@ -162,12 +167,13 @@ func random_in(center: Vector2, max_r: float, n: int) -> PackedVector2Array:
 				break
 	return out
 
-func hit_arc(center: Vector2, dir: float, half: float, r_out: float, dmg: float, knock: float) -> int:
+func hit_arc(center: Vector2, dir: float, half: float, r_out: float, dmg: float, knock: float, ally := false) -> int:
 	## 휘두르기: center에서 dir(rad, XZ 평면 atan2(z, x)) ±half, 반지름 r_out 안. 밀려남은 바깥쪽으로.
+	## ally = 의용군(전용 맞음 대기).
 	var n := 0
 	var ro2 := r_out * r_out
 	for i in count:
-		if hit_cd[i] > 0.0:
+		if (ally_cd[i] if ally else hit_cd[i]) > 0.0:
 			continue
 		var d := pos[i] - center
 		var d2 := d.length_squared()
@@ -176,7 +182,7 @@ func hit_arc(center: Vector2, dir: float, half: float, r_out: float, dmg: float,
 		if absf(angle_difference(atan2(d.y, d.x), dir)) > half:
 			continue
 		n += 1
-		_damage(i, d / sqrt(d2), dmg, knock, center)
+		_damage(i, d / sqrt(d2), dmg, knock, center, ally)
 	return n
 
 func hit_line(origin: Vector2, dir: Vector2, length: float, half_w: float, dmg: float, knock: float) -> int:
@@ -249,6 +255,8 @@ func update(delta: float, player: Vector2) -> int:
 		# 찌르기: 붙어 있으면 준비 → 찌름(동작 중 맞으면 피해 한 번)
 		if hit_cd[i] > 0.0:
 			hit_cd[i] -= delta
+		if ally_cd[i] > 0.0:
+			ally_cd[i] -= delta
 		if stunned:
 			pass
 		elif lunge[i] > 0.0:

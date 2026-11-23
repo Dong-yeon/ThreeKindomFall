@@ -8,7 +8,7 @@ var added := 0
 func _start() -> void:
 	var o: Vector2 = ctx.origin
 	if ctx.allies:
-		added = ctx.allies.add(o, int(p.add), p)
+		added = ctx.allies.add(o, int(p.add + p.get("add_per_lv", 0.0) * ctx.get("level", 1)), p)   # 레벨이 오를수록 한 번에 더 많이(D-286)
 	flag = MeshInstance3D.new()   # 깃발 기둥(잠깐)
 	var bm := BoxMesh.new()
 	bm.size = Vector3(0.08, 2.6, 0.08)
