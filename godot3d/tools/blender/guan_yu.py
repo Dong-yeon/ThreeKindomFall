@@ -1,239 +1,174 @@
-# 관우 저폴리 모델 + 뼈대 + 동작(idle · walk) — Blender(bpy) 코드로만 만든다(참고 그림 없음, D-274).
-# 실행(Blender 5.x 또는 pip bpy):
-#   blender -b -P godot3d/tools/blender/guan_yu.py -- <출력 폴더> [--render]
-#   python godot3d/tools/blender/guan_yu.py <출력 폴더> [--render]   (pip install bpy)
-# 결과: <출력 폴더>/guan_yu.glb (--render면 확인용 PNG도)
-import bpy, bmesh, math, sys, os
-from mathutils import Vector
+# 관우 저폴리 모델 + 뼈대 + 동작(idle · walk) — 블렌더 코드로만 만든다.
+# D-274 첫 시안 → D-277: GPT 콘셉트 설정화(godot3d/art/concept/guan_yu.webp)를 보고 다시 만듦
+#   (약 3등신 · 녹색 두건과 뒤로 늘어진 천 · 금 용머리 어깨 갑옷 · 금 테 앞치마형 전포 · 검은 통바지와 장화 ·
+#    언월도는 오른손 — 어두운 칼날 + 은색 날 + 등의 홈).
+# 실행: python godot3d/tools/blender/guan_yu.py <출력 폴더> [--render]   (pip install bpy)
+#       blender -b -P godot3d/tools/blender/guan_yu.py -- <출력 폴더> [--render]
+# 결과: guan_yu.glb (--render면 정면 · 옆 · 뒤 · 3/4 확인용 PNG)
+import math, os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import lowpoly as lp
 
-args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
-RENDER = "--render" in args
-args = [a for a in args if not a.startswith("--")]
-OUT = args[0] if args else "."
-os.makedirs(OUT, exist_ok=True)
+OUT, FLAGS = lp.args()
+lp.reset_scene()
+R = math.radians
 
-bpy.ops.wm.read_factory_settings(use_empty=True)
-scn = bpy.context.scene
-scn.render.fps = 24
+FACE   = lp.mat("face",   "c5463a")          # 붉은 얼굴 · 손
+GREEN  = lp.mat("green",  "3f7a52")
+DKGRN  = lp.mat("dkgreen", "2c5a3c")
+GOLD   = lp.mat("gold",   "c9a24e", 0.45, 0.5)
+BLACK  = lp.mat("black",  "26211e")
+DKGRAY = lp.mat("dkgray", "34302c")          # 바지 · 팔토시
+BELT   = lp.mat("belt",   "4a362a")
+STEEL  = lp.mat("steel",  "4a5058", 0.4, 0.7)  # 칼날 몸
+SILVER = lp.mat("silver", "d8dce0", 0.3, 0.9)  # 칼날 날
 
-MATS = {}
-def mat(name, hexs, rough=0.8, metal=0.0):
-    if name in MATS: return MATS[name]
-    rgb = tuple((int(hexs[i:i+2], 16) / 255) ** 2.2 for i in (0, 2, 4))  # sRGB → linear
-    m = bpy.data.materials.new(name)
-    m.use_nodes = True
-    b = m.node_tree.nodes["Principled BSDF"]
-    b.inputs["Base Color"].default_value = (*rgb, 1)
-    b.inputs["Roughness"].default_value = rough
-    b.inputs["Metallic"].default_value = metal
-    MATS[name] = m
-    return m
+b = lp.Body()
+# 앞쪽 = -Y, 발밑 z=0, 키 약 2.2(두건 끝). 관우의 오른쪽 = -X(정면에서 보면 화면 왼쪽).
 
-SKIN  = mat("skin",  "a8362a")        # 붉은 얼굴
-BLACK = mat("black", "1a1614")
-GREEN = mat("green", "2f6b45")        # 녹색 전포
-DKGRN = mat("dkgreen", "1f4a30")
-GOLD  = mat("gold",  "c89a40", 0.5, 0.6)
-BROWN = mat("brown", "6a3a24")
-STEEL = mat("steel", "c8d0d8", 0.35, 0.9)
-RED   = mat("red",   "b8202a")
+# ── 다리: 장화 · 통바지 ──
+for side, bone in ((-1, "leg_R"), (1, "leg_L")):
+    b.bone = bone
+    x = 0.17 * side
+    b.box(0.20, 0.28, 0.22, (x, -0.02, 0.11), BLACK)                # 장화
+    b.box(0.215, 0.29, 0.04, (x, -0.02, 0.22), GOLD)                # 장화 금 테
+    b.cone(0.12, 0.16, 0.22, 0.62, DKGRAY, x=x, v=6)                # 통바지
 
-parts = []          # (object, bone)
-BONE = "torso"      # 지금 만드는 조각이 붙을 뼈
-def done(o, m, rot=None):
-    o.data.materials.append(m)
-    if rot: o.rotation_euler = rot
-    parts.append((o, BONE))
-    return o
+# ── 몸통: 전포 · 앞치마 · 허리띠 · 가슴 ──
+b.bone = "torso"
+b.cone(0.47, 0.37, 0.48, 1.0, GREEN)                                # 전포 치마(옆 · 뒤)
+b.cone(0.48, 0.47, 0.44, 0.50, GOLD)                                # 치마 금 단
+# 앞치마(앞 · 뒤): 금 테(뒤에 조금 크게) + 녹색 판, 치마 기울기에 맞춰 10° 눕힘
+b.box(0.42, 0.025, 0.74, (0, -0.425, 0.64), GOLD, (R(-10), 0, 0))
+b.box(0.36, 0.03, 0.68, (0, -0.44, 0.65), GREEN, (R(-10), 0, 0))
+b.box(0.12, 0.01, 0.10, (-0.12, -0.46, 0.52), DKGRN, (R(-10), 0, 0))  # 구름 무늬(흉내)
+b.box(0.12, 0.01, 0.10, ( 0.12, -0.46, 0.52), DKGRN, (R(-10), 0, 0))
+b.box(0.50, 0.025, 0.78, (0, 0.425, 0.66), GOLD, (R(10), 0, 0))
+b.box(0.44, 0.03, 0.72, (0, 0.44, 0.67), GREEN, (R(10), 0, 0))
+b.cone(0.385, 0.385, 0.95, 1.08, BELT)                               # 허리띠
+b.box(0.20, 0.06, 0.13, (0, -0.39, 1.015), GOLD)                     # 용 버클
+b.box(0.08, 0.04, 0.08, (0, -0.42, 1.015), BELT, (0, R(45), 0))
+b.cone(0.37, 0.41, 1.06, 1.40, GREEN)                                # 가슴(어깨로 갈수록 넓게)
+b.cone(0.30, 0.20, 1.38, 1.46, DKGRN, v=8)                           # 깃
+# 어깨 갑옷(금 용머리, 2단) — 덩어리 + 아래 판 + 앞으로 튀어나온 얼굴
+for side in (-1, 1):
+    x = 0.44 * side
+    b.ball(0.20, (x, 0, 1.36), GOLD, 1, (1.15, 1.25, 0.85))
+    b.box(0.30, 0.30, 0.07, (x * 1.05, 0, 1.22), GOLD, (0, R(-22 * side), 0))
+    b.box(0.12, 0.08, 0.10, (x * 1.02, -0.24, 1.33), GOLD)          # 용 얼굴
+    b.box(0.03, 0.02, 0.02, (x * 1.02 - 0.03, -0.285, 1.355), BLACK)  # 눈
+    b.box(0.03, 0.02, 0.02, (x * 1.02 + 0.03, -0.285, 1.355), BLACK)
 
-def cone(r1, r2, z0, z1, m, x=0, y=0, v=8, rot=None):
-    bpy.ops.mesh.primitive_cone_add(vertices=v, radius1=r1, radius2=r2, depth=z1 - z0,
-                                    location=(x, y, (z0 + z1) / 2))
-    return done(bpy.context.object, m, rot)
+# ── 팔: 녹색 반소매 · 검은 팔토시 · 금 테 · 붉은 손 ──
+b.bone = "arm_L"   # 왼팔(+X): 손을 펴고 살짝 벌림
+b.cone(0.11, 0.13, 0.98, 1.28, GREEN, x=0.50, rot=(0, R(10), 0))
+b.cone(0.095, 0.105, 0.74, 0.98, DKGRAY, x=0.54, v=6, rot=(0, R(10), 0))
+b.cone(0.112, 0.112, 0.94, 0.98, GOLD, x=0.535, v=6)
+b.cone(0.105, 0.105, 0.74, 0.78, GOLD, x=0.57, v=6)
+b.box(0.08, 0.13, 0.15, (0.585, -0.02, 0.66), FACE, (0, R(12), 0))  # 편 손
 
-def box(sx, sy, sz, loc, m, rot=None):
-    bpy.ops.mesh.primitive_cube_add(size=1, location=loc)
-    o = bpy.context.object; o.scale = (sx, sy, sz)
-    return done(o, m, rot)
+b.bone = "arm_R"   # 오른팔(-X) + 청룡언월도
+b.cone(0.11, 0.13, 0.98, 1.28, GREEN, x=-0.50, rot=(R(-12), R(-6), 0))
+b.cone(0.095, 0.105, 0.74, 0.98, DKGRAY, x=-0.53, y=-0.06, v=6, rot=(R(-20), 0, 0))
+b.cone(0.112, 0.112, 0.94, 0.98, GOLD, x=-0.53, y=-0.02, v=6)
+b.cone(0.105, 0.105, 0.74, 0.78, GOLD, x=-0.53, y=-0.10, v=6)
+b.ball(0.09, (-0.55, -0.12, 0.70), FACE, 1)                          # 자루를 쥔 주먹
+PX, PY = -0.56, -0.13
+b.cone(0.03, 0.03, 0.10, 2.30, BLACK, x=PX, y=PY, v=6)               # 검은 자루
+b.cone(0.0, 0.05, -0.06, 0.12, GOLD, x=PX, y=PY, v=4)                # 금 물미(뾰족)
+b.cone(0.05, 0.05, 0.12, 0.17, GOLD, x=PX, y=PY, v=6)
+for z in (0.62, 1.95):                                              # 자루 금 고리
+    b.cone(0.042, 0.042, z, z + 0.05, GOLD, x=PX, y=PY, v=6)
+b.cone(0.045, 0.06, 2.20, 2.30, GOLD, x=PX, y=PY, v=6)               # 칼날 받침(용머리 흉내)
+b.box(0.13, 0.13, 0.12, (PX, PY, 2.34), GOLD)
+# 칼날: 바깥(-X)은 은색 날, 안쪽은 어두운 몸 + 등의 홈, 끝은 몸 쪽으로 휨
+edge = [(-0.06, 2.38), (-0.17, 2.56), (-0.25, 2.82), (-0.25, 3.06), (-0.17, 3.26), (0.02, 3.38),
+        (-0.06, 3.24), (-0.15, 3.06), (-0.15, 2.82), (-0.09, 2.58), (-0.02, 2.40)]
+body = [(-0.02, 2.40), (-0.09, 2.58), (-0.15, 2.82), (-0.15, 3.06), (-0.06, 3.24), (0.02, 3.38),
+        (-0.01, 3.20), (0.01, 3.04), (0.07, 2.97), (0.01, 2.90), (0.03, 2.64), (0.06, 2.44), (0.05, 2.38)]
+b.poly([(PX + x, z) for x, z in edge], PY, 0.035, SILVER)
+b.poly([(PX + x, z) for x, z in body], PY, 0.035, STEEL)
+for dy in (-0.03, 0.03):                                            # 칼날의 금 용 무늬(흉내)
+    b.box(0.05, 0.01, 0.30, (PX - 0.06, PY + dy, 2.80), GOLD, (0, R(8), 0))
+    b.box(0.07, 0.01, 0.05, (PX - 0.04, PY + dy, 2.98), GOLD)
 
-def ball(r, loc, m, sub=2, scale=(1, 1, 1)):
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=sub, radius=r, location=loc)
-    o = bpy.context.object; o.scale = scale
-    return done(o, m)
+# ── 머리 ──
+b.bone = "head"
+b.ball(0.33, (0, 0, 1.70), FACE, 2, (1.0, 0.95, 1.08))               # 얼굴
+b.box(0.06, 0.08, 0.12, (-0.33, 0.02, 1.68), FACE)                    # 귀
+b.box(0.06, 0.08, 0.12, ( 0.33, 0.02, 1.68), FACE)
+b.box(0.56, 0.26, 0.42, (0, 0.17, 1.55), BLACK)                       # 뒤로 내린 긴 머리
+b.box(0.07, 0.10, 0.30, (-0.30, -0.06, 1.62), BLACK)                  # 귀밑머리
+b.box(0.07, 0.10, 0.30, ( 0.30, -0.06, 1.62), BLACK)
+b.box(0.15, 0.04, 0.05, (-0.13, -0.31, 1.80), BLACK, (0, R(-18), 0))  # 굵은 눈썹(바깥이 올라감)
+b.box(0.15, 0.04, 0.05, ( 0.13, -0.31, 1.80), BLACK, (0, R(18), 0))
+b.box(0.09, 0.03, 0.055, (-0.12, -0.315, 1.73), BLACK)                # 눈
+b.box(0.09, 0.03, 0.055, ( 0.12, -0.315, 1.73), BLACK)
+b.box(0.06, 0.06, 0.09, (0, -0.33, 1.66), FACE)                       # 코
+beard = b.cone(0.05, 0.27, 0.98, 1.60, BLACK, y=-0.40, v=6, rot=(R(-14), 0, 0))  # 허리띠까지 오는 넓은 수염(가슴 앞으로)
+beard.scale = (1.0, 0.45, 1.0)
+b.box(0.34, 0.07, 0.06, (0, -0.33, 1.60), BLACK)                      # 콧수염
+b.box(0.05, 0.05, 0.14, (-0.17, -0.31, 1.53), BLACK)
+b.box(0.05, 0.05, 0.14, ( 0.17, -0.31, 1.53), BLACK)
+# 녹색 두건(높고 둥글게) + 금 띠 + 이마 금 마름모 + 뒤로 늘어진 천
+b.cone(0.355, 0.33, 1.84, 2.06, GREEN)
+b.ball(0.33, (0, 0.02, 2.06), GREEN, 2, (1.0, 1.0, 0.9))
+b.cone(0.36, 0.36, 1.83, 1.89, GOLD)
+b.box(0.12, 0.04, 0.12, (0, -0.355, 1.92), GOLD, (0, R(45), 0))
+b.box(0.44, 0.04, 0.30, (0, 0.33, 1.80), DKGRN)                       # 뒤판
+b.box(0.18, 0.03, 0.80, (-0.09, 0.37, 1.30), GREEN, (R(8), 0, 0))     # 허리까지 늘어진 천
+b.box(0.18, 0.03, 0.76, ( 0.09, 0.37, 1.32), DKGRN, (R(8), 0, 0))
 
-# ── 몸 조각 ── 앞쪽 = -Y. 발밑 z=0, 키 약 2.0(2.5등신)
-BONE = "leg_L"; box(0.13, 0.16, 0.24, (-0.13, 0, 0.12), BLACK)
-BONE = "leg_R"; box(0.13, 0.16, 0.24, ( 0.13, 0, 0.12), BLACK)
-
-BONE = "torso"
-cone(0.46, 0.31, 0.16, 0.64, GREEN)                       # 전포 아랫단
-cone(0.31, 0.27, 0.60, 1.12, GREEN)                       # 몸통
-cone(0.335, 0.335, 0.58, 0.68, GOLD)                      # 허리띠
-box(0.10, 0.04, 0.10, (0, -0.335, 0.63), GOLD)            # 띠 장식
-box(0.36, 0.06, 0.34, (0, -0.25, 0.90), BROWN)            # 가슴 갑옷
-box(0.20, 0.26, 0.12, (-0.36, 0, 1.06), GOLD, (0, math.radians(-18), 0))   # 어깨 갑옷
-box(0.20, 0.26, 0.12, ( 0.36, 0, 1.06), GOLD, (0, math.radians(18), 0))
-box(0.50, 0.04, 0.78, (0, 0.26, 0.70), DKGRN, (math.radians(8), 0, 0))     # 망토
-
-BONE = "arm_L"
-cone(0.085, 0.10, 0.62, 1.02, GREEN, x=-0.40, rot=(0, math.radians(-8), 0))
-ball(0.08, (-0.43, 0, 0.58), SKIN, 1)
-
-BONE = "arm_R"      # 오른팔 + 청룡언월도
-cone(0.085, 0.10, 0.70, 1.02, GREEN, x=0.40, y=-0.06, rot=(math.radians(-20), math.radians(8), 0))
-ball(0.08, (0.44, -0.13, 0.68), SKIN, 1)
-PX, PY = 0.46, -0.14
-cone(0.028, 0.028, -0.05, 2.25, BROWN, x=PX, y=PY, v=6)   # 자루
-cone(0.05, 0.03, -0.12, -0.02, GOLD, x=PX, y=PY, v=6)     # 물미
-bm = bmesh.new()
-pts = [(0.00, 2.20), (0.10, 2.30), (0.22, 2.55), (0.26, 2.80), (0.20, 3.02),
-       (0.06, 3.12), (0.10, 2.92), (0.10, 2.70), (0.04, 2.50), (-0.04, 2.40), (-0.04, 2.22)]
-vs = [bm.verts.new((PX + x, PY, z)) for x, z in pts]
-bm.faces.new(vs)
-me = bpy.data.meshes.new("blade"); bm.to_mesh(me); bm.free()
-blade = bpy.data.objects.new("blade", me); scn.collection.objects.link(blade)
-blade.modifiers.new("solid", "SOLIDIFY").thickness = 0.04
-done(blade, STEEL)
-cone(0.05, 0.05, 2.17, 2.25, GOLD, x=PX, y=PY, v=6)       # 칼날 받침
-cone(0.07, 0.01, 1.98, 2.17, RED, x=PX - 0.06, y=PY, v=5) # 술
-
-BONE = "head"
-ball(0.42, (0, 0, 1.48), SKIN, 2, (1, 0.95, 1))
-cone(0.40, 0.30, 1.66, 1.92, GREEN)                       # 두건(녹건)
-box(0.16, 0.14, 0.12, (0, 0.02, 1.96), GREEN)
-box(0.05, 0.03, 0.30, (-0.10, 0.36, 1.62), DKGRN, (math.radians(-20), 0, 0))  # 두건 끈
-box(0.05, 0.03, 0.30, ( 0.10, 0.36, 1.62), DKGRN, (math.radians(-20), 0, 0))
-box(0.09, 0.03, 0.035, (-0.14, -0.40, 1.52), BLACK, (0, math.radians(-12), 0))  # 눈
-box(0.09, 0.03, 0.035, ( 0.14, -0.40, 1.52), BLACK, (0, math.radians(12), 0))
-box(0.15, 0.04, 0.045, (-0.15, -0.395, 1.61), BLACK, (0, math.radians(-22), 0)) # 눈썹(바깥이 올라감)
-box(0.15, 0.04, 0.045, ( 0.15, -0.395, 1.61), BLACK, (0, math.radians(22), 0))
-cone(0.03, 0.17, 0.82, 1.38, BLACK, y=-0.36, v=6, rot=(math.radians(10), 0, 0))  # 긴 수염
-box(0.20, 0.06, 0.04, (0, -0.42, 1.36), BLACK)            # 콧수염
-
-# ── 조각마다 자기 뼈 이름의 정점 그룹(가중치 1) → 한 덩어리로 ──
-for o, bone in parts:
-    bpy.context.view_layer.objects.active = o
-    for md in list(o.modifiers):
-        bpy.ops.object.modifier_apply(modifier=md.name)
-    g = o.vertex_groups.new(name=bone)
-    g.add(list(range(len(o.data.vertices))), 1.0, "REPLACE")
-bpy.ops.object.select_all(action="DESELECT")
-for o, _ in parts: o.select_set(True)
-bpy.context.view_layer.objects.active = parts[0][0]
-bpy.ops.object.join()
-hero = bpy.context.object; hero.name = "guan_yu_mesh"
-bpy.ops.object.shade_flat()
-bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-tris = sum(len(p.vertices) - 2 for p in hero.data.polygons)
-
-# ── 뼈대 ──
-arm_data = bpy.data.armatures.new("guan_yu_rig")
-rig = bpy.data.objects.new("guan_yu", arm_data)
-scn.collection.objects.link(rig)
-bpy.context.view_layer.objects.active = rig
-bpy.ops.object.mode_set(mode="EDIT")
-eb = arm_data.edit_bones
-def bone(name, head, tail, parent=None):
-    b = eb.new(name); b.head = head; b.tail = tail; b.roll = 0
-    if parent: b.parent = eb[parent]
-    return b
-bone("root",  (0, 0, 0),        (0, 0, 0.3))
-bone("torso", (0, 0, 0.62),     (0, 0, 1.15), "root")
-bone("head",  (0, 0, 1.15),     (0, 0, 1.9),  "torso")
-bone("leg_L", (-0.13, 0, 0.34), (-0.13, 0, 0.0), "root")
-bone("leg_R", ( 0.13, 0, 0.34), ( 0.13, 0, 0.0), "root")
-bone("arm_L", (-0.40, 0, 1.04), (-0.43, 0, 0.58), "torso")
-bone("arm_R", ( 0.40, -0.06, 1.04), (0.44, -0.13, 0.68), "torso")
-bpy.ops.object.mode_set(mode="OBJECT")
-hero.parent = rig
-hero.modifiers.new("rig", "ARMATURE").object = rig
-
-# ── 동작 ── 뼈 로컬 축: 아래로 향한 뼈(다리 · 팔)도 roll 0이면 로컬 X ≈ 월드 X → X축 회전 = 앞뒤로 흔들기
-ad = rig.animation_data_create()
-pb = rig.pose.bones
-for p in pb: p.rotation_mode = "XYZ"
-
-def key(frame, rot=None, loc=None):
-    for name, (rx, ry, rz) in (rot or {}).items():
-        pb[name].rotation_euler = (math.radians(rx), math.radians(ry), math.radians(rz))
-        pb[name].keyframe_insert("rotation_euler", frame=frame)
-    for name, xyz in (loc or {}).items():
-        pb[name].location = xyz
-        pb[name].keyframe_insert("location", frame=frame)
-
-def reset():
-    for p in pb:
-        p.rotation_euler = (0, 0, 0); p.location = (0, 0, 0)
-
-def make_action(name, frames, fn):
-    reset()
-    act = bpy.data.actions.new(name)
-    ad.action = act
-    for f in frames: fn(f)
-    tr = ad.nla_tracks.new(); tr.name = name
-    st = tr.strips.new(name, int(frames[0]), act)
-    ad.action = None
-    reset()
-    return act
-
-ALL = ["root", "torso", "head", "leg_L", "leg_R", "arm_L", "arm_R"]
+mesh = b.join("guan_yu")
+rig = lp.make_rig("guan_yu", mesh, [
+    ("root",  (0, 0, 0),           (0, 0, 0.3),           None),
+    ("torso", (0, 0, 0.95),        (0, 0, 1.45),          "root"),
+    ("head",  (0, 0, 1.45),        (0, 0, 2.1),           "torso"),
+    ("leg_L", ( 0.17, 0, 0.62),    ( 0.17, 0, 0.0),       "root"),
+    ("leg_R", (-0.17, 0, 0.62),    (-0.17, 0, 0.0),       "root"),
+    ("arm_L", ( 0.48, 0, 1.30),    ( 0.56, 0, 0.72),      "torso"),
+    ("arm_R", (-0.48, 0, 1.30),    (-0.55, -0.12, 0.72),  "torso"),
+])
 
 def idle(f):   # 0 ~ 24 (1초): 숨쉬듯 위아래
     t = f / 24 * 2 * math.pi
-    rot = {b: (0, 0, 0) for b in ALL}
-    rot["head"] = (2 * math.sin(t), 0, 0)
-    rot["arm_L"] = (0, 0, -3 * math.sin(t))
-    key(f, rot, {"torso": (0, 0.015 * (1 - math.cos(t)) * 0.5, 0)})
+    return ({"head": (2 * math.sin(t), 0, 0), "arm_L": (0, 0, -3 * math.sin(t))},
+            {"torso": (0, 0.015 * (1 - math.cos(t)) * 0.5, 0)})
 
 def walk(f):   # 0 ~ 16 (0.67초 한 걸음 주기)
-    t = f / 16 * 2 * math.pi
-    s = math.sin(t)
-    rot = {b: (0, 0, 0) for b in ALL}
-    rot["leg_L"] = (-35 * s, 0, 0)
-    rot["leg_R"] = ( 35 * s, 0, 0)
-    rot["arm_L"] = ( 28 * s, 0, 0)
-    rot["arm_R"] = (-10 * s, 0, 0)
-    rot["torso"] = (-6, 0, 5 * s)          # 살짝 앞으로 숙이고 비틀기
-    rot["head"]  = ( 4, 0, -4 * s)
-    bob = 0.045 * abs(math.sin(t))         # 한 주기에 두 번 튀어오름
-    key(f, rot, {"root": (0, bob, 0)})     # root 로컬 Y = 위(뼈가 +Z를 향함)
+    s = math.sin(f / 16 * 2 * math.pi)
+    rot = {"leg_L": (-30 * s, 0, 0), "leg_R": (30 * s, 0, 0),
+           "arm_L": (-24 * s, 0, 0), "arm_R": (8 * s, 0, 0),     # 언월도 든 팔은 조금만
+           "torso": (-5, 0, 5 * s), "head": (3, 0, -4 * s)}
+    return rot, {"root": (0, 0.04 * abs(s), 0)}
 
-make_action("idle", list(range(0, 25, 2)), idle)
-make_action("walk", list(range(0, 17, 2)), walk)
+idle_act = lp.make_action(rig, "idle", list(range(0, 25, 2)), idle)
+walk_act = lp.make_action(rig, "walk", list(range(0, 17, 2)), walk)
+print("TRIS", lp.tris(mesh))
 
-print("TRIS", tris)
-
-# ── 확인용 렌더(선택) ──
-if RENDER:
-    bpy.ops.mesh.primitive_plane_add(size=30, location=(0, 0, 0))
-    bpy.context.object.data.materials.append(mat("ground", "8a9a6a"))
-    bpy.ops.object.light_add(type="SUN", location=(3, -4, 6))
-    sun = bpy.context.object; sun.data.energy = 3.5
-    sun.rotation_euler = (math.radians(50), math.radians(10), math.radians(30))
+if "--render" in FLAGS:
+    import bpy
+    from mathutils import Vector
+    scn = bpy.context.scene
+    bpy.ops.object.light_add(type="SUN", location=(0, -4, 6))
+    sun = bpy.context.object
+    sun.data.energy = 3.0
+    sun.rotation_euler = (R(40), 0, R(15))
     w = bpy.data.worlds.new("w"); scn.world = w; w.use_nodes = True
-    w.node_tree.nodes["Background"].inputs[0].default_value = (0.55, 0.62, 0.72, 1)
+    w.node_tree.nodes["Background"].inputs[0].default_value = (1, 1, 1, 1)
+    w.node_tree.nodes["Background"].inputs[1].default_value = 0.8
     scn.render.engine = "CYCLES"; scn.cycles.device = "CPU"; scn.cycles.samples = 16
-    scn.render.resolution_x = scn.render.resolution_y = 360
+    scn.render.resolution_x, scn.render.resolution_y = 360, 480
     scn.view_settings.view_transform = "Standard"
     cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
     scn.collection.objects.link(cam); scn.camera = cam
     cam.data.type = "ORTHO"; cam.data.ortho_scale = 3.8
-    cam.location = (5.5, -6, 2.6)
-    cam.rotation_euler = (Vector((0, 0, 1.25)) - cam.location).to_track_quat("-Z", "Y").to_euler()
-    walk_act = bpy.data.actions["walk"]
-    for tr in ad.nla_tracks: tr.mute = True
-    ad.action = walk_act
-    for f in (0, 4, 8, 12):
-        scn.frame_set(f)
-        scn.render.filepath = os.path.join(OUT, f"walk_{f:02d}.png")
+    for name, p in (("front", (0, -8, 1.6)), ("side", (-8, 0, 1.6)), ("back", (0, 8, 1.6)), ("quarter", (-5, -6, 2.6))):
+        cam.location = p
+        cam.rotation_euler = (Vector((0, 0, 1.6)) - Vector(p)).to_track_quat("-Z", "Y").to_euler()
+        scn.render.filepath = os.path.join(OUT, f"gy_{name}.png")
         bpy.ops.render.render(write_still=True)
-    ad.action = None
-    for tr in ad.nla_tracks: tr.mute = False
+    bpy.data.objects.remove(sun); bpy.data.objects.remove(cam)
 
-# ── 내보내기: 뼈대 + 몸만, NLA 트랙 하나 = 동작 하나 ──
-bpy.ops.object.select_all(action="DESELECT")
-rig.select_set(True); hero.select_set(True)
-bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, "guan_yu.glb"), export_format="GLB",
-                          use_selection=True, export_animation_mode="NLA_TRACKS",
-                          export_apply=False)
-print("DONE", os.path.join(OUT, "guan_yu.glb"))
+lp.export(os.path.join(OUT, "guan_yu.glb"), [rig, mesh], animated=True)
+print("DONE")
