@@ -161,17 +161,17 @@ if CH:
             k = ease(0, 1, f / 4)
             return ({"arm_R": (-150 * k, 0, 20 * k), "arm_L": (-60 * k, 0, 30 * k), "torso": (-18 * k, 0, 0), "head": (-10 * k, 0, 0),
                      "leg_L": (0, 0, -8 * k), "leg_R": (0, 0, 8 * k)}, {"root": (0, 0.08 * k, 0)})
-        if f <= 10:     # 휩쓸기: 팔은 옆으로 뻗고 몸 전체가 한 바퀴(뿌리 뼈를 세로축으로 360°) · 다리는 벌어져 질질
+        if f <= 10:     # 휩쓸기: 팔은 옆으로 뻗고 윗몸이 한 바퀴(몸통 뼈를 세로축으로 360° — D-305: 다리는 걷기 그대로 두려고 뿌리 뼈 대신)
             k = (f - 4) / 6
-            return ({"arm_R": (-90, 0, -10), "arm_L": (-40, 0, 70), "torso": (12 * k, 0, 0), "head": (0, 0, 20 * math.sin(k * math.pi)),
-                     "leg_L": (-20, 0, -25), "leg_R": (20, 0, 25), "root": (0, -360 * ease(0, 1, k), 0)}, {"root": (0, 0.04 * math.sin(k * math.pi), 0)})
+            return ({"arm_R": (-90, 0, -10), "arm_L": (-40, 0, 70), "torso": (12 * k, -360 * ease(0, 1, k), 0), "head": (0, 0, 20 * math.sin(k * math.pi)),
+                     "leg_L": (-20, 0, -25), "leg_R": (20, 0, 25)}, {"root": (0, 0.04 * math.sin(k * math.pi), 0)})
         k = (f - 10) / 4   # 멈춤: 무게에 앞으로 고꾸라질 듯 휘청
         w = math.sin(k * math.pi)
         return ({"arm_R": (ease(-90, 0, k), 0, -10), "arm_L": (ease(-40, 0, k), 0, ease(70, 0, k)), "torso": (25 * w, 0, 10 * w),
                  "head": (15 * w, 0, -10 * w), "leg_L": (-30 * w, 0, 0)}, {})
 
-    def stagger(f):   # 0 ~ 20 (0.83초): 어지러워 비틀 — 머리가 원을 그리고 언월도를 질질 끌며 깡충
-        k = f / 20
+    def stagger(f):   # 0 ~ 18 (0.75초 — D-305: 공격 간격 0.8초보다 짧게): 어지러워 비틀 — 머리가 원을 그리고 언월도를 질질 끌며 깡충
+        k = f / 18
         a = k * 4 * math.pi
         w = math.sin(k * math.pi)
         return ({"head": (12 * math.sin(a) * w, 0, 18 * math.cos(a) * w), "torso": (8 * math.cos(a) * w, 0, 14 * math.sin(a) * w),
@@ -193,7 +193,7 @@ if CH:
                 {"root": (0, -0.42 * sit, 0.10 * sit)})
 
     lp.make_action(rig, "swing", list(range(0, 15, 1)), swing)
-    lp.make_action(rig, "stagger", list(range(0, 21, 1)), stagger)
+    lp.make_action(rig, "stagger", list(range(0, 19, 1)), stagger)
     lp.make_action(rig, "flop", list(range(0, 37, 1)), flop)
 print("TRIS", lp.tris(mesh))
 
