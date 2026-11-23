@@ -2,7 +2,7 @@ extends Node3D
 ## 3D 시제품 시험 판(D-274 · D-275): 관우가 들판을 걷고, 황건적 떼가 몰려온다.
 ## 옵션 — 명령줄(`--` 뒤) 또는 웹 주소(?n=500&bench=1):
 ##   --n=<수>        적 수(기본 300)
-##   --hero=<id>     장수(guan_yu 기본 · zhang_fei)
+##   --hero=<id>     장수(guan_yu 기본 · zhang_fei · liu_bei)
 ##   --god           장수가 피해를 안 받음(--bench · --shots도 무적, --shots에 --hurt를 붙이면 피해 받음)
 ##   --bench         성능 시험: 자동으로 걷고 적 수를 200→1000으로 올리며 단계마다 FPS · 갱신 시간을 잼, 끝나면 표를 출력
 ##   --shots=<폴더>  자동으로 원을 그리며 걷고 스크린샷 몇 장 찍은 뒤 끝냄(--shot-at=초,초…로 시각 지정)
@@ -13,6 +13,7 @@ const CAM_OFFSET := Vector3(0, 7.0, 8.5)
 const HEROES := {
 	"guan_yu": "res://assets/models/guan_yu.glb",
 	"zhang_fei": "res://assets/models/zhang_fei.glb",
+	"liu_bei": "res://assets/models/liu_bei.glb",
 }
 const ATTACK_R := 2.4          # 회전 칼날 바깥 끝(시험용)
 const BLADE_R := 2.0           # 칼날이 도는 반지름
