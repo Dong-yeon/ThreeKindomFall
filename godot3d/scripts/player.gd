@@ -21,6 +21,9 @@ var iframe_t := 0.0           # 경공 무적 남은 시간(main이 피해 계�
 var dash_count := 0
 var _dash_key_was := false
 var _move_dir := Vector3.ZERO
+var has_goal := false          # 봇(D-289): 목표 자리로 가서 그 둘레를 돎(진영 정예와 싸우기)
+var goal := Vector3.ZERO
+var goal_direct := false       # 목표 위로 곧장(상자 줍기) — 아니면 둘레를 돎
 
 func setup_qinggong(spec: Dictionary) -> void:
 	qg = spec
@@ -91,7 +94,14 @@ func _process(delta: float) -> void:
 	var dir := Vector3.ZERO
 	if auto_walk:
 		# 스크린샷용: 처음 0.6초는 서 있고, 그 뒤 원을 그리며 걷는다
-		if _t > 0.6:
+		if has_goal:
+			var to := goal - Vector3(position.x, 0, position.z)
+			var d := to.length()
+			if d > 6.0 or (goal_direct and d > 0.3):
+				dir = to / d
+			elif d > 0.01:   # 목표 둘레를 반지름 4쯤으로 돎
+				dir = (Vector3(-to.z, 0, to.x) / d + to / d * (d - 4.0) * 0.4).normalized()
+		elif _t > 0.6:
 			var a := (_t - 0.6) * 0.9
 			dir = Vector3(cos(a), 0, -sin(a))
 	else:

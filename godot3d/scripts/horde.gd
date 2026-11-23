@@ -317,6 +317,18 @@ func hit_circle(center: Vector2, r: float, dmg: float, knock: float, push_dir: V
 		n += _hurt_targets_circle(center, r, dmg, knock, push_dir, ch)
 	return n
 
+func pull_near(center: Vector2, n: int) -> int:
+	## 적장의 '부르기': 멀리 있는 잡병 n명을 center 둘레로 옮김(수는 그대로).
+	var moved := 0
+	for tries in n * 4:
+		if moved >= n or count == 0:
+			break
+		var i := rng.randi() % count
+		if pos[i].distance_to(center) > 12.0:
+			pos[i] = _clamp(center + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(1.8, 3.5))
+			moved += 1
+	return moved
+
 func scatter(player: Vector2) -> void:
 	## 남은 잡병을 모두 흩어 버림(보스전 시작) — 먼 고리로 옮김.
 	for i in count:

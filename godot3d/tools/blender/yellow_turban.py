@@ -19,7 +19,10 @@ for f in FLAGS:
     if f.startswith("--variant="):
         VARIANT = f.split("=", 1)[1]
 MILITIA = VARIANT == "militia"
-NAME = {"militia": "militia", "archer": "yt_archer", "rusher": "yt_rusher", "shield": "yt_shield"}.get(VARIANT, "yellow_turban")
+# --variant=zhangbao|zhangliang|daoshi: 진영 정예(D-289 — 갑옷 · 망토 · 고유 무기, 게임에선 1.4배)
+ELITE = VARIANT in ["zhangbao", "zhangliang", "daoshi"]
+NAME = {"militia": "militia", "archer": "yt_archer", "rusher": "yt_rusher", "shield": "yt_shield",
+        "zhangbao": "elite_zhangbao", "zhangliang": "elite_zhangliang", "daoshi": "elite_daoshi"}.get(VARIANT, "yellow_turban")
 lp.reset_scene()
 R = math.radians
 
@@ -31,6 +34,8 @@ LTBRN   = lp.mat("ltbrown", "8a6e58")       # 속옷 · 소매
 WOOD    = lp.mat("wood",    "5a3e2c")       # 창 자루 · 짚신 끈은 띠 색
 IRON    = lp.mat("iron",    "6e5e56", 0.6, 0.4)  # 녹슨 쇠
 RED     = lp.mat("red",     "8a2a22")       # 돌격병 붉은 띠
+BRONZE  = lp.mat("bronze",  "8a6a3a", 0.5, 0.5)  # 정예 갑옷
+CAPE    = lp.mat("cape",    {"zhangbao": "a8342a", "zhangliang": "c9a03a", "daoshi": "e8d8a8"}.get(VARIANT, "c9a03a"))
 
 b = lp.Body()
 # 앞쪽 = -Y, 발밑 z=0, 키 약 1.75(장수보다 작게). 오른쪽 = -X.
@@ -74,6 +79,20 @@ if VARIANT == "archer":      # 궁병: 왼손에 활 · 등에 화살통
     b.cone(0.07, 0.07, 0.70, 1.15, WOOD, x=-0.12, y=0.25, v=6, rot=(R(12), R(-15), 0))   # 화살통
     for dx in (-0.03, 0.03):
         b.box(0.03, 0.03, 0.10, (-0.16 + dx, 0.28, 1.22), MUSTARD)    # 화살 깃
+elif VARIANT == "zhangbao":   # 장보: 큰 칼(대도)
+    b.bone = "arm_R"
+    b.cone(0.03, 0.03, 0.30, 1.00, WOOD, x=-0.36, y=-0.12, v=5)
+    b.poly([(-0.40, 1.00), (-0.24, 1.05), (-0.20, 1.55), (-0.30, 1.75), (-0.40, 1.60)], -0.12, 0.04, IRON)
+elif VARIANT == "zhangliang": # 장량: 긴 극(창 + 초승달 날)
+    b.bone = "arm_R"
+    b.cone(0.03, 0.03, 0.0, 2.30, WOOD, x=-0.36, y=-0.12, v=5)
+    b.poly([(-0.36, 2.28), (-0.30, 2.45), (-0.36, 2.75), (-0.42, 2.45)], -0.12, 0.03, IRON)
+    b.poly([(-0.36, 2.15), (-0.18, 2.20), (-0.12, 2.38), (-0.20, 2.30), (-0.36, 2.28)], -0.12, 0.03, IRON)
+elif VARIANT == "daoshi":     # 황건 도사: 지팡이 + 누런 부적
+    b.bone = "arm_R"
+    b.cone(0.03, 0.025, 0.0, 1.90, WOOD, x=-0.36, y=-0.12, v=5)
+    b.ball(0.10, (-0.36, -0.12, 1.95), MUSTARD, 1)
+    b.box(0.10, 0.01, 0.22, (-0.36, -0.20, 1.75), MUSTARD)
 elif VARIANT == "rusher":    # 돌격병: 쌍단도 · 붉은 띠
     for side, bone in ((1, "arm_L"), (-1, "arm_R")):
         b.bone = bone
@@ -92,6 +111,16 @@ else:                        # 졸병 · 방패병 · 의용군: 창
         b.bone = "arm_L"
         b.cone(0.34, 0.34, -0.03, 0.03, DKBRN, x=0.30, y=-0.30, v=10, rot=(R(90), 0, 0)).location.z = 0.80
         b.cone(0.10, 0.06, -0.06, 0.06, MUSTARD, x=0.30, y=-0.34, v=8, rot=(R(90), 0, 0)).location.z = 0.80   # 방패 가운데 징
+
+if ELITE:
+    b.bone = "torso"
+    if VARIANT == "daoshi":
+        b.cone(0.36, 0.28, 0.08, 0.66, CAPE, v=8)                     # 긴 도포
+    else:
+        b.box(0.44, 0.06, 0.34, (0, -0.28, 0.84), BRONZE)             # 가슴 갑옷
+        for side in (-1, 1):
+            b.box(0.18, 0.24, 0.08, (0.32 * side, 0, 0.98), BRONZE, (0, R(-20 * side), 0))   # 어깨 갑옷
+    b.box(0.46, 0.04, 0.80, (0, 0.27, 0.58), CAPE, (R(8), 0, 0))       # 망토
 
 b.bone = "head"
 b.ball(0.31, (0, 0, 1.22), SKIN, 2, (1.0, 0.95, 1.02))

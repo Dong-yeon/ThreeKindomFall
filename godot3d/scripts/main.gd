@@ -76,6 +76,8 @@ var curve_marks := [60.0, 180.0, 360.0, 540.0]
 var nei_bar: ColorRect
 var nei_back: ColorRect
 var kit_lbl: Label
+var stage: Node3D             # 황건적 스테이지(D-289 — 진영 · 정예 · 상자)
+var foe_dmg_total := 0.0
 var bot_react := 0.0          # 봇 경공 반응 지연 누적
 var bot_rest := 0.0           # 봇이 경공을 놓친 뒤 쉬는 시간
 var god := false
@@ -246,6 +248,11 @@ func _ready() -> void:
 	layer.add_child(lv_lbl)
 	_build_pick(layer)
 	add_child(layer)
+	if not bench and not opts.has("no-stage"):   # --no-stage: 빈 들판(예전 시험)
+		stage = preload("res://scripts/stage.gd").new()
+		add_child(stage)
+		stage.setup(horde, player, cam, layer, load("res://assets/fonts/Galmuri11.ttf"))
+		stage.chest_opened.connect(_on_chest)
 	if bench:
 		print("BENCH start levels=", BENCH_LEVELS, " web=", OS.has_feature("web"),
 			" renderer=", RenderingServer.get_video_adapter_name())
@@ -270,7 +277,7 @@ func _build_world() -> void:
 
 	var ground := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(120, 120)
+	pm.size = Vector2(170, 170)   # 맵 경계 140(D-289) 밖까지 바닥
 	ground.mesh = pm
 	var gm := StandardMaterial3D.new()
 	gm.albedo_color = Color("8a9a6a")
@@ -289,8 +296,12 @@ func _build_world() -> void:
 	var rocks: Array[Transform3D] = []
 	var trees: Array[Vector3] = []
 	for i in PROPS:
-		var p := Vector3(rng.randf_range(-55, 55), 0, rng.randf_range(-55, 55))
-		if p.length() < 4.0:
+		var p := Vector3(rng.randf_range(-66, 66), 0, rng.randf_range(-66, 66))
+		var near_camp := false   # 진영 · 흙길 자리는 비움(D-289)
+		for cs in StageYellow.CAMPS:
+			if Vector2(p.x, p.z).distance_to(cs.pos) < cs.r + 3.0:
+				near_camp = true
+		if p.length() < 4.0 or near_camp:
 			continue
 		if rng.randf() < 0.5:
 			var s := rng.randf_range(0.4, 1.1)
@@ -342,6 +353,7 @@ func _process(delta: float) -> void:
 		for tac in tactics.values():
 			tac.tick(delta)
 		_martial_tick(delta, p2)
+		_stage_tick(delta, p2)
 		for dp in horde.dead_pos:
 			gems.drop(dp)
 		horde.dead_pos.clear()
@@ -535,6 +547,46 @@ func _apply_upgrade(key: String) -> void:
 		"heal": hero_hp = minf(hero_hp + 30.0, max_hp)
 	_check_evolve()
 
+func _stage_tick(delta: float, p2: Vector2) -> void:
+	## 맵 경계 · 진영 정예 피해 · 봇 진영 가기(D-289).
+	if stage == null:
+		return
+	var b: Rect2 = StageYellow.BOUNDS
+	player.position.x = clampf(player.position.x, b.position.x + 0.5, b.end.x - 0.5)
+	player.position.z = clampf(player.position.z, b.position.y + 0.5, b.end.y - 0.5)
+	var fd: float = stage.tick(delta, p2, enemy_dmg / 7.8, t)
+	if fd > 0.0 and invuln <= 0.0 and player.iframe_t <= 0.0 and not god:
+		hero_hp -= fd * armor
+		foe_dmg_total += fd * armor
+		invuln = IFRAME
+		flash.color.a = 0.45
+		if hero_hp <= 0.0:
+			_die()
+			return
+	# 봇: 체력이 넉넉하고 1분이 지났으면 가장 가까운 진영으로(진영 진행을 재려고)
+	if player.auto_walk:
+		player.has_goal = false
+		player.goal_direct = false
+		for c in stage.camps:   # 상자가 있으면 먼저 주우러
+			if c.chest and is_instance_valid(c.chest):
+				player.goal = c.chest.position
+				player.has_goal = true
+				player.goal_direct = true
+		if not player.has_goal and hero_hp > max_hp * 0.55 and t > 60.0:
+			var best := 1e9
+			for c in stage.alive_camps():
+				var d: float = c.spec.pos.distance_to(p2)
+				if d < best:
+					best = d
+					player.goal = Vector3(c.spec.pos.x, 0, c.spec.pos.y)
+					player.has_goal = true
+
+func _on_chest() -> void:
+	hero_hp = minf(hero_hp + StageYellow.CHEST_HEAL, max_hp)
+	_banner("보상 상자!\n체력 회복 · 레벨업 카드", 1.5)
+	print("CHEST t=%.1f" % t)
+	_open_pick()
+
 func _check_evolve() -> void:
 	## 오의 진화: 재료 초식 2개 + 심법 1개를 갖추면 절기가 오의로(data/ults.gd evolve).
 	if evolved or ult_id == "":
@@ -678,6 +730,9 @@ func _exit_tree() -> void:
 		print("PICKS ", " ".join(pick_log))
 		for tid in tactics:
 			print("TACTIC %s lv=%d fired=%d hits=%d" % [tid, tactics[tid].lv, tactics[tid].fired, tactics[tid].hits])
+		if stage:
+			print("STAGE camps_broken=%s foe_dmg=%.0f foes=%s" % [",".join(stage.broken_log), foe_dmg_total,
+				",".join(stage.foes.map(func(f): return "%s:%d/%d:%s" % [f.id, int(f.hp), int(f.hp_max), str(f.casts)]))])
 		print("ENEMY spawned soldier=%d archer=%d rusher=%d shield=%d arrows_shot=%d arrows_hit=%d" % [
 			horde.spawned_kind[0], horde.spawned_kind[1], horde.spawned_kind[2], horde.spawned_kind[3], horde.arrows_shot, horde.arrows_hit])
 		if neigong:
