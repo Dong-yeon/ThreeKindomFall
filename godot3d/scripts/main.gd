@@ -18,7 +18,7 @@ extends Node3D
 ##   --shots=<폴더>  자동으로 원을 그리며 걷고 스크린샷 몇 장 찍은 뒤 끝냄(--shot-at=초,초…로 시각 지정)
 ##   --test          모델 · 동작 이름만 확인하고 끝냄(headless 가능)
 
-const CAM_OFFSET := Vector3(0, 7.0, 8.5)
+const CAM_OFFSET := Vector3(0, 13.0, 12.0)   # D-306: 7 · 8.5 · 55° → 13 · 12 · 50°(둘레 무리 · 예고가 보이게)
 var cam_offset := CAM_OFFSET   # 점검 --cam=높이,뒤,화각(D-301 카메라 비교)
 const HERO_HP := 100.0          # 시작 최대 체력(레벨업 '강건'이 늘림)
 const HIT_DMG := 6.0           # 창 한 번(시간표가 없을 때 — 있으면 data/waves.gd의 찌르기 피해)
@@ -301,7 +301,7 @@ func _build_world() -> void:
 	_add_multimesh(leaf_mesh, Color("3f6a3a"), leaves)
 
 	cam = Camera3D.new()
-	cam.fov = 55
+	cam.fov = 50
 	add_child(cam)
 
 func _add_multimesh(mesh: Mesh, color: Color, xforms: Array[Transform3D]) -> void:
