@@ -15,7 +15,7 @@ const QUESTS := [
 	{"id": "kill7500", "name": "만인적", "desc": "누적 7,500명 처치", "kind": "total", "key": "kills", "goal": 7500, "reward": ["tactic", "knives"]},
 	{"id": "nohit120", "name": "무상", "desc": "한 판에서 2분 동안 안 맞기", "kind": "best", "key": "nohit", "goal": 120, "reward": ["tactic", "drum"]},
 	{"id": "camps3", "name": "소탕", "desc": "한 판에서 진영 3곳을 모두 깨기", "kind": "best", "key": "camps", "goal": 3, "reward": ["tactic", "flamestep"]},
-	{"id": "lowhp60", "name": "배수진", "desc": "한 판에서 체력 30% 아래로 60초 버티기", "kind": "best", "key": "lowhp", "goal": 60, "reward": ["simbeop", "gun"]},
+	{"id": "lowhp60", "name": "배수진", "desc": "한 판에서 체력 30% 아래로 60초 버티기", "kind": "best", "key": "lowhp", "goal": 60, "reward": ["simbeop", "sin"]},
 	{"id": "gems10000", "name": "군수", "desc": "구슬 누적 10,000개 줍기", "kind": "total", "key": "gems", "goal": 10000, "reward": ["simbeop", "magnet"]},
 	{"id": "quests5", "name": "백전노장", "desc": "과제 5개 깨기", "kind": "quests", "goal": 5, "reward": ["slot", "1"]},
 ]

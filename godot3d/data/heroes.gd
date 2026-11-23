@@ -26,7 +26,7 @@ const HEROES := {
 	},
 	"zhuge_liang": {   # D-295 — 원거리 마법사(시작 장수). 모델은 설정화 전 임시(tools/blender/zhuge_liang.py)
 		"name": "제갈량", "glb": "res://assets/models/zhuge_liang.glb",
-		"role": "원거리 · 책략", "stars": 2, "star_label": "붙으면 약함", "hp": 80.0,
+		"role": "원거리 · 책략", "stars": 2, "star_label": "붙으면 약함", "hp": 100.0,   # D-296: 80은 3:40~6:00에 쓰러짐
 		"weapon": {"name": "학우선 바람날", "type": "fan", "cd": 0.9, "dmg": 2.4, "knock": 0.5, "seek": 11.0,
 			"count": 3, "spread": 0.22, "speed": 16.0, "range": 9.0, "pierce": 4, "radius": 0.6, "falloff": 0.5,
 			"color": Color(0.75, 0.9, 1.0)},
