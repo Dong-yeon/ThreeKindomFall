@@ -6,17 +6,21 @@
 # 적 떼(MultiMesh)용이라 삼각형을 아낌(작은 구 · 6각 기둥).
 # 실행: python godot3d/tools/blender/yellow_turban.py <출력 폴더> [--render]   (pip install bpy)
 # 결과: yellow_turban.glb(뼈대 · walk) + yellow_turban_poses.glb(walk 4프레임 정지 메시 pose_0~3)
+#       --variant=militia면 militia.glb · militia_poses.glb(녹색 두건 의용군)
 import math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lowpoly as lp
 
 OUT, FLAGS = lp.args()
+# --variant=militia: 같은 몸에 녹색 두건 · 띠 → 유비의 의용군(D-285, militia.glb · militia_poses.glb)
+MILITIA = "--variant=militia" in FLAGS
+NAME = "militia" if MILITIA else "yellow_turban"
 lp.reset_scene()
 R = math.radians
 
 SKIN    = lp.mat("skin",    "c98e68")       # 그을린 피부
 HAIR    = lp.mat("hair",    "2a221e")       # 머리 · 수염 · 눈
-MUSTARD = lp.mat("mustard", "9a7e3e")       # 탁한 겨자색 두건 · 띠 — 유비의 밝은 노랑(e2b838)과 구분되게 채도 · 밝기를 낮춤(D-280)
+MUSTARD = lp.mat("mustard", "4f8a3e" if MILITIA else "9a7e3e")       # 탁한 겨자색 두건 · 띠 — 유비의 밝은 노랑(e2b838)과 구분되게 채도 · 밝기를 낮춤(D-280)
 DKBRN   = lp.mat("dkbrown", "4e3a2e")       # 조끼 · 바지 · 감개
 LTBRN   = lp.mat("ltbrown", "8a6e58")       # 속옷 · 소매
 WOOD    = lp.mat("wood",    "5a3e2c")       # 창 자루 · 짚신 끈은 띠 색
@@ -131,6 +135,6 @@ if "--render" in FLAGS:
     bpy.data.objects.remove(sun); bpy.data.objects.remove(cam)
 
 poses = lp.bake_poses(rig, mesh, walk_act, [0, 3, 6, 9])
-lp.export(os.path.join(OUT, "yellow_turban.glb"), [rig, mesh], animated=True)
-lp.export(os.path.join(OUT, "yellow_turban_poses.glb"), poses, animated=False)
+lp.export(os.path.join(OUT, NAME + ".glb"), [rig, mesh], animated=True)
+lp.export(os.path.join(OUT, NAME + "_poses.glb"), poses, animated=False)
 print("DONE")

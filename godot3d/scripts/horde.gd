@@ -40,12 +40,15 @@ var dead_pos := PackedVector2Array()   # 이번 프레임에 쓰러진 자리
 var spawn_hp := HP          # 새로 나오는 적의 체력(D-282 시간표가 올림)
 var speed := SPEED           # 적 걷는 속도(시간표가 올림)
 var last_update_us := 0
+var hit_count := 0          # 지금까지 맞힌 수(D-285 — main이 늘어난 만큼 내공으로)
+var stun := PackedFloat32Array()   # 남은 기절 시간(사자후) — 기절하면 안 움직이고 안 찌름
+var stun_total := 0         # 기절시킨 수(점검용)
 
 func setup(max_count: int) -> void:
 	cap = max_count
 	rng.seed = 11
 	pos.resize(cap); phase.resize(cap); face.resize(cap); next.resize(cap)
-	hp.resize(cap); hit_cd.resize(cap); atk.resize(cap); lunge.resize(cap)
+	hp.resize(cap); hit_cd.resize(cap); atk.resize(cap); lunge.resize(cap); stun.resize(cap)
 	head.resize(GRID * GRID)
 	var src: Node = load(POSES_GLB).instantiate()
 	for i in FRAMES:
@@ -74,12 +77,14 @@ func _respawn(i: int, center: Vector2, near := 22.0) -> void:
 	hit_cd[i] = 0.0
 	atk[i] = rng.randf() * ATK_WIND * 0.5   # 처음 찌르는 때를 흩어 둠
 	lunge[i] = 0.0
+	stun[i] = 0.0
 
 # ── 맞히기(D-281: 장수 무기마다 모양이 달라 판정을 나눔) ──
 func _damage(i: int, push: Vector2, dmg: float, knock: float, center: Vector2) -> bool:
 	## 피해 · 밀려남. 죽으면 먼 고리에서 다시 나오고 true.
 	hp[i] -= dmg
 	hit_cd[i] = HIT_CD
+	hit_count += 1
 	atk[i] = 0.0
 	lunge[i] = 0.0
 	if hp[i] <= 0.0:
@@ -110,6 +115,38 @@ func nearest(center: Vector2, max_r: float, n := 1) -> PackedVector2Array:
 	for i in best_i:
 		out.append(pos[i])
 	return out
+
+func count_within(center: Vector2, r: float) -> int:
+	## 이 반지름 안의 적 수(자동 봇 경공 · 의용군이 받는 피해).
+	var n := 0
+	var r2 := r * r
+	for i in count:
+		if pos[i].distance_squared_to(center) <= r2:
+			n += 1
+	return n
+
+func stun_circle(center: Vector2, r: float, t: float) -> int:
+	## 반지름 안의 적을 t초 기절(D-285 사자후).
+	var n := 0
+	var r2 := r * r
+	for i in count:
+		if pos[i].distance_squared_to(center) <= r2:
+			stun[i] = maxf(stun[i], t)
+			atk[i] = 0.0
+			lunge[i] = 0.0
+			n += 1
+	stun_total += n
+	return n
+
+func push_from(center: Vector2, r: float, dist: float) -> void:
+	## 반지름 안의 적을 바깥으로 밀침 — 가까울수록 멀리(맞음 대기와 상관없이).
+	var r2 := r * r
+	for i in count:
+		var d := pos[i] - center
+		var d2 := d.length_squared()
+		if d2 <= r2 and d2 > 0.0001:
+			var dl := sqrt(d2)
+			pos[i] += d / dl * dist * (1.0 - dl / r * 0.5)
 
 func random_in(center: Vector2, max_r: float, n: int) -> PackedVector2Array:
 	## 이 거리 안 아무 적 n명의 자리(낙뢰). 몇 번 뽑아 보고 안 되면 덜 돌려줌.
@@ -204,12 +241,17 @@ func update(delta: float, player: Vector2) -> int:
 		var to := player - p
 		var dist := to.length()
 		var v := Vector2.ZERO
-		if dist > STOP_D and lunge[i] <= 0.0:
+		var stunned := stun[i] > 0.0
+		if stunned:
+			stun[i] -= delta
+		if dist > STOP_D and lunge[i] <= 0.0 and not stunned:
 			v = to / dist * speed
 		# 찌르기: 붙어 있으면 준비 → 찌름(동작 중 맞으면 피해 한 번)
 		if hit_cd[i] > 0.0:
 			hit_cd[i] -= delta
-		if lunge[i] > 0.0:
+		if stunned:
+			pass
+		elif lunge[i] > 0.0:
 			lunge[i] -= delta
 		elif dist < ATK_RANGE:
 			atk[i] += delta

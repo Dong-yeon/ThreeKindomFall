@@ -5,7 +5,7 @@ config_version=5
 
 config/name="ThreeKingdomFall 3D"
 config/description="3D 생존형 시제품 — 관우 · 황건적 (D-274)"
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/select.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [display]

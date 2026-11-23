@@ -6,6 +6,9 @@ extends Node3D
 ##   --start=<초>    판을 이 시각부터 시작(뒤쪽 시간대 점검)
 ##   (기본) 레벨업: 처치 → 구슬 → 레벨이 오르면 멈추고 3장 중 고름(1 · 2 · 3 키 또는 클릭, data/upgrades.gd)
 ##   --tactic=<id,…> 처음부터 책략을 가짐(orbit · rain · fire · bolt, 쉼표로 여럿 — 점검용)
+##   (D-285) 무공: 내공 · 절기 Space/K · 경공 Shift · 고유 심법 · 주화입마 · 오의 진화(data/martial.gd · ults.gd · heroes.gd)
+##   --dash-at=<초,…> 그 시각에 경공(점검) · --neigong=<값> 처음 내공
+##   --ult-hold      자동 봇이 절기를 안 씀(주화입마 점검) · --force-evolve 처음부터 오의 · --select-test 선택 화면에서 넘어온 장수만 찍고 끝냄
 ##   --seed=<N>      레벨업 카드가 같은 순서로 나옴(밸런스 비교용)
 ##   --pick=auto     고르기를 자동으로(--auto · --bench · --shots는 기본 자동, --pick=manual이면 카드를 띄움)
 ##   --hero=<id>     장수(guan_yu 기본 · zhang_fei · liu_bei — 모델 · 무기는 data/heroes.gd)
@@ -57,6 +60,22 @@ var tactics := {}             # 책략 id → 노드(D-284, 최대 TacticTable.M
 var atk_mul := 1.0            # 무력 — 책략 피해에 곱함(대표 무기는 weapon.mods.dmg)
 var pick_open_ms := 0         # 키를 누른 채로 다음 고르기까지 넘어가지 않게(0.3초)
 var invuln := 0.0
+# 무공(D-285)
+var neigong: Neigong
+var allies: Node3D
+var ult_id := ""
+var evolved := false
+var active_ults: Array = []
+var ult_casts := 0
+var ult_hits := 0
+var ult_key_was := false
+var last_hits := 0
+var last_kills := 0
+var dyn := 1.0                # 이번 프레임 공격 배율(주화입마 × 광폭)
+var curve_marks := [60.0, 180.0, 360.0, 540.0]
+var nei_bar: ColorRect
+var nei_back: ColorRect
+var kit_lbl: Label
 var god := false
 var dead := false
 var cleared := false
@@ -109,12 +128,17 @@ func _ready() -> void:
 	player = preload("res://scripts/player.gd").new()
 	player.name = "Player"
 	add_child(player)
-	hero_id = opts.get("hero", "guan_yu")
+	hero_id = opts.get("hero", HeroTable.chosen if HeroTable.chosen != "" else "guan_yu")
 	hero = HeroTable.get_hero(hero_id)
+	if opts.has("select-test"):   # 선택 화면 → 판 진입 점검: 넘어온 장수만 출력
+		print("MAIN hero=%s (선택 화면에서 고름=%s)" % [hero_id, HeroTable.chosen])
+		get_tree().quit()
+		return
 	player.setup(load(hero.glb))
 	player.auto_walk = (shots_dir != "" or bench or opts.has("auto")) and not opts.has("stand")   # --stand: 자동 걷기 없이 서 있음
 	if opts.has("test"):
-		print("TEST hero=", hero_id, " weapon=", hero.weapon.name, "(", hero.weapon.type, ") anims=", player.anim_names(), " walk_loop=", player.walk_loops())
+		print("TEST hero=", hero_id, " weapon=", hero.weapon.name, "(", hero.weapon.type, ") anims=", player.anim_names(), " walk_loop=", player.walk_loops(),
+			" ult=", UltTable.display_name(hero.ult, false), " qinggong=", hero.qinggong.name, " passive=", hero.passive.name, " stars=", hero.stars)
 		get_tree().quit()
 		return
 	horde = preload("res://scripts/horde.gd").new()
@@ -131,6 +155,25 @@ func _ready() -> void:
 	weapon.setup(hero.weapon, player, horde)
 	gems = preload("res://scripts/gems.gd").new()
 	add_child(gems)
+	# 무공(D-285): 경공 · 고유 심법 · 내공 · 의용군 · 절기
+	player.setup_qinggong(hero.qinggong)
+	match hero.passive.id:
+		"wipung":
+			weapon.mods.area *= hero.passive.area
+			weapon.mods.knock *= hero.passive.knock
+			weapon.refresh_fx()
+		"indeok":
+			regen += hero.passive.regen
+	neigong = Neigong.new()
+	allies = preload("res://scripts/allies.gd").new()
+	add_child(allies)
+	allies.setup(horde)
+	ult_id = hero.ult
+	if opts.has("force-evolve"):
+		evolved = true
+		print("EVOLVE forced %s -> %s" % [UltTable.LIST[ult_id].name, UltTable.display_name(ult_id, true)])
+	if opts.has("neigong"):   # --neigong=100: 처음 내공(점검용)
+		neigong.value = float(opts["neigong"])
 	if opts.has("tactic"):   # --tactic=orbit,rain … (쉼표로 여럿)
 		for tid in String(opts["tactic"]).split(","):
 			_apply_upgrade("t:" + tid)
@@ -179,8 +222,22 @@ func _ready() -> void:
 	xp_bar = ColorRect.new()
 	xp_bar.color = Color("5ad0e8"); xp_bar.position = Vector2(0, 0); xp_bar.size = Vector2(0, 6)
 	layer.add_child(xp_bar)
-	lv_lbl = Label.new()        # 체력 막대 위 레벨
-	lv_lbl.position = Vector2(12, 720 - 58)
+	nei_back = ColorRect.new()   # 체력 막대 위 내공 막대(보라 — 주화입마 때 붉게 깜빡임)
+	nei_back.color = Color(0, 0, 0, 0.6)
+	nei_back.position = Vector2(12, 720 - 46); nei_back.size = Vector2(240, 10)
+	layer.add_child(nei_back)
+	nei_bar = ColorRect.new()
+	nei_bar.color = Color("9a5ad8")
+	nei_bar.position = Vector2(14, 720 - 44); nei_bar.size = Vector2(0, 6)
+	layer.add_child(nei_bar)
+	kit_lbl = Label.new()        # 막대 오른쪽: 절기 · 경공 상태
+	kit_lbl.position = Vector2(262, 720 - 56)
+	kit_lbl.add_theme_font_size_override("font_size", 18)
+	kit_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+	kit_lbl.add_theme_constant_override("outline_size", 4)
+	layer.add_child(kit_lbl)
+	lv_lbl = Label.new()        # 내공 막대 위 레벨
+	lv_lbl.position = Vector2(12, 720 - 74)
 	lv_lbl.add_theme_font_size_override("font_size", 20)
 	lv_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
 	lv_lbl.add_theme_constant_override("outline_size", 4)
@@ -282,6 +339,7 @@ func _process(delta: float) -> void:
 		weapon.tick(delta)
 		for tac in tactics.values():
 			tac.tick(delta)
+		_martial_tick(delta, p2)
 		for dp in horde.dead_pos:
 			gems.drop(dp)
 		horde.dead_pos.clear()
@@ -292,7 +350,7 @@ func _process(delta: float) -> void:
 			_open_pick()
 		hero_hp = minf(hero_hp + regen * delta, max_hp)
 		invuln = maxf(invuln - delta, 0.0)
-		if hits > 0 and invuln <= 0.0 and not god:
+		if hits > 0 and invuln <= 0.0 and player.iframe_t <= 0.0 and not god:
 			hero_hp -= enemy_dmg * armor
 			invuln = IFRAME
 			flash.color.a = 0.35
@@ -303,6 +361,14 @@ func _process(delta: float) -> void:
 		hp_bar.size.x = 236.0 * maxf(hero_hp, 0.0) / max_hp
 		xp_bar.size.x = 1280.0 * xp / UpgradeTable.need(level)
 		lv_lbl.text = "Lv %d" % level
+		nei_bar.size.x = 236.0 * neigong.value / MartialRules.NEIGONG_MAX
+		nei_bar.color = (Color("e84a3a") if fmod(t, 0.3) < 0.15 else Color("ffb040")) if neigong.zhuhuo_t > 0.0 else Color("9a5ad8")
+		var cost: float = UltTable.LIST[ult_id].cost
+		var ult_txt := "%s %s" % [UltTable.display_name(ult_id, evolved), "준비! [Space]" if neigong.can_spend(cost) else "%d%%" % int(100.0 * neigong.value / cost)]
+		var dots := ""
+		for k in int(player.qg.charges):
+			dots += "●" if k < player.charges else "○"
+		kit_lbl.text = "절기 %s%s\n경공 %s %s [Shift]" % [ult_txt, "  · 주화입마 %.0f초" % neigong.zhuhuo_t if neigong.zhuhuo_t > 0.0 else "", hero.qinggong.name, dots]
 	if timer_lbl and waves:
 		var left := maxf(WaveTable.RUN_TIME - t, 0.0)
 		timer_lbl.text = "%d:%02d" % [int(left) / 60, int(left) % 60]
@@ -378,10 +444,11 @@ func _label(key: String) -> String:
 		var tid := key.substr(2)
 		var tt: Dictionary = TacticTable.LIST[tid]
 		if tactics.has(tid):
-			return "책략 · %s  Lv %d\n더 세게" % [tt.name, tactics[tid].lv + 1]
-		return "책략 · %s  (새로)\n%s" % [tt.name, tt.desc]
+			return "초식 · %s  Lv %d\n더 세게" % [tt.name, tactics[tid].lv + 1]
+		return "초식 · %s  (새로)\n%s" % [tt.name, tt.desc]
 	var u: Dictionary = UpgradeTable.LIST[key]
-	return "%s  Lv %d\n%s" % [String(u.name).replace("{w}", hero.weapon.name), ups.get(key, 0) + 1, u.desc]
+	var kind := "초식" if u.kind == "weapon" else "심법"   # D-285: 무기 강화 = 초식, 능력치 = 심법
+	return "%s · %s  Lv %d\n%s" % [kind, String(u.name).replace("{w}", hero.weapon.name), ups.get(key, 0) + 1, u.desc]
 
 func _open_pick() -> void:
 	choices = _offers()
@@ -463,6 +530,112 @@ func _apply_upgrade(key: String) -> void:
 			max_hp += 20.0
 			hero_hp = minf(hero_hp + 20.0, max_hp)
 		"heal": hero_hp = minf(hero_hp + 30.0, max_hp)
+	_check_evolve()
+
+func _check_evolve() -> void:
+	## 오의 진화: 재료 초식 2개 + 심법 1개를 갖추면 절기가 오의로(data/ults.gd evolve).
+	if evolved or ult_id == "":
+		return
+	var ev: Dictionary = UltTable.LIST[ult_id].evolve
+	for need in ev.chosik + [ev.simbeop]:
+		if _have(need[0]) < int(need[1]):
+			return
+	evolved = true
+	_banner("절기 진화!\n%s → 오의 %s" % [UltTable.LIST[ult_id].name, ev.name], 3.0)
+	print("EVOLVE t=%.1f %s -> %s" % [t, UltTable.LIST[ult_id].name, ev.name])
+
+func _have(key: String) -> int:
+	if key.begins_with("t:"):
+		var tid := key.substr(2)
+		return tactics[tid].lv if tactics.has(tid) else 0
+	return int(ups.get(key, 0))
+
+func _banner(text: String, sec: float) -> void:
+	if msg and not dead and not cleared:
+		msg.text = text
+		msg.visible = true
+		banner_t = sec
+
+# ── 무공(D-285): 내공 · 주화입마 · 고유 심법 · 절기 · 경공 ──
+func _martial_tick(delta: float, p2: Vector2) -> void:
+	# 내공: 늘어난 맞힘 · 처치만큼
+	var dh: int = horde.hit_count - last_hits
+	var dk: int = horde.kills - last_kills
+	last_hits = horde.hit_count
+	last_kills = horde.kills
+	neigong.gain((dh * MartialRules.PER_HIT + dk * MartialRules.PER_KILL) * hero.neigong, delta)
+	if neigong.just_entered:
+		neigong.just_entered = false
+		_banner("주화입마!\n공격 크게 ↑ · 체력이 계속 줄어든다 (절기를 쓰면 풀림)", 2.5)
+		print("ZHUHUO t=%.1f" % t)
+	var drain := neigong.tick(delta)
+	if drain > 0.0 and not god:
+		hero_hp -= drain
+		if hero_hp <= 0.0:
+			_die()
+			return
+	# 공격 배율: 주화입마 × 광폭(잃은 체력만큼)
+	dyn = neigong.atk_mul()
+	if hero.passive.id == "gwangpok":
+		dyn *= 1.0 + hero.passive.max * clampf(1.0 - hero_hp / max_hp, 0.0, 1.0)
+	weapon.dyn = dyn
+	for tac in tactics.values():
+		tac.atk_mul = atk_mul * dyn
+	# 의용군(인덕 배율)
+	allies.atk_mul = atk_mul * dyn
+	allies.enemy_dmg = enemy_dmg
+	if hero.passive.id == "indeok":
+		allies.mul = hero.passive.ally_mul + hero.passive.ally_per_lv * (level - 1)
+	allies.update(delta, p2)
+	# 점검: --dash-at=초[,초…] 그 시각에 경공(이단 도약은 두 시각을 가깝게 주면 공중에서 한 번 더)
+	if opts.has("dash-at"):
+		var ts := String(opts["dash-at"]).split(",")
+		for k in ts.size():
+			if t >= float(ts[k]) and not ("dash_%d" % k) in opts:
+				opts["dash_%d" % k] = "1"
+				player.try_dash()
+	# 경공: 자동 봇은 둘러싸이면 / 돌진 중 부딪힌 적 밀침(관우)
+	if player.auto_walk and horde.count_within(p2, MartialRules.BOT_DASH_R) >= MartialRules.BOT_DASH_N:
+		player.try_dash()
+	if player.is_dashing() and hero.qinggong.has("impact"):
+		var im: Dictionary = hero.qinggong.impact
+		var dd := Vector2(player.dash_dir.x, player.dash_dir.z)
+		horde.hit_circle(p2, im.r, im.dmg * atk_mul * dyn, im.knock, dd, 99, p2)
+	# 절기: Space · K(자동 봇은 내공이 차면 — --ult-hold면 안 씀)
+	var cost: float = UltTable.LIST[ult_id].cost
+	var want := false
+	var uk := false
+	for k in MartialRules.KEYS_ULT:
+		uk = uk or Input.is_physical_key_pressed(k)
+	if uk and not ult_key_was:
+		want = true
+	ult_key_was = uk
+	if player.auto_walk and not opts.has("ult-hold"):
+		want = true
+	if want and neigong.can_spend(cost):
+		neigong.spend(cost)
+		cast_ult(ult_id, p2, Vector2(player.facing().x, player.facing().z), evolved)
+	for k in range(active_ults.size() - 1, -1, -1):
+		var u: Ult = active_ults[k]
+		if u.tick(delta):
+			ult_hits += u.hits
+			u.queue_free()
+			active_ults.remove_at(k)
+	# 1 · 3 · 6 · 9분 곡선(밸런스)
+	if opts.has("stats") and not curve_marks.is_empty() and t >= curve_marks[0]:
+		curve_marks.pop_front()
+		print("CURVE hero=%s t=%d lv=%d kills=%d hp=%d allies=%d ults=%d" % [hero_id, int(t), level, horde.kills, maxf(hero_hp, 0.0), allies.count, ult_casts])
+
+func cast_ult(id: String, origin: Vector2, facing: Vector2, is_evolved: bool) -> Ult:
+	## 절기 시전 — 독립 모듈에 시전 맥락만 넘김(나중에 어시스트 호출도 이 함수를 다른 origin · facing으로 부르면 됨).
+	var u: Ult = UltTable.make(id)
+	add_child(u)
+	u.cast({"origin": origin, "facing": facing.normalized() if facing.length() > 0.01 else Vector2(0, 1),
+		"horde": horde, "allies": allies, "atk_mul": atk_mul * dyn, "evolved": is_evolved,
+		"spec": UltTable.params(id, is_evolved)})
+	active_ults.append(u)
+	ult_casts += 1
+	return u
 
 func _apply_wave() -> void:
 	var w := WaveTable.at(t)
@@ -490,6 +663,10 @@ func _exit_tree() -> void:
 		print("PICKS ", " ".join(pick_log))
 		for tid in tactics:
 			print("TACTIC %s lv=%d fired=%d hits=%d" % [tid, tactics[tid].lv, tactics[tid].fired, tactics[tid].hits])
+		if neigong:
+			print("MARTIAL hero=%s attacks=%d dashes=%d ults=%d ult_hits=%d zhuhuo=%d evolved=%s stunned=%d allies=%d summoned=%d lost=%d neigong=%.0f" % [
+				hero_id, weapon.attacks, player.dash_count, ult_casts, ult_hits, neigong.zhuhuo_count, evolved,
+				horde.stun_total, allies.count, allies.summoned, allies.lost, neigong.value])
 
 func _die() -> void:
 	dead = true

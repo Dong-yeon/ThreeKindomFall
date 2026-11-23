@@ -19,9 +19,11 @@ var fly_mesh: Mesh
 var fly_mat: StandardMaterial3D
 var attacks := 0
 # 레벨업으로 붙는 배율 · 더하기(D-283) — 실제 값은 아래 함수로 읽음
-var mods := {"dmg": 1.0, "cd": 1.0, "area": 1.0, "count": 0, "pierce": 0}
+var mods := {"dmg": 1.0, "cd": 1.0, "area": 1.0, "count": 0, "pierce": 0, "knock": 1.0}
+var dyn := 1.0               # 매 프레임 바뀌는 공격 배율(주화입마 · 광폭 — main이 넣음, D-285)
 
-func dmg() -> float: return spec.dmg * mods.dmg
+func dmg() -> float: return spec.dmg * mods.dmg * dyn
+func knock() -> float: return spec.knock * mods.knock
 func cooldown() -> float: return spec.cd * mods.cd
 func reach() -> float: return spec.range * mods.area
 func width() -> float: return spec.get("width", 0.0) * sqrt(mods.area)   # 찌르기 폭은 범위 강화의 절반 비율(제곱근) — 길이는 그대로 다 늚(D-283: 폭까지 다 늘면 앞을 다 쓸어 너무 셈 · 고정하면 너무 약함)
@@ -107,11 +109,11 @@ func tick(delta: float) -> void:
 		match spec.type:
 			"sweep":
 				var d: Vector2 = _aim(c)[0]
-				horde.hit_arc(c, atan2(d.y, d.x), deg_to_rad(spec.arc) * 0.5, reach(), dmg(), spec.knock)
+				horde.hit_arc(c, atan2(d.y, d.x), deg_to_rad(spec.arc) * 0.5, reach(), dmg(), knock())
 				_show_fx(d, 0.0)
 			"thrust":
 				var d: Vector2 = _aim(c)[0]
-				horde.hit_line(c, d, reach(), width() * 0.5, dmg(), spec.knock)
+				horde.hit_line(c, d, reach(), width() * 0.5, dmg(), knock())
 				_show_fx(d, reach() * 0.5)
 			"fly":
 				for d in _aim(c, fly_count()):
@@ -132,7 +134,7 @@ func tick(delta: float) -> void:
 		var step: float = spec.speed * delta
 		s.pos += s.dir * step
 		s.left -= step
-		s.pierce -= horde.hit_circle(s.pos, fly_radius(), dmg(), spec.knock, s.dir, s.pierce, c)
+		s.pierce -= horde.hit_circle(s.pos, fly_radius(), dmg(), knock(), s.dir, s.pierce, c)
 		var node: MeshInstance3D = s.node
 		node.position = Vector3(s.pos.x, 0.9, s.pos.y)
 		node.rotation.y = atan2(s.dir.x, s.dir.y)
