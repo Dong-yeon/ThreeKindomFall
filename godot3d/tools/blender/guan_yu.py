@@ -121,7 +121,9 @@ b.box(0.18, 0.03, 0.80, (-0.09, 0.37, 1.30), GREEN, (R(8), 0, 0))     # 허리�
 b.box(0.18, 0.03, 0.76, ( 0.09, 0.37, 1.32), DKGRN, (R(8), 0, 0))
 
 mesh = b.join("guan_yu")
-CH = lp.Chibi() if "--chibi" in FLAGS else None
+# --weapon=자루배,칼날배(D-306 무기 크기 비교, 기본 0.8,1.0)
+WPN = next((f.split("=", 1)[1] for f in FLAGS if f.startswith("--weapon=")), "0.8,1.0").split(",")
+CH = lp.Chibi(weapon=float(WPN[0]), blade=float(WPN[1]), blade_from=2.20, blade_pivot=(PX, PY)) if "--chibi" in FLAGS else None
 if CH:
     CH.apply_mesh(mesh)
 BONES = [

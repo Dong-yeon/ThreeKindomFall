@@ -233,7 +233,10 @@ def render_check(out_dir, name, rig, action, frames, target_z=1.0, scale=3.2):
 # 다리(0 ~ LEG_TOP)는 leg배로 줄이고, 몸통(LEG_TOP ~ NECK)은 body배, 목 위 머리 뼈 조각은 목을 축으로 head배로 키움.
 # 같은 함수로 정점과 뼈 위치를 함께 옮겨서 뼈대가 그대로 맞음.
 class Chibi:
-    def __init__(self, leg_top=0.62, neck=1.45, leg=0.6, body=0.75, head=1.3, weapon=0.8):   # head 1.55 → 1.3(D-303: 약 2.2등신)
+    def __init__(self, leg_top=0.62, neck=1.45, leg=0.6, body=0.75, head=1.3, weapon=0.8,
+                 blade=1.0, blade_from=None, blade_pivot=(0.0, 0.0)):   # head 1.55 → 1.3(D-303: 약 2.2등신)
+        # blade(D-306): 무기 뼈(arm_R) 조각 중 원래 높이 blade_from 위(칼날)를 blade_pivot(x, y) · blade_from을 축으로 blade배
+        self.blade, self.blade_from, self.blade_pivot = blade, blade_from, blade_pivot
         self.leg_top, self.neck = leg_top, neck
         self.leg, self.body, self.head, self.weapon = leg, body, head, weapon
         self.neck2 = leg_top * leg + (neck - leg_top) * body   # 바뀐 목 높이
@@ -258,6 +261,9 @@ class Chibi:
         for v in mesh.data.vertices:
             bone = names[v.groups[0].group] if v.groups else "torso"
             x, y, z = v.co
+            if self.blade != 1.0 and self.blade_from is not None and bone == "arm_R" and z > self.blade_from:
+                px, py = self.blade_pivot
+                x, y, z = px + (x - px) * self.blade, py + (y - py) * self.blade, self.blade_from + (z - self.blade_from) * self.blade
             if bone == "head" and z < self.neck:               # 수염 · 늘어진 머리처럼 목 아래로 내려오는 머리 조각
                 nx, ny = x * 1.25, y * 1.25                   # 덜 키움(수염이 앞으로 너무 튀어나오지 않게)
                 nz = self.neck2 + (z - self.neck) * self.body
