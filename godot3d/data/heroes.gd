@@ -27,7 +27,7 @@ const HEROES := {
 	"zhuge_liang": {   # D-295 — 원거리 마법사(시작 장수). 모델은 설정화 전 임시(tools/blender/zhuge_liang.py)
 		"name": "제갈량", "glb": "res://assets/models/zhuge_liang.glb",
 		"role": "원거리 · 책략", "stars": 2, "star_label": "붙으면 약함", "hp": 100.0,   # D-296: 80은 3:40~6:00에 쓰러짐
-		"weapon": {"name": "학우선 바람날", "type": "fan", "cd": 0.9, "dmg": 2.4, "knock": 0.5, "seek": 11.0,
+		"weapon": {"name": "학우선 바람날", "type": "fan", "cd": 0.85, "dmg": 2.8, "knock": 0.5, "seek": 11.0,
 			"count": 3, "spread": 0.22, "speed": 16.0, "range": 9.0, "pierce": 4, "radius": 0.6, "falloff": 0.5,
 			"color": Color(0.75, 0.9, 1.0)},
 		"passive": {"id": "wolong", "name": "와룡", "desc": "추가 초식 칸 +1 · 책략 계열 초식 피해 +25%", "slots": 1, "strat": 1.25},
@@ -37,7 +37,7 @@ const HEROES := {
 	},
 	"zhang_fei": {
 		"name": "장비", "glb": "res://assets/models/zhang_fei.glb",
-		"role": "탱커 · 광폭", "stars": 1, "star_label": "입문",
+		"role": "탱커 · 광폭", "stars": 1, "star_label": "입문", "hp": 120.0,   # D-296: 탱커인데 기본 100이었음
 		"weapon": {"name": "장팔사모", "type": "thrust", "cd": 0.5, "dmg": 3.0, "knock": 1.1, "seek": 7.0,
 			"range": 5.2, "width": 1.4, "color": Color(0.85, 0.9, 1.0)},
 		"passive": {"id": "gwangpok", "name": "광폭", "desc": "체력이 낮을수록 공격력 ↑(최대 +80%)", "max": 0.8},
