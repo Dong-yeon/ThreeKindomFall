@@ -5,6 +5,7 @@ extends Node3D
 ##   --n=<수>        적 수를 고정(시간표 끔 — 무기 비교용)
 ##   --start=<초>    판을 이 시각부터 시작(뒤쪽 시간대 점검)
 ##   (기본) 레벨업: 처치 → 구슬 → 레벨이 오르면 멈추고 3장 중 고름(1 · 2 · 3 키 또는 클릭, data/upgrades.gd)
+##   --tactic=<id,…> 처음부터 책략을 가짐(orbit · rain · fire · bolt, 쉼표로 여럿 — 점검용)
 ##   --seed=<N>      레벨업 카드가 같은 순서로 나옴(밸런스 비교용)
 ##   --pick=auto     고르기를 자동으로(--auto · --bench · --shots는 기본 자동, --pick=manual이면 카드를 띄움)
 ##   --hero=<id>     장수(guan_yu 기본 · zhang_fei · liu_bei — 모델 · 무기는 data/heroes.gd)
@@ -52,6 +53,8 @@ var pick_btns: Array[Button] = []
 var xp_bar: ColorRect
 var lv_lbl: Label
 var pick_log: Array[String] = []
+var tactics := {}             # 책략 id → 노드(D-284, 최대 TacticTable.MAX_SLOTS)
+var atk_mul := 1.0            # 무력 — 책략 피해에 곱함(대표 무기는 weapon.mods.dmg)
 var pick_open_ms := 0         # 키를 누른 채로 다음 고르기까지 넘어가지 않게(0.3초)
 var invuln := 0.0
 var god := false
@@ -128,6 +131,9 @@ func _ready() -> void:
 	weapon.setup(hero.weapon, player, horde)
 	gems = preload("res://scripts/gems.gd").new()
 	add_child(gems)
+	if opts.has("tactic"):   # --tactic=orbit,rain … (쉼표로 여럿)
+		for tid in String(opts["tactic"]).split(","):
+			_apply_upgrade("t:" + tid)
 	auto_pick = opts.get("pick", "") == "auto" or ((opts.has("auto") or bench or shots_dir != "") and opts.get("pick", "") != "manual")
 	hud = Label.new()
 	hud.position = Vector2(12, 8)
@@ -274,6 +280,8 @@ func _process(delta: float) -> void:
 				_win()
 		var hits: int = horde.update(delta, p2)
 		weapon.tick(delta)
+		for tac in tactics.values():
+			tac.tick(delta)
 		for dp in horde.dead_pos:
 			gems.drop(dp)
 		horde.dead_pos.clear()
@@ -351,6 +359,12 @@ func _offers() -> Array:
 		if u.has("only") and not (hero.weapon.type in u.only):
 			continue
 		pool.append(key)
+	for tid in TacticTable.LIST:   # 책략: 가진 것은 강화(최대 레벨까지), 없는 것은 자리가 남았을 때 새로
+		if tactics.has(tid):
+			if tactics[tid].lv < TacticTable.MAX_LV:
+				pool.append("t:" + tid)
+		elif tactics.size() < TacticTable.MAX_SLOTS:
+			pool.append("t:" + tid)
 	pool.shuffle()
 	pool = pool.slice(0, 3)
 	if pool.is_empty():
@@ -360,6 +374,12 @@ func _offers() -> Array:
 func _label(key: String) -> String:
 	if key == "heal":
 		return "%s — %s" % [UpgradeTable.HEAL.name, UpgradeTable.HEAL.desc]
+	if key.begins_with("t:"):
+		var tid := key.substr(2)
+		var tt: Dictionary = TacticTable.LIST[tid]
+		if tactics.has(tid):
+			return "책략 · %s  Lv %d\n더 세게" % [tt.name, tactics[tid].lv + 1]
+		return "책략 · %s  (새로)\n%s" % [tt.name, tt.desc]
 	var u: Dictionary = UpgradeTable.LIST[key]
 	return "%s  Lv %d\n%s" % [String(u.name).replace("{w}", hero.weapon.name), ups.get(key, 0) + 1, u.desc]
 
@@ -379,12 +399,15 @@ func _open_pick() -> void:
 
 func _auto_choice() -> int:
 	## 자동(봇 · 시험): 무기 피해 → 속도 → 갑옷 → 강건 → 범위 → 나머지 순으로 좋아함.
-	var pref := ["w_dmg", "w_spd", "w_count", "gap", "hp", "w_area", "w_pierce", "mu", "gun", "sin", "magnet", "heal"]
+	var pref := ["w_dmg", "t", "w_spd", "w_count", "gap", "hp", "w_area", "w_pierce", "mu", "gun", "sin", "magnet", "heal"]
 	var best := 0
 	for k in choices.size():
-		if pref.find(choices[k]) < pref.find(choices[best]):
+		if pref.find(_pref_key(choices[k])) < pref.find(_pref_key(choices[best])):
 			best = k
 	return best
+
+func _pref_key(key: String) -> String:
+	return "t" if key.begins_with("t:") else key
 
 func _pick_input() -> void:
 	if Time.get_ticks_msec() - pick_open_ms < 300:
@@ -406,6 +429,17 @@ func _choose(k: int) -> void:
 		player.set_process(true)
 
 func _apply_upgrade(key: String) -> void:
+	if key.begins_with("t:"):
+		var tid := key.substr(2)
+		if tactics.has(tid):
+			tactics[tid].set_level(tactics[tid].lv + 1)
+		else:
+			var tac := preload("res://scripts/tactic.gd").new()
+			add_child(tac)
+			tac.setup(tid, player, horde)
+			tac.atk_mul = atk_mul
+			tactics[tid] = tac
+		return
 	if key != "heal":
 		ups[key] = ups.get(key, 0) + 1
 	match key:
@@ -416,7 +450,11 @@ func _apply_upgrade(key: String) -> void:
 			weapon.refresh_fx()
 		"w_count": weapon.mods.count += 1
 		"w_pierce": weapon.mods.pierce += 2
-		"mu": weapon.mods.dmg *= 1.10
+		"mu":
+			weapon.mods.dmg *= 1.10
+			atk_mul *= 1.10
+			for tac in tactics.values():
+				tac.atk_mul = atk_mul
 		"gap": armor *= 0.92
 		"sin": player.speed_mul *= 1.08
 		"gun": regen += 0.5
@@ -450,6 +488,8 @@ func _exit_tree() -> void:
 	if opts.has("stats") and horde:
 		print("STATS hero=%s t=%.1f kills=%d hp=%d attacks=%d dead=%s cleared=%s enemies=%d enemy_hp=%.1f level=%d" % [hero_id, t, horde.kills, maxf(hero_hp, 0.0), weapon.attacks, dead, cleared, horde.count, horde.spawn_hp, level])
 		print("PICKS ", " ".join(pick_log))
+		for tid in tactics:
+			print("TACTIC %s lv=%d fired=%d hits=%d" % [tid, tactics[tid].lv, tactics[tid].fired, tactics[tid].hits])
 
 func _die() -> void:
 	dead = true

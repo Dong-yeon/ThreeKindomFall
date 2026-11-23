@@ -111,6 +111,20 @@ func nearest(center: Vector2, max_r: float, n := 1) -> PackedVector2Array:
 		out.append(pos[i])
 	return out
 
+func random_in(center: Vector2, max_r: float, n: int) -> PackedVector2Array:
+	## 이 거리 안 아무 적 n명의 자리(낙뢰). 몇 번 뽑아 보고 안 되면 덜 돌려줌.
+	var out := PackedVector2Array()
+	if count == 0:
+		return out
+	var mr2 := max_r * max_r
+	for tries in n * 8:
+		var i := rng.randi() % count
+		if pos[i].distance_squared_to(center) <= mr2:
+			out.append(pos[i])
+			if out.size() >= n:
+				break
+	return out
+
 func hit_arc(center: Vector2, dir: float, half: float, r_out: float, dmg: float, knock: float) -> int:
 	## 휘두르기: center에서 dir(rad, XZ 평면 atan2(z, x)) ±half, 반지름 r_out 안. 밀려남은 바깥쪽으로.
 	var n := 0
