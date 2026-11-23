@@ -21,6 +21,13 @@ var mat_blade: StandardMaterial3D
 var mat_mark: StandardMaterial3D
 var mat_fire: StandardMaterial3D
 var mat_bolt: StandardMaterial3D
+var shots: Array = []         # xbow · knives: [{node, pos, dir, left, pierce}]
+var shot_mesh: Mesh
+var ring: MeshInstance3D      # drum 북 고리
+var ring_t := 0.0
+var walked := 0.0             # flamestep: 지난 불 뒤로 걸은 거리
+var last_c := Vector2.INF
+var chains := 0               # 낙뢰가 튄 수(--stats)
 
 func setup(tactic_id: String, pl: Node3D, h: Node3D) -> void:
 	id = tactic_id
@@ -31,6 +38,13 @@ func setup(tactic_id: String, pl: Node3D, h: Node3D) -> void:
 	mat_mark = _mat(Color(0.9, 0.25, 0.2, 0.5), true)
 	mat_fire = _mat(Color(1.0, 0.72, 0.15, 0.45), true)   # 노란 주황 — 적장 예고(붉은색)와 구분(D-290)
 	mat_bolt = _mat(Color(1.0, 0.95, 0.5, 0.9), true)
+	match TacticTable.LIST[id].type:
+		"xbow", "knives":
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.07, 0.07, 0.8) if TacticTable.LIST[id].type == "xbow" else Vector3(0.12, 0.04, 0.5)
+			shot_mesh = bm
+		"drum":
+			ring = _disc(1.0, _mat(Color(0.95, 0.75, 0.35, 0.0), true))
 	set_level(1)
 
 func _mat(c: Color, glow: bool) -> StandardMaterial3D:
@@ -123,6 +137,86 @@ func tick(delta: float) -> void:
 				for tp in horde.random_in(c, p.seek, int(p.count)):
 					hits += horde.hit_circle(tp, p.r, dmg, p.knock, Vector2.ZERO, 999, c, ch)
 					_flash(tp, 6.0, Color(1.0, 0.95, 0.5, 0.9), 0.15)
+					var at: Vector2 = tp
+					for j in int(p.get("chain", 0)):   # 연쇄(D-294): 맞은 자리에서 가장 가까운 아직 안 맞은 적에게(맞음 대기로 같은 적은 빠짐)
+						var nx: PackedVector2Array = horde.nearest(at, 4.5, 3)
+						var to := Vector2.INF
+						for q in nx:
+							if q.distance_to(at) > p.r:
+								to = q
+								break
+						if to == Vector2.INF:
+							break
+						hits += horde.hit_circle(to, p.r, dmg * 0.7, p.knock, Vector2.ZERO, 999, c, ch)
+						_flash(to, 4.0, Color(0.8, 0.9, 1.0, 0.9), 0.15)
+						chains += 1
+						at = to
+		"xbow":
+			cd -= delta
+			if cd <= 0.0:
+				cd = p.cd
+				fired += 1
+				var d0 := _aim_dir(c)
+				var n := int(p.count)
+				for k in n:
+					_shoot(c, d0.rotated(p.spread * (k - (n - 1) * 0.5)))
+		"knives":
+			cd -= delta
+			if cd <= 0.0:
+				cd = p.cd
+				fired += 1
+				var n := int(p.count)
+				var tg: PackedVector2Array = horde.nearest(c, p.seek, n)
+				for k in n:
+					var d := (tg[k] - c).normalized() if k < tg.size() and tg[k].distance_to(c) > 0.01 else Vector2.from_angle(TAU * k / n + randf())
+					_shoot(c, d)
+		"drum":
+			cd -= delta
+			if cd <= 0.0:
+				cd = p.cd
+				fired += 1
+				hits += horde.hit_circle(c, p.r, dmg, 0.0, Vector2.ZERO, 999, c, ch)
+				horde.push_from(c, p.r, p.push)
+				ring_t = 0.35
+			ring_t = maxf(ring_t - delta, 0.0)
+			var k := 1.0 - ring_t / 0.35
+			ring.position = Vector3(c.x, 0.06, c.y)
+			ring.scale = Vector3(p.r * (0.4 + 0.6 * k), 1.0, p.r * (0.4 + 0.6 * k))
+			(ring.material_override as StandardMaterial3D).albedo_color.a = 0.45 * (ring_t / 0.35)
+		"flamestep":
+			if last_c != Vector2.INF:
+				walked += c.distance_to(last_c)
+			last_c = c
+			if walked >= p.step:
+				walked = 0.0
+				fired += 1
+				var d := _disc(p.r, mat_fire)
+				d.position = Vector3(c.x, 0.05, c.y)
+				fires.append({"pos": c, "t": p.dur, "node": d})
+			for k in range(fires.size() - 1, -1, -1):
+				var e: Dictionary = fires[k]
+				e.t -= delta
+				hits += horde.hit_circle(e.pos, p.r, dmg, 0.0, Vector2.ZERO, 999, c, ch)
+				var node: MeshInstance3D = e.node
+				(node.material_override as StandardMaterial3D).albedo_color.a = 0.25 + 0.2 * clampf(e.t / p.dur, 0.0, 1.0)
+				if e.t <= 0.0:
+					node.queue_free()
+					fires.remove_at(k)
+	# 날아가는 화살 · 칼(연노 · 비도)
+	for k in range(shots.size() - 1, -1, -1):
+		var s: Dictionary = shots[k]
+		var step: float = p.speed * delta
+		s.pos += s.dir * step
+		s.left -= step
+		var hn: int = horde.hit_circle(s.pos, p.r, dmg, p.knock, s.dir, s.pierce, c, ch)
+		s.pierce -= hn
+		hits += hn
+		var node: MeshInstance3D = s.node
+		node.position = Vector3(s.pos.x, 0.9, s.pos.y)
+		node.rotation.y = atan2(s.dir.x, s.dir.y)
+		if s.left <= 0.0 or s.pierce <= 0:
+			node.queue_free()
+			shots.remove_at(k)
 	for k in range(flashes.size() - 1, -1, -1):
 		var f: Dictionary = flashes[k]
 		f.t -= delta
@@ -131,6 +225,20 @@ func tick(delta: float) -> void:
 		if f.t <= 0.0:
 			node.queue_free()
 			flashes.remove_at(k)
+
+func _aim_dir(c: Vector2) -> Vector2:
+	## 가장 가까운 적 쪽(없으면 장수가 보는 쪽).
+	var tg: PackedVector2Array = horde.nearest(c, p.seek, 1)
+	if not tg.is_empty() and tg[0].distance_to(c) > 0.01:
+		return (tg[0] - c).normalized()
+	return Vector2(sin(player.rotation.y), cos(player.rotation.y))
+
+func _shoot(c: Vector2, d: Vector2) -> void:
+	var n := MeshInstance3D.new()
+	n.mesh = shot_mesh
+	n.material_override = mat_blade
+	add_child(n)
+	shots.append({"node": n, "pos": c, "dir": d, "left": p.range, "pierce": int(p.pierce)})
 
 func _targets(c: Vector2, n: int) -> PackedVector2Array:
 	## 가까운 적 쪽(없으면 장수 둘레 아무 데나).

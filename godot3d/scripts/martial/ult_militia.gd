@@ -1,6 +1,6 @@
 extends Ult
-## 의용군 소환(유비 절기): 쓸 때마다 의용군 add명을 더함 — 판 끝까지 남고 최대 max명까지 누적(allies.gd).
-## 오의 '도원의 맹세'는 한 번에 더 많이 · 최대 수 · 피해가 커짐.
+## 도원의 기치(유비 절기, D-293): 의용군 add명을 life초 동안 불러냄 — 누적 없음(다시 쓰면 남은 병사를 거두고 새로, allies.gd).
+## 오의 '도원의 맹세'는 더 많이 · 더 오래 · 피해가 커짐.
 
 var flag: MeshInstance3D
 var added := 0
@@ -8,7 +8,8 @@ var added := 0
 func _start() -> void:
 	var o: Vector2 = ctx.origin
 	if ctx.allies:
-		added = ctx.allies.add(o, int(p.add + p.get("add_per_lv", 0.0) * ctx.get("level", 1)), p)   # 레벨이 오를수록 한 번에 더 많이(D-286)
+		ctx.allies.clear()
+		added = ctx.allies.add(o, int(p.add), p)
 	flag = MeshInstance3D.new()   # 깃발 기둥(잠깐)
 	var bm := BoxMesh.new()
 	bm.size = Vector3(0.08, 2.6, 0.08)

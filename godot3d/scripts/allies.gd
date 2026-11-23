@@ -18,6 +18,7 @@ var hp := PackedFloat32Array()   # 남은 체력 비율 0~1(D-286 — 최대 체
 var cd := PackedFloat32Array()
 var face := PackedFloat32Array()
 var phase := PackedFloat32Array()
+var life := PackedFloat32Array()   # 남은 시간(D-293 — 기한부 의용군, spec.life가 없으면 끝까지)
 var spec: Dictionary = {}     # 마지막 소환의 수치(UltTable.params) — dmg · cd · reach · arc · speed · hp · max
 var mul := 1.0                # 인덕 배율(공격 · 체력) — main이 넣음
 var atk_mul := 1.0            # 장수 공격 배율(무력 등)
@@ -33,7 +34,7 @@ var level := 1               # 장수 레벨(최대 수가 레벨 따라 늚 —
 
 func setup(h: Node3D) -> void:
 	horde = h
-	pos.resize(CAP); hp.resize(CAP); cd.resize(CAP); face.resize(CAP); phase.resize(CAP)
+	pos.resize(CAP); hp.resize(CAP); cd.resize(CAP); face.resize(CAP); phase.resize(CAP); life.resize(CAP)
 	var src: Node = load(POSES_GLB).instantiate()
 	for i in FRAMES:
 		var mi := src.find_child("pose_%d" % i, true, false) as MeshInstance3D
@@ -51,6 +52,9 @@ func setup(h: Node3D) -> void:
 		bufs.append(b)
 	src.free()
 
+func clear() -> void:
+	count = 0
+
 func add(at: Vector2, n: int, s: Dictionary) -> int:
 	## n명 더함(최대 limit()). 돌려주는 값 = 실제로 더한 수.
 	spec = s
@@ -63,13 +67,14 @@ func add(at: Vector2, n: int, s: Dictionary) -> int:
 		hp[count] = 1.0
 		cd[count] = randf() * s.cd
 		phase[count] = randf()
+		life[count] = s.get("life", 1e9)
 		count += 1
 		added += 1
 	summoned += added
 	return added
 
 func limit() -> int:
-	## 최대 수 = max + 레벨 × max_per_lv(D-286: 후반에 군대가 더 커지게).
+	## 최대 수 = max + 레벨 × max_per_lv(D-286 — D-293부터 유비는 max_per_lv 없음).
 	if spec.is_empty():
 		return 0
 	return mini(int(spec.max + spec.get("max_per_lv", 0.0) * level), CAP)
@@ -81,6 +86,11 @@ func update(delta: float, player: Vector2) -> void:
 	var dmg: float = spec.dmg * mul * atk_mul
 	var i := 0
 	while i < count:
+		life[i] -= delta
+		if life[i] <= 0.0:   # 기한이 다 됨(D-293)
+			count -= 1
+			pos[i] = pos[count]; hp[i] = hp[count]; cd[i] = cd[count]; face[i] = face[count]; phase[i] = phase[count]; life[i] = life[count]
+			continue
 		var p := pos[i]
 		var to_pl := player - p
 		var goal := player
@@ -109,7 +119,7 @@ func update(delta: float, player: Vector2) -> void:
 			if hp[i] <= 0.0:
 				count -= 1
 				lost += 1
-				pos[i] = pos[count]; hp[i] = hp[count]; cd[i] = cd[count]; face[i] = face[count]; phase[i] = phase[count]
+				pos[i] = pos[count]; hp[i] = hp[count]; cd[i] = cd[count]; face[i] = face[count]; phase[i] = phase[count]; life[i] = life[count]
 				continue
 		else:
 			hp[i] = minf(hp[i] + REGEN * delta, 1.0)

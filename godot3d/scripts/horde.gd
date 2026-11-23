@@ -26,7 +26,8 @@ const CH_WEAPON := 0          # 대표 무기(시작 초식)
 const CH_ULT := 1             # 절기 · 경공 부딪힘
 const CH_ALLY := 2            # 의용군
 const CH_TACTIC := 3          # 추가 초식 — 슬롯마다 3~7(기본 3칸 + 과제 칸 + 와룡 칸, D-292)
-const N_CH := 8
+const CH_RETURN := 8          # 돌아오는 무기(쌍고검 회선 — 가는 길과 같은 적을 또 맞힘, D-293)
+const N_CH := 9
 
 var cap := 0
 var count := 0

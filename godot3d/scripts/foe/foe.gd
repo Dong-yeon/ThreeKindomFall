@@ -7,7 +7,7 @@ extends Node3D
 signal died(foe)
 
 const HIT_CD := 0.3
-const N_CH := 8   # horde.N_CH와 같게
+const N_CH := 9   # horde.N_CH와 같게
 
 var id := ""
 var spec: Dictionary

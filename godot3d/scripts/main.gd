@@ -207,9 +207,6 @@ func _ready() -> void:
 			choices = _offers()
 			_apply_upgrade(choices[_auto_choice()])
 		auto_pick = keep
-		if ult_id == "militia":
-			allies.level = level
-			allies.add(Vector2(player.position.x, player.position.z), 30, UltTable.params("militia", evolved))
 		print("BOSSTEST lv=%d evolved=%s picks=%s" % [level, evolved, str(ups)])
 	if opts.has("tactic"):   # --tactic=orbit,rain … (쉼표로 여럿)
 		for tid in String(opts["tactic"]).split(","):
@@ -723,11 +720,13 @@ func _martial_tick(delta: float, p2: Vector2) -> void:
 	weapon.dyn = dyn
 	for tac in tactics.values():
 		tac.atk_mul = atk_mul * dyn
-	# 의용군(인덕 배율)
+	# 인덕(D-293): 둘레 적이 많을수록 공격 속도 ↑
+	if hero.passive.id == "indeok":
+		var near: int = horde.count_within(p2, hero.passive.r)
+		weapon.haste = 1.0 + hero.passive.haste * clampf(float(near) / hero.passive.full, 0.0, 1.0)
+	# 의용군(기한부 — 도원의 기치)
 	allies.atk_mul = atk_mul * dyn
 	allies.enemy_dmg = enemy_dmg
-	if hero.passive.id == "indeok":
-		allies.mul = hero.passive.ally_mul + hero.passive.ally_per_lv * (level - 1)
 	allies.level = level
 	allies.update(delta, p2)
 	# 점검: --dash-at=초[,초…] 그 시각에 경공(이단 도약은 두 시각을 가깝게 주면 공중에서 한 번 더)
@@ -864,7 +863,9 @@ func _exit_tree() -> void:
 		print("STATS hero=%s t=%.1f kills=%d hp=%d attacks=%d dead=%s cleared=%s enemies=%d enemy_hp=%.1f level=%d" % [hero_id, t, horde.kills, maxf(hero_hp, 0.0), weapon.attacks, dead, cleared, horde.count, horde.spawn_hp, level])
 		print("PICKS ", " ".join(pick_log))
 		for tid in tactics:
-			print("TACTIC %s lv=%d fired=%d hits=%d" % [tid, tactics[tid].lv, tactics[tid].fired, tactics[tid].hits])
+			print("TACTIC %s lv=%d fired=%d hits=%d chains=%d" % [tid, tactics[tid].lv, tactics[tid].fired, tactics[tid].hits, tactics[tid].chains])
+		if hero.weapon.type == "boomerang":
+			print("BOOMERANG out_hits=%d return_hits=%d" % [weapon.outs, weapon.returns])
 		if boss_active:
 			print("BOSS result=%s dur=%.1f boss_hp=%d/%d casts=%s" % [boss_result if boss_result != "" else ("lose" if dead else "timeout"),
 				t - boss_t0, int(boss.hp) if boss else 0, int(boss.hp_max) if boss else 0, str(boss.casts) if boss else ""])

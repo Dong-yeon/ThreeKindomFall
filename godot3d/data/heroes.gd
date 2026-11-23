@@ -1,6 +1,7 @@
 class_name HeroTable
 ## 장수 표(D-281 · D-285): 장수는 모델 + 무공 데이터만 바꿔 끼운다(CLAUDE.md "특정 장수 전용으로 짜지 않는다").
-## weapon = 시작 초식(대표 무기). type: sweep 휘두르기(부채꼴) · thrust 찌르기(긴 직사각형, 꿰뚫음) · fly 날아가는 것(여럿, 꿰뚫음).
+## weapon = 시작 초식(대표 무기) — 장수 고유(공용 추가 초식 풀에 없음). type: sweep 휘두르기(부채꼴) · thrust 찌르기(긴 직사각형, 꿰뚫음) · fly 날아가는 것(여럿, 꿰뚫음)
+##   · boomerang 돌아오는 칼(scripts/weapon.gd).
 ##   공통: cd 재사용(초) · dmg 한 번 피해 · knock 밀려나는 거리 · seek 이 거리 안 가장 가까운 적을 노림(없으면 가는 쪽).
 ## D-285 무공 킷:
 ##   role 역할 태그 · stars 난이도(★) · star_label · passive 고유 심법(id로 main이 적용) · ult 절기 id(data/ults.gd)
@@ -35,11 +36,11 @@ const HEROES := {
 	},
 	"liu_bei": {
 		"name": "유비", "glb": "res://assets/models/liu_bei.glb",
-		"role": "소환 · 지원", "stars": 2, "star_label": "대기만성",
-		"weapon": {"name": "쌍고검", "type": "fly", "cd": 0.65, "dmg": 1.7, "knock": 0.5, "seek": 12.0,
-			"count": 1, "speed": 15.0, "range": 11.0, "pierce": 3, "radius": 0.6, "color": Color(1.0, 0.92, 0.6)},
-		"passive": {"id": "indeok", "name": "인덕", "desc": "의용군 공격·체력 +20%(레벨마다 +16%) · 근검: 초당 회복 +0.6",
-			"ally_mul": 1.2, "ally_per_lv": 0.16, "regen": 0.6},
+		"role": "쌍검 · 난전", "stars": 2, "star_label": "대기만성",   # D-293: 의용군 누적형 → 쌍고검을 직접 쓰는 장수
+		"weapon": {"name": "쌍고검 회선", "type": "boomerang", "cd": 1.1, "dmg": 2.0, "knock": 0.5, "seek": 9.0,
+			"count": 2, "speed": 13.0, "range": 6.5, "radius": 0.75, "spread": 0.35, "color": Color(1.0, 0.92, 0.6)},
+		"passive": {"id": "indeok", "name": "인덕", "desc": "둘레 4m 적이 많을수록 공격 속도 ↑(최대 +40%) · 근검: 초당 회복 +0.6",
+			"r": 4.0, "full": 20, "haste": 0.4, "regen": 0.6},
 		"ult": "militia",
 		"qinggong": {"type": "leap", "name": "이단 도약", "dist": 4.0, "time": 0.45, "height": 1.6, "iframe": 0.45, "cd": 3.5, "charges": 2},
 		"neigong": 1.0,
