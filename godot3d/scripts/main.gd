@@ -19,6 +19,7 @@ extends Node3D
 ##   --test          모델 · 동작 이름만 확인하고 끝냄(headless 가능)
 
 const CAM_OFFSET := Vector3(0, 7.0, 8.5)
+var cam_offset := CAM_OFFSET   # 점검 --cam=높이,뒤,화각(D-301 카메라 비교)
 const HERO_HP := 100.0          # 시작 최대 체력(레벨업 '강건'이 늘림)
 const HIT_DMG := 6.0           # 창 한 번(시간표가 없을 때 — 있으면 data/waves.gd의 찌르기 피해)
 const IFRAME := 0.35           # 맞은 뒤 무적 시간 — 여럿이 한꺼번에 찔러도 이 간격으로만 맞음
@@ -138,6 +139,11 @@ func _ready() -> void:
 	bench = opts.has("bench")
 	god = opts.has("god") or bench or (shots_dir != "" and not opts.has("hurt"))
 	_build_world()
+	if opts.has("cam"):
+		var cv := String(opts["cam"]).split(",")
+		cam_offset = Vector3(0, float(cv[0]), float(cv[1]))
+		if cv.size() > 2:
+			cam.fov = float(cv[2])
 	player = preload("res://scripts/player.gd").new()
 	player.name = "Player"
 	add_child(player)
@@ -374,7 +380,7 @@ func _process(delta: float) -> void:
 		return
 	# 3인칭 고정 각도로 뒤 · 위에서 따라감(마우스 시점은 다음 단계)
 	var target := player.position + Vector3(0, 1.0, 0)
-	cam.position = cam.position.lerp(target + CAM_OFFSET, clampf(delta * 6.0, 0, 1)) if cam_ready else target + CAM_OFFSET   # 첫 프레임은 바로 맞춤(--start여도, D-297)
+	cam.position = cam.position.lerp(target + cam_offset, clampf(delta * 6.0, 0, 1)) if cam_ready else target + cam_offset   # 첫 프레임은 바로 맞춤(--start여도, D-297)
 	cam_ready = true
 	cam.look_at(target)
 	if hud:
