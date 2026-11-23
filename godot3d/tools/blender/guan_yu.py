@@ -156,38 +156,45 @@ if CH:
         k = k * k * (3 - 2 * k)
         return a + (b - a) * k
 
-    def swing(f):   # 0 ~ 12 (0.5초): 언월도를 뒤로 크게 들었다가 앞으로 가로 휩쓸기
-        if f <= 4:
-            k = f / 4
-            return ({"arm_R": (ease(0, -70, k), 0, ease(0, 40, k)), "torso": (0, 0, ease(0, -30, k))}, {})
-        k = (f - 4) / 8
-        return ({"arm_R": (ease(-70, -60, k), 0, ease(40, -80, k)), "torso": (ease(0, 8, k), 0, ease(-30, 45, k)),
-                 "arm_L": (0, 0, ease(0, -20, k))}, {})
-
-    def stagger(f):   # 0 ~ 18 (0.75초): 휩쓸고 난 뒤 무기 무게에 몸이 끌려 비틀 — 한쪽 발로 깡충
-        k = f / 18
+    def swing(f):   # 0 ~ 14 (0.58초): 까치발로 언월도를 머리 위로 → 무게에 끌려 몸이 한 바퀴 빙글 → 휘청 멈춤(D-304 — 우스꽝스럽게)
+        if f <= 4:      # 들어 올림: 몸을 뒤로 젖히고 까치발
+            k = ease(0, 1, f / 4)
+            return ({"arm_R": (-150 * k, 0, 20 * k), "arm_L": (-60 * k, 0, 30 * k), "torso": (-18 * k, 0, 0), "head": (-10 * k, 0, 0),
+                     "leg_L": (0, 0, -8 * k), "leg_R": (0, 0, 8 * k)}, {"root": (0, 0.08 * k, 0)})
+        if f <= 10:     # 휩쓸기: 팔은 옆으로 뻗고 몸 전체가 한 바퀴(뿌리 뼈를 세로축으로 360°) · 다리는 벌어져 질질
+            k = (f - 4) / 6
+            return ({"arm_R": (-90, 0, -10), "arm_L": (-40, 0, 70), "torso": (12 * k, 0, 0), "head": (0, 0, 20 * math.sin(k * math.pi)),
+                     "leg_L": (-20, 0, -25), "leg_R": (20, 0, 25), "root": (0, -360 * ease(0, 1, k), 0)}, {"root": (0, 0.04 * math.sin(k * math.pi), 0)})
+        k = (f - 10) / 4   # 멈춤: 무게에 앞으로 고꾸라질 듯 휘청
         w = math.sin(k * math.pi)
-        return ({"torso": (10 * w, 0, 45 - 30 * k + 12 * math.sin(k * 3 * math.pi)), "arm_R": (-50, 0, -70 + 50 * k),
-                 "head": (0, 0, -10 * w), "leg_L": (-25 * w, 0, 0), "leg_R": (10 * w, 0, 0)},
-                {"root": (0.25 * w, 0.06 * abs(math.sin(k * 2 * math.pi)), 0)})
+        return ({"arm_R": (ease(-90, 0, k), 0, -10), "arm_L": (ease(-40, 0, k), 0, ease(70, 0, k)), "torso": (25 * w, 0, 10 * w),
+                 "head": (15 * w, 0, -10 * w), "leg_L": (-30 * w, 0, 0)}, {})
 
-    def flop(f):   # 0 ~ 36 (1.5초): 뒤로 엉덩방아(0 ~ 8) → 앉은 채 어리둥절(8 ~ 24) → 일어남(24 ~ 36)
-        if f <= 8:
-            k = f / 8
-            sit = ease(0, 1, k)
-        elif f <= 24:
+    def stagger(f):   # 0 ~ 20 (0.83초): 어지러워 비틀 — 머리가 원을 그리고 언월도를 질질 끌며 깡충
+        k = f / 20
+        a = k * 4 * math.pi
+        w = math.sin(k * math.pi)
+        return ({"head": (12 * math.sin(a) * w, 0, 18 * math.cos(a) * w), "torso": (8 * math.cos(a) * w, 0, 14 * math.sin(a) * w),
+                 "arm_R": (40 * w, 0, -20 * w), "arm_L": (-50 * w, 0, 60 * w),
+                 "leg_L": (-35 * max(0.0, math.sin(a)) * w, 0, 0), "leg_R": (-35 * max(0.0, -math.sin(a)) * w, 0, 0)},
+                {"root": (0.18 * math.sin(a * 0.5) * w, 0.07 * abs(math.sin(a)), 0)})
+
+    def flop(f):   # 0 ~ 36 (1.5초): 뒤로 털썩 주저앉음 → 어리둥절 고개 갸웃 → 벌떡
+        if f <= 6:
+            sit = ease(0, 1, f / 6)
+        elif f <= 26:
             sit = 1.0
         else:
-            sit = ease(1, 0, (f - 24) / 12)
-        wob = math.sin(f / 36 * 6 * math.pi) * (1.0 if 8 < f <= 24 else 0.0)
-        return ({"torso": (-25 * sit, 0, 6 * wob), "head": (-10 * sit, 0, 15 * wob),
-                 "leg_L": (-80 * sit, 0, -10 * sit), "leg_R": (-80 * sit, 0, 10 * sit),
-                 "arm_L": (-30 * sit, 0, 40 * sit), "arm_R": (-20 * sit, 0, -50 * sit)},
-                {"root": (0, -0.30 * sit, 0)})
+            sit = ease(1, 0, (f - 26) / 10)
+        wob = math.sin(f / 36 * 8 * math.pi) * (1.0 if 6 < f <= 26 else 0.0)
+        return ({"torso": (-45 * sit, 0, 8 * wob), "head": (20 * sit, 0, 25 * wob),
+                 "leg_L": (-95 * sit, 0, -20 * sit), "leg_R": (-95 * sit, 0, 20 * sit),
+                 "arm_L": (-40 * sit, 0, 70 * sit), "arm_R": (-30 * sit, 0, -70 * sit)},
+                {"root": (0, -0.42 * sit, 0.10 * sit)})
 
-    lp.make_action(rig, "swing", list(range(0, 13, 1)), swing)
-    lp.make_action(rig, "stagger", list(range(0, 19, 1)), stagger)
-    lp.make_action(rig, "flop", list(range(0, 37, 2)), flop)
+    lp.make_action(rig, "swing", list(range(0, 15, 1)), swing)
+    lp.make_action(rig, "stagger", list(range(0, 21, 1)), stagger)
+    lp.make_action(rig, "flop", list(range(0, 37, 1)), flop)
 print("TRIS", lp.tris(mesh))
 
 if "--render" in FLAGS:

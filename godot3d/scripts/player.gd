@@ -19,6 +19,9 @@ var dash_dir := Vector3.ZERO
 var dash_speed := 0.0
 var iframe_t := 0.0           # 경공 무적 남은 시간(main이 피해 계산 때 봄)
 var dash_count := 0
+var action_t := 0.0           # 한 번짜리 동작 남은 시간(D-304)
+var action_name := ""
+var action_count := 0
 var blinked := false          # 이번 프레임에 축지했는가(main이 효과를 그리고 끔)
 var _dash_key_was := false
 var _move_dir := Vector3.ZERO
@@ -80,11 +83,35 @@ func walk_loops() -> bool:
 	return anim != null and anim.has_animation("walk") and anim.get_animation("walk").loop_mode == Animation.LOOP_LINEAR
 
 func _play(n: String) -> void:
+	if action_t > 0.0:   # 한 번짜리 동작(공격 개그 등) 중엔 걷기 · 서기로 안 바꿈
+		return
 	if anim and anim.has_animation(n) and anim.current_animation != n:
 		anim.play(n, 0.15)
 
+const ACTION_PRIO := {"swing": 1, "stagger": 2, "flop": 3}
+
+func has_action(n: String) -> bool:
+	return anim != null and anim.has_animation(n)
+
+func play_action(n: String) -> bool:
+	## 한 번짜리 동작(D-304 공격 개그 — 보이기만, 판정과 무관). 더 높은(같은) 순위 동작이 도는 중이면 안 끊음.
+	if not has_action(n):
+		return false
+	var cur: int = ACTION_PRIO.get(action_name, 0)
+	var nxt: int = ACTION_PRIO.get(n, 0)
+	if action_t > 0.0 and nxt < cur:
+		return false
+	if action_t > 0.0 and nxt == cur and n != "swing":
+		return false
+	anim.play(n, 0.05)
+	action_name = n
+	action_t = anim.get_animation(n).length
+	action_count += 1
+	return true
+
 func _process(delta: float) -> void:
 	_t += delta
+	action_t = maxf(action_t - delta, 0.0)
 	# 경공 충전 · 무적
 	if not qg.is_empty() and charges < int(qg.charges):
 		charge_t -= delta

@@ -69,6 +69,7 @@ var ult_hits := 0
 var ult_key_was := false
 var last_hits := 0
 var last_kills := 0
+var last_attacks := 0
 var dyn := 1.0                # 이번 프레임 공격 배율(주화입마 × 광폭)
 var curve_marks := [60.0, 180.0, 360.0, 540.0]
 var stage: Node3D             # 황건적 스테이지(D-289 — 진영 · 정예 · 상자)
@@ -690,6 +691,11 @@ func _martial_tick(delta: float, p2: Vector2) -> void:
 	if want and neigong.can_spend(cost):
 		neigong.spend(cost)
 		cast_ult(ult_id, p2, Vector2(player.facing().x, player.facing().z), evolved)
+		player.play_action("flop")   # 개그 동작(D-304): 큰 기술 뒤 엉덩방아(모델에 있을 때만 — 보이기만)
+	# 공격 개그(D-304): 대표 무기가 나갈 때마다 우스꽝스러운 휘두르기, 3번째마다 어지러워 비틀(모델에 있을 때만)
+	if weapon.attacks != last_attacks:
+		last_attacks = weapon.attacks
+		player.play_action("stagger" if weapon.attacks % 3 == 0 else "swing")
 	for k in range(active_ults.size() - 1, -1, -1):
 		var u: Ult = active_ults[k]
 		if u.tick(delta):
