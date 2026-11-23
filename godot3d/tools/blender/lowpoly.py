@@ -227,3 +227,51 @@ def render_check(out_dir, name, rig, action, frames, target_z=1.0, scale=3.2):
     bpy.data.objects.remove(sun)
     bpy.data.objects.remove(cam)
     return paths
+
+
+# ── 큰 머리 비율(D-301 시험): 이미 만든 인물을 귀여운 비율로 바꿈 ──
+# 다리(0 ~ LEG_TOP)는 leg배로 줄이고, 몸통(LEG_TOP ~ NECK)은 body배, 목 위 머리 뼈 조각은 목을 축으로 head배로 키움.
+# 같은 함수로 정점과 뼈 위치를 함께 옮겨서 뼈대가 그대로 맞음.
+class Chibi:
+    def __init__(self, leg_top=0.62, neck=1.45, leg=0.6, body=0.75, head=1.55, weapon=0.8):
+        self.leg_top, self.neck = leg_top, neck
+        self.leg, self.body, self.head, self.weapon = leg, body, head, weapon
+        self.neck2 = leg_top * leg + (neck - leg_top) * body   # 바뀐 목 높이
+
+    def z(self, z, bone):
+        if z <= self.leg_top:
+            return z * self.leg
+        if z <= self.neck:
+            return self.leg_top * self.leg + (z - self.leg_top) * self.body
+        k = self.head if bone == "head" else self.weapon      # 목 위: 머리는 크게, 무기(팔 뼈 조각)는 조금 줄여서
+        return self.neck2 + (z - self.neck) * k
+
+    def xy(self, x, y, z, bone):
+        if bone == "head":
+            return x * self.head, y * self.head
+        if bone in ("torso", "arm_L", "arm_R"):
+            return x * 1.08, y * 1.08                          # 몸통은 살짝 통통하게
+        return x, y
+
+    def apply_mesh(self, mesh):
+        names = {g.index: g.name for g in mesh.vertex_groups}
+        for v in mesh.data.vertices:
+            bone = names[v.groups[0].group] if v.groups else "torso"
+            x, y, z = v.co
+            if bone == "head" and z < self.neck:               # 수염 · 늘어진 머리처럼 목 아래로 내려오는 머리 조각
+                nx, ny = x * 1.25, y * 1.25                   # 덜 키움(수염이 앞으로 너무 튀어나오지 않게)
+                nz = self.neck2 + (z - self.neck) * self.body
+            else:
+                nx, ny = self.xy(x, y, z, bone)
+                nz = self.z(z, bone)
+            v.co = (nx, ny, nz)
+
+    def bones(self, bones):
+        out = []
+        for n, h, t, p in bones:
+            def f(pt, bn=n):
+                x, y, z = pt
+                nx, ny = self.xy(x, y, z, bn)
+                return (nx, ny, self.z(z, bn))
+            out.append((n, f(h), f(t), p))
+        return out

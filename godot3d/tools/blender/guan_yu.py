@@ -5,6 +5,7 @@
 # 실행: python godot3d/tools/blender/guan_yu.py <출력 폴더> [--render]   (pip install bpy)
 #       blender -b -P godot3d/tools/blender/guan_yu.py -- <출력 폴더> [--render]
 # 결과: guan_yu.glb (--render면 정면 · 옆 · 뒤 · 3/4 확인용 PNG)
+#   --chibi(D-301 시험): 큰 머리 비율(lowpoly.Chibi) + 개그 동작(swing 휘두르기 · stagger 휘청 · flop 엉덩방아 → 일어나기) → guan_yu_chibi.glb
 import math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lowpoly as lp
@@ -120,7 +121,10 @@ b.box(0.18, 0.03, 0.80, (-0.09, 0.37, 1.30), GREEN, (R(8), 0, 0))     # 허리�
 b.box(0.18, 0.03, 0.76, ( 0.09, 0.37, 1.32), DKGRN, (R(8), 0, 0))
 
 mesh = b.join("guan_yu")
-rig = lp.make_rig("guan_yu", mesh, [
+CH = lp.Chibi() if "--chibi" in FLAGS else None
+if CH:
+    CH.apply_mesh(mesh)
+BONES = [
     ("root",  (0, 0, 0),           (0, 0, 0.3),           None),
     ("torso", (0, 0, 0.95),        (0, 0, 1.45),          "root"),
     ("head",  (0, 0, 1.45),        (0, 0, 2.1),           "torso"),
@@ -128,7 +132,8 @@ rig = lp.make_rig("guan_yu", mesh, [
     ("leg_R", (-0.17, 0, 0.62),    (-0.17, 0, 0.0),       "root"),
     ("arm_L", ( 0.48, 0, 1.30),    ( 0.56, 0, 0.72),      "torso"),
     ("arm_R", (-0.48, 0, 1.30),    (-0.55, -0.12, 0.72),  "torso"),
-])
+]
+rig = lp.make_rig("guan_yu", mesh, CH.bones(BONES) if CH else BONES)
 
 def idle(f):   # 0 ~ 24 (1초): 숨쉬듯 위아래
     t = f / 24 * 2 * math.pi
@@ -144,6 +149,45 @@ def walk(f):   # 0 ~ 16 (0.67초 한 걸음 주기)
 
 idle_act = lp.make_action(rig, "idle", list(range(0, 25, 2)), idle)
 walk_act = lp.make_action(rig, "walk", list(range(0, 17, 2)), walk)
+
+if CH:
+    def ease(a, b, k):
+        k = max(0.0, min(1.0, k))
+        k = k * k * (3 - 2 * k)
+        return a + (b - a) * k
+
+    def swing(f):   # 0 ~ 12 (0.5초): 언월도를 뒤로 크게 들었다가 앞으로 가로 휩쓸기
+        if f <= 4:
+            k = f / 4
+            return ({"arm_R": (ease(0, -70, k), 0, ease(0, 40, k)), "torso": (0, 0, ease(0, -30, k))}, {})
+        k = (f - 4) / 8
+        return ({"arm_R": (ease(-70, -60, k), 0, ease(40, -80, k)), "torso": (ease(0, 8, k), 0, ease(-30, 45, k)),
+                 "arm_L": (0, 0, ease(0, -20, k))}, {})
+
+    def stagger(f):   # 0 ~ 18 (0.75초): 휩쓸고 난 뒤 무기 무게에 몸이 끌려 비틀 — 한쪽 발로 깡충
+        k = f / 18
+        w = math.sin(k * math.pi)
+        return ({"torso": (10 * w, 0, 45 - 30 * k + 12 * math.sin(k * 3 * math.pi)), "arm_R": (-50, 0, -70 + 50 * k),
+                 "head": (0, 0, -10 * w), "leg_L": (-25 * w, 0, 0), "leg_R": (10 * w, 0, 0)},
+                {"root": (0.25 * w, 0.06 * abs(math.sin(k * 2 * math.pi)), 0)})
+
+    def flop(f):   # 0 ~ 36 (1.5초): 뒤로 엉덩방아(0 ~ 8) → 앉은 채 어리둥절(8 ~ 24) → 일어남(24 ~ 36)
+        if f <= 8:
+            k = f / 8
+            sit = ease(0, 1, k)
+        elif f <= 24:
+            sit = 1.0
+        else:
+            sit = ease(1, 0, (f - 24) / 12)
+        wob = math.sin(f / 36 * 6 * math.pi) * (1.0 if 8 < f <= 24 else 0.0)
+        return ({"torso": (-25 * sit, 0, 6 * wob), "head": (-10 * sit, 0, 15 * wob),
+                 "leg_L": (-80 * sit, 0, -10 * sit), "leg_R": (-80 * sit, 0, 10 * sit),
+                 "arm_L": (-30 * sit, 0, 40 * sit), "arm_R": (-20 * sit, 0, -50 * sit)},
+                {"root": (0, -0.30 * sit, 0)})
+
+    lp.make_action(rig, "swing", list(range(0, 13, 1)), swing)
+    lp.make_action(rig, "stagger", list(range(0, 19, 1)), stagger)
+    lp.make_action(rig, "flop", list(range(0, 37, 2)), flop)
 print("TRIS", lp.tris(mesh))
 
 if "--render" in FLAGS:
@@ -170,5 +214,5 @@ if "--render" in FLAGS:
         bpy.ops.render.render(write_still=True)
     bpy.data.objects.remove(sun); bpy.data.objects.remove(cam)
 
-lp.export(os.path.join(OUT, "guan_yu.glb"), [rig, mesh], animated=True)
+lp.export(os.path.join(OUT, "guan_yu_chibi.glb" if CH else "guan_yu.glb"), [rig, mesh], animated=True)
 print("DONE")
