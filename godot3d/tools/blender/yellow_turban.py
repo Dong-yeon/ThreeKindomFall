@@ -23,6 +23,10 @@ MILITIA = VARIANT == "militia"
 ELITE = VARIANT in ["zhangbao", "zhangliang", "daoshi"]
 NAME = {"militia": "militia", "archer": "yt_archer", "rusher": "yt_rusher", "shield": "yt_shield",
         "zhangbao": "elite_zhangbao", "zhangliang": "elite_zhangliang", "daoshi": "elite_daoshi"}.get(VARIANT, "yellow_turban")
+# --chibi(D-302 시험): 큰 머리 비율(lowpoly.Chibi — 다리 끝 0.50 · 목 1.0) → <이름>_chibi.glb · <이름>_chibi_poses.glb
+CHIBI = "--chibi" in FLAGS
+if CHIBI:
+    NAME += "_chibi"
 lp.reset_scene()
 R = math.radians
 
@@ -145,7 +149,10 @@ b.box(0.10, 0.03, 0.42, (-0.07, 0.38, 1.10), MUSTARD, (R(12), R(-8), 0))  # 늘�
 b.box(0.10, 0.03, 0.36, ( 0.07, 0.38, 1.13), MUSTARD, (R(12), R(10), 0))
 
 mesh = b.join("yellow_turban")
-rig = lp.make_rig("yellow_turban", mesh, [
+CH = lp.Chibi(leg_top=0.50, neck=1.0) if CHIBI else None
+if CH:
+    CH.apply_mesh(mesh)
+BONES = [
     ("root",  (0, 0, 0),           (0, 0, 0.3),           None),
     ("torso", (0, 0, 0.62),        (0, 0, 1.0),           "root"),
     ("head",  (0, 0, 1.0),         (0, 0, 1.55),          "torso"),
@@ -153,7 +160,8 @@ rig = lp.make_rig("yellow_turban", mesh, [
     ("leg_R", (-0.13, 0, 0.50),    (-0.13, 0, 0.0),       "root"),
     ("arm_L", ( 0.30, 0, 0.96),    ( 0.34, 0, 0.56),      "torso"),
     ("arm_R", (-0.30, 0, 0.96),    (-0.34, -0.11, 0.57),  "torso"),
-])
+]
+rig = lp.make_rig("yellow_turban", mesh, CH.bones(BONES) if CH else BONES)
 
 def walk(f):   # 0 ~ 12 (0.5초 주기 — 앞으로 숙이고 종종걸음, 창 든 팔은 조금만)
     s = math.sin(f / 12 * 2 * math.pi)

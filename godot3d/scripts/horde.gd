@@ -70,6 +70,8 @@ var arrow_buf := PackedFloat32Array()
 var arrows_shot := 0
 var arrows_hit := 0
 
+var chibi := false            # 큰 머리 비율 시험(D-302 — main이 --chibi일 때 켬)
+
 func setup(max_count: int) -> void:
 	cap = max_count
 	rng.seed = 11
@@ -77,7 +79,10 @@ func setup(max_count: int) -> void:
 	hp.resize(cap); atk.resize(cap); lunge.resize(cap); stun.resize(cap); cd.resize(cap * N_CH)
 	head.resize(GRID * GRID)
 	for kd in EnemyTable.KINDS:
-		var src: Node = load(kd.glb).instantiate()
+		var path: String = kd.glb
+		if chibi and ResourceLoader.exists(path.replace("_poses.glb", "_chibi_poses.glb")):
+			path = path.replace("_poses.glb", "_chibi_poses.glb")
+		var src: Node = load(path).instantiate()
 		for i in FRAMES:
 			var mi := src.find_child("pose_%d" % i, true, false) as MeshInstance3D
 			var m := MultiMesh.new()
