@@ -4,6 +4,9 @@ extends Node3D
 ##   (기본) 한 판 10분: 시간이 갈수록 적 수 · 체력 · 속도가 오르고 9분부터 마지막 대군, 10분 버티면 승리(data/waves.gd)
 ##   --n=<수>        적 수를 고정(시간표 끔 — 무기 비교용)
 ##   --start=<초>    판을 이 시각부터 시작(뒤쪽 시간대 점검)
+##   (기본) 레벨업: 처치 → 구슬 → 레벨이 오르면 멈추고 3장 중 고름(1 · 2 · 3 키 또는 클릭, data/upgrades.gd)
+##   --seed=<N>      레벨업 카드가 같은 순서로 나옴(밸런스 비교용)
+##   --pick=auto     고르기를 자동으로(--auto · --bench · --shots는 기본 자동, --pick=manual이면 카드를 띄움)
 ##   --hero=<id>     장수(guan_yu 기본 · zhang_fei · liu_bei — 모델 · 무기는 data/heroes.gd)
 ##   --auto          자동으로 원을 그리며 걸음(창 없이 밸런스 볼 때) · --stats 끝날 때 버틴 시간 · 처치 · 체력 출력
 ##   --god           장수가 피해를 안 받음(--bench · --shots도 무적, --shots에 --hurt를 붙이면 피해 받음)
@@ -12,8 +15,8 @@ extends Node3D
 ##   --test          모델 · 동작 이름만 확인하고 끝냄(headless 가능)
 
 const CAM_OFFSET := Vector3(0, 7.0, 8.5)
-const HERO_HP := 100.0
-const HIT_DMG := 6.0           # 창 한 번
+const HERO_HP := 100.0          # 시작 최대 체력(레벨업 '강건'이 늘림)
+const HIT_DMG := 6.0           # 창 한 번(시간표가 없을 때 — 있으면 data/waves.gd의 찌르기 피해)
 const IFRAME := 0.35           # 맞은 뒤 무적 시간 — 여럿이 한꺼번에 찔러도 이 간격으로만 맞음
 const PROPS := 300            # 바위 · 나무 수(묶어 그리므로 늘려도 그리기 호출은 그대로)
 const BENCH_LEVELS := [200, 400, 600, 800, 1000]
@@ -32,6 +35,24 @@ var shot_times := [0.4, 1.0, 1.6, 2.2, 3.0]
 var t := 0.0
 var shot_total := 5
 var hero_hp := HERO_HP
+var max_hp := HERO_HP
+# 레벨업(D-283)
+var gems: Node3D
+var level := 1
+var xp := 0
+var ups := {}                 # 고른 횟수 key → 수
+var armor := 1.0              # 받는 피해 배율
+var enemy_dmg := HIT_DMG
+var regen := 0.0              # 초당 회복
+var choosing := false
+var choices: Array = []
+var auto_pick := false
+var pick_box: Control
+var pick_btns: Array[Button] = []
+var xp_bar: ColorRect
+var lv_lbl: Label
+var pick_log: Array[String] = []
+var pick_open_ms := 0         # 키를 누른 채로 다음 고르기까지 넘어가지 않게(0.3초)
 var invuln := 0.0
 var god := false
 var dead := false
@@ -71,6 +92,8 @@ func _read_opts() -> void:
 
 func _ready() -> void:
 	_read_opts()
+	if opts.has("seed"):   # --seed=N: 레벨업 카드 · 고르기를 같은 순서로(밸런스 비교용)
+		seed(int(opts["seed"]))
 	shots_dir = opts.get("shots", "")
 	if opts.has("shot-at"):   # --shot-at=초,초… (기본 0.4 · 1 · 1.6 · 2.2 · 3초)
 		shot_times = []
@@ -103,6 +126,9 @@ func _ready() -> void:
 	weapon = preload("res://scripts/weapon.gd").new()
 	add_child(weapon)
 	weapon.setup(hero.weapon, player, horde)
+	gems = preload("res://scripts/gems.gd").new()
+	add_child(gems)
+	auto_pick = opts.get("pick", "") == "auto" or ((opts.has("auto") or bench or shots_dir != "") and opts.get("pick", "") != "manual")
 	hud = Label.new()
 	hud.position = Vector2(12, 8)
 	hud.add_theme_font_size_override("font_size", 18)
@@ -141,6 +167,19 @@ func _ready() -> void:
 	timer_lbl.add_theme_constant_override("outline_size", 6)
 	timer_lbl.visible = waves
 	layer.add_child(timer_lbl)
+	var xb := ColorRect.new()   # 맨 위 경험치 막대
+	xb.color = Color(0, 0, 0, 0.5); xb.position = Vector2(0, 0); xb.size = Vector2(1280, 6)
+	layer.add_child(xb)
+	xp_bar = ColorRect.new()
+	xp_bar.color = Color("5ad0e8"); xp_bar.position = Vector2(0, 0); xp_bar.size = Vector2(0, 6)
+	layer.add_child(xp_bar)
+	lv_lbl = Label.new()        # 체력 막대 위 레벨
+	lv_lbl.position = Vector2(12, 720 - 58)
+	lv_lbl.add_theme_font_size_override("font_size", 20)
+	lv_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+	lv_lbl.add_theme_constant_override("outline_size", 4)
+	layer.add_child(lv_lbl)
+	_build_pick(layer)
 	add_child(layer)
 	if bench:
 		print("BENCH start levels=", BENCH_LEVELS, " web=", OS.has_feature("web"),
@@ -224,6 +263,10 @@ func _add_multimesh(mesh: Mesh, color: Color, xforms: Array[Transform3D]) -> voi
 func _process(delta: float) -> void:
 	t += delta
 	var p2 := Vector2(player.position.x, player.position.z)
+	_shots_tick()   # 레벨업 고르기로 멈춘 동안에도 찍음
+	if choosing:
+		_pick_input()
+		return
 	if horde and not dead and not cleared:
 		if waves:
 			_apply_wave()
@@ -231,16 +274,27 @@ func _process(delta: float) -> void:
 				_win()
 		var hits: int = horde.update(delta, p2)
 		weapon.tick(delta)
+		for dp in horde.dead_pos:
+			gems.drop(dp)
+		horde.dead_pos.clear()
+		xp += gems.update(delta, p2)
+		if xp >= UpgradeTable.need(level):
+			xp -= UpgradeTable.need(level)
+			level += 1
+			_open_pick()
+		hero_hp = minf(hero_hp + regen * delta, max_hp)
 		invuln = maxf(invuln - delta, 0.0)
 		if hits > 0 and invuln <= 0.0 and not god:
-			hero_hp -= HIT_DMG
+			hero_hp -= enemy_dmg * armor
 			invuln = IFRAME
 			flash.color.a = 0.35
 			if hero_hp <= 0.0:
 				_die()
 	if flash:
 		flash.color.a = maxf(flash.color.a - delta * 1.5, 0.0)
-		hp_bar.size.x = 236.0 * maxf(hero_hp, 0.0) / HERO_HP
+		hp_bar.size.x = 236.0 * maxf(hero_hp, 0.0) / max_hp
+		xp_bar.size.x = 1280.0 * xp / UpgradeTable.need(level)
+		lv_lbl.text = "Lv %d" % level
 	if timer_lbl and waves:
 		var left := maxf(WaveTable.RUN_TIME - t, 0.0)
 		timer_lbl.text = "%d:%02d" % [int(left) / 60, int(left) % 60]
@@ -260,25 +314,124 @@ func _process(delta: float) -> void:
 		fps_acc += delta; fps_n += 1
 		if fps_acc >= 0.5:
 			fps_show = fps_n / fps_acc; fps_acc = 0.0; fps_n = 0
-		hud.text = "%s · %s   FPS %d  적 %d  처치 %d  체력 %d%s  적 갱신 %.2fms%s" % [hero.name, hero.weapon.name, fps_show, horde.count, horde.kills, maxf(hero_hp, 0.0), " (무적)" if god else "",
+		hud.text = "%s · %s   Lv %d   FPS %d  적 %d  처치 %d  체력 %d%s  적 갱신 %.2fms%s" % [hero.name, hero.weapon.name, level, fps_show, horde.count, horde.kills, maxf(hero_hp, 0.0), " (무적)" if god else "",
 			horde.last_update_us / 1000.0, ("\n" + "\n".join(b_rows)) if bench else ""]
 	if bench:
 		_bench_tick(delta)
-	if shots_dir != "" and not shot_times.is_empty() and t >= shot_times[0]:
-		shot_times.pop_front()
-		await RenderingServer.frame_post_draw
-		DirAccess.make_dir_recursive_absolute(shots_dir)
-		var path := shots_dir.path_join("shot_%d.png" % (shot_total - shot_times.size()))
-		get_viewport().get_texture().get_image().save_png(path)
-		print("SHOT ", path)
-		if shot_times.is_empty():
-			get_tree().quit()
+
+# ── 레벨업 고르기 ──
+func _build_pick(layer: CanvasLayer) -> void:
+	pick_box = VBoxContainer.new()
+	pick_box.position = Vector2(640 - 210, 200)
+	pick_box.size = Vector2(420, 0)
+	pick_box.add_theme_constant_override("separation", 12)
+	var title := Label.new()
+	title.text = "레벨 업! — 하나를 고르세요 (1 · 2 · 3)"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_outline_color", Color.BLACK)
+	title.add_theme_constant_override("outline_size", 5)
+	pick_box.add_child(title)
+	for k in 3:
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(420, 70)
+		b.add_theme_font_size_override("font_size", 20)
+		b.pressed.connect(_choose.bind(k))
+		pick_box.add_child(b)
+		pick_btns.append(b)
+	pick_box.visible = false
+	layer.add_child(pick_box)
+
+func _offers() -> Array:
+	var pool := []
+	for key in UpgradeTable.LIST:
+		var u: Dictionary = UpgradeTable.LIST[key]
+		if ups.get(key, 0) >= u.max:
+			continue
+		if u.has("only") and not (hero.weapon.type in u.only):
+			continue
+		pool.append(key)
+	pool.shuffle()
+	pool = pool.slice(0, 3)
+	if pool.is_empty():
+		pool = ["heal"]
+	return pool
+
+func _label(key: String) -> String:
+	if key == "heal":
+		return "%s — %s" % [UpgradeTable.HEAL.name, UpgradeTable.HEAL.desc]
+	var u: Dictionary = UpgradeTable.LIST[key]
+	return "%s  Lv %d\n%s" % [String(u.name).replace("{w}", hero.weapon.name), ups.get(key, 0) + 1, u.desc]
+
+func _open_pick() -> void:
+	choices = _offers()
+	if auto_pick:
+		_choose(_auto_choice())
+		return
+	choosing = true
+	pick_open_ms = Time.get_ticks_msec()
+	player.set_process(false)
+	for k in 3:
+		pick_btns[k].visible = k < choices.size()
+		if k < choices.size():
+			pick_btns[k].text = "%d.  %s" % [k + 1, _label(choices[k])]
+	pick_box.visible = true
+
+func _auto_choice() -> int:
+	## 자동(봇 · 시험): 무기 피해 → 속도 → 갑옷 → 강건 → 범위 → 나머지 순으로 좋아함.
+	var pref := ["w_dmg", "w_spd", "w_count", "gap", "hp", "w_area", "w_pierce", "mu", "gun", "sin", "magnet", "heal"]
+	var best := 0
+	for k in choices.size():
+		if pref.find(choices[k]) < pref.find(choices[best]):
+			best = k
+	return best
+
+func _pick_input() -> void:
+	if Time.get_ticks_msec() - pick_open_ms < 300:
+		return
+	for k in 3:
+		if k < choices.size() and Input.is_physical_key_pressed(KEY_1 + k):
+			_choose(k)
+			return
+
+func _choose(k: int) -> void:
+	if k >= choices.size():
+		return
+	var key: String = choices[k]
+	_apply_upgrade(key)
+	pick_log.append("%d:%s" % [level, key])
+	choosing = false
+	pick_box.visible = false
+	if not dead:
+		player.set_process(true)
+
+func _apply_upgrade(key: String) -> void:
+	if key != "heal":
+		ups[key] = ups.get(key, 0) + 1
+	match key:
+		"w_dmg": weapon.mods.dmg *= 1.25
+		"w_spd": weapon.mods.cd *= 0.87
+		"w_area":
+			weapon.mods.area *= 1.15
+			weapon.refresh_fx()
+		"w_count": weapon.mods.count += 1
+		"w_pierce": weapon.mods.pierce += 2
+		"mu": weapon.mods.dmg *= 1.10
+		"gap": armor *= 0.92
+		"sin": player.speed_mul *= 1.08
+		"gun": regen += 0.5
+		"magnet": gems.magnet *= 1.35
+		"hp":
+			max_hp += 20.0
+			hero_hp = minf(hero_hp + 20.0, max_hp)
+		"heal": hero_hp = minf(hero_hp + 30.0, max_hp)
 
 func _apply_wave() -> void:
 	var w := WaveTable.at(t)
 	horde.target = w[0]
 	horde.spawn_hp = w[1]
 	horde.speed = w[2]
+	enemy_dmg = w[3]
 	if t >= WaveTable.FINAL_AT and not final_shown and msg:   # msg는 _ready 뒤쪽에서 만듦(--start로 9분 뒤 시작할 때)
 		final_shown = true
 		msg.text = "마지막 대군!\n1분만 버티면 된다"
@@ -295,7 +448,8 @@ func _win() -> void:
 
 func _exit_tree() -> void:
 	if opts.has("stats") and horde:
-		print("STATS hero=%s t=%.1f kills=%d hp=%d attacks=%d dead=%s cleared=%s enemies=%d enemy_hp=%.1f" % [hero_id, t, horde.kills, maxf(hero_hp, 0.0), weapon.attacks, dead, cleared, horde.count, horde.spawn_hp])
+		print("STATS hero=%s t=%.1f kills=%d hp=%d attacks=%d dead=%s cleared=%s enemies=%d enemy_hp=%.1f level=%d" % [hero_id, t, horde.kills, maxf(hero_hp, 0.0), weapon.attacks, dead, cleared, horde.count, horde.spawn_hp, level])
+		print("PICKS ", " ".join(pick_log))
 
 func _die() -> void:
 	dead = true
@@ -303,6 +457,17 @@ func _die() -> void:
 	msg.text = "쓰러졌습니다\n%d초 버팀 · 처치 %d\nR — 다시" % [int(t), horde.kills]
 	msg.visible = true
 	print("DEAD t=%.1f kills=%d" % [t, horde.kills])
+
+func _shots_tick() -> void:
+	if shots_dir != "" and not shot_times.is_empty() and t >= shot_times[0]:
+		shot_times.pop_front()
+		await RenderingServer.frame_post_draw
+		DirAccess.make_dir_recursive_absolute(shots_dir)
+		var path := shots_dir.path_join("shot_%d.png" % (shot_total - shot_times.size()))
+		get_viewport().get_texture().get_image().save_png(path)
+		print("SHOT ", path)
+		if shot_times.is_empty():
+			get_tree().quit()
 
 func _bench_tick(delta: float) -> void:
 	var now := Time.get_ticks_usec()

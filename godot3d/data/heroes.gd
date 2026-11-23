@@ -12,7 +12,7 @@ const HEROES := {
 	},
 	"zhang_fei": {
 		"name": "장비", "glb": "res://assets/models/zhang_fei.glb",
-		"weapon": {"name": "장팔사모", "type": "thrust", "cd": 0.4, "dmg": 3.0, "knock": 1.1, "seek": 7.0,
+		"weapon": {"name": "장팔사모", "type": "thrust", "cd": 0.5, "dmg": 3.0, "knock": 1.1, "seek": 7.0,
 			"range": 5.2, "width": 1.4, "color": Color(0.85, 0.9, 1.0)},
 	},
 	"liu_bei": {

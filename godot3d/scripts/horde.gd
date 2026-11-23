@@ -36,6 +36,7 @@ var head := PackedInt32Array()      # 격자 칸마다 첫 적(-1 없음)
 var next := PackedInt32Array()      # 같은 칸의 다음 적
 var rng := RandomNumberGenerator.new()
 var kills := 0
+var dead_pos := PackedVector2Array()   # 이번 프레임에 쓰러진 자리
 var spawn_hp := HP          # 새로 나오는 적의 체력(D-282 시간표가 올림)
 var speed := SPEED           # 적 걷는 속도(시간표가 올림)
 var last_update_us := 0
@@ -82,6 +83,7 @@ func _damage(i: int, push: Vector2, dmg: float, knock: float, center: Vector2) -
 	atk[i] = 0.0
 	lunge[i] = 0.0
 	if hp[i] <= 0.0:
+		dead_pos.append(pos[i])   # 경험치 구슬 떨어질 자리(D-283 — main이 매 프레임 가져감)
 		_respawn(i, center)
 		kills += 1
 		return true

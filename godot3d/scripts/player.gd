@@ -4,6 +4,8 @@ extends Node3D
 
 const SPEED := 4.0
 
+var speed_mul := 1.0           # 레벨업 '신속'(D-283)
+
 var model: Node3D
 var anim: AnimationPlayer
 var auto_walk := false
@@ -44,7 +46,7 @@ func _process(delta: float) -> void:
 		if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN): dir.z += 1
 	if dir.length() > 0.01:
 		dir = dir.normalized()
-		position += dir * SPEED * delta
+		position += dir * SPEED * speed_mul * delta
 		# 가는 쪽으로 몸을 돌림(부드럽게)
 		var want := atan2(dir.x, dir.z)
 		rotation.y = lerp_angle(rotation.y, want, clampf(delta * 12.0, 0, 1))

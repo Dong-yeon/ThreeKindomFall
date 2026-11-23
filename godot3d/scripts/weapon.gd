@@ -18,6 +18,24 @@ var shots: Array = []         # fly: [{node, pos: Vector2, dir: Vector2, left: f
 var fly_mesh: Mesh
 var fly_mat: StandardMaterial3D
 var attacks := 0
+# 레벨업으로 붙는 배율 · 더하기(D-283) — 실제 값은 아래 함수로 읽음
+var mods := {"dmg": 1.0, "cd": 1.0, "area": 1.0, "count": 0, "pierce": 0}
+
+func dmg() -> float: return spec.dmg * mods.dmg
+func cooldown() -> float: return spec.cd * mods.cd
+func reach() -> float: return spec.range * mods.area
+func width() -> float: return spec.get("width", 0.0) * sqrt(mods.area)   # 찌르기 폭은 범위 강화의 절반 비율(제곱근) — 길이는 그대로 다 늚(D-283: 폭까지 다 늘면 앞을 다 쓸어 너무 셈 · 고정하면 너무 약함)
+func fly_radius() -> float: return spec.get("radius", 0.0) * mods.area
+func fly_count() -> int: return int(spec.get("count", 1)) + int(mods.count)
+func fly_pierce() -> int: return int(spec.get("pierce", 1)) + int(mods.pierce)
+
+func refresh_fx() -> void:
+	## 범위가 바뀌면 효과 모양도 다시.
+	match spec.type:
+		"sweep":
+			fx.mesh = _arc_mesh(0.7, reach(), deg_to_rad(spec.arc))
+		"thrust":
+			(fx.mesh as BoxMesh).size = Vector3(width() * 0.6, 0.05, reach())
 
 func setup(weapon_spec: Dictionary, p: Node3D, h: Node3D) -> void:
 	spec = weapon_spec
@@ -32,11 +50,11 @@ func setup(weapon_spec: Dictionary, p: Node3D, h: Node3D) -> void:
 	match spec.type:
 		"sweep":
 			fx = MeshInstance3D.new()
-			fx.mesh = _arc_mesh(0.7, spec.range, deg_to_rad(spec.arc))
+			fx.mesh = _arc_mesh(0.7, reach(), deg_to_rad(spec.arc))
 		"thrust":
 			fx = MeshInstance3D.new()
 			var bm := BoxMesh.new()
-			bm.size = Vector3(spec.width * 0.6, 0.05, spec.range)
+			bm.size = Vector3(width() * 0.6, 0.05, reach())
 			fx.mesh = bm
 		"fly":
 			var sw := BoxMesh.new()          # 날아가는 칼(납작한 막대)
@@ -84,24 +102,24 @@ func tick(delta: float) -> void:
 	var c := Vector2(player.position.x, player.position.z)
 	cd -= delta
 	if cd <= 0.0:
-		cd = spec.cd
+		cd = cooldown()
 		attacks += 1
 		match spec.type:
 			"sweep":
 				var d: Vector2 = _aim(c)[0]
-				horde.hit_arc(c, atan2(d.y, d.x), deg_to_rad(spec.arc) * 0.5, spec.range, spec.dmg, spec.knock)
+				horde.hit_arc(c, atan2(d.y, d.x), deg_to_rad(spec.arc) * 0.5, reach(), dmg(), spec.knock)
 				_show_fx(d, 0.0)
 			"thrust":
 				var d: Vector2 = _aim(c)[0]
-				horde.hit_line(c, d, spec.range, spec.width * 0.5, spec.dmg, spec.knock)
-				_show_fx(d, spec.range * 0.5)
+				horde.hit_line(c, d, reach(), width() * 0.5, dmg(), spec.knock)
+				_show_fx(d, reach() * 0.5)
 			"fly":
-				for d in _aim(c, int(spec.count)):
+				for d in _aim(c, fly_count()):
 					var n := MeshInstance3D.new()
 					n.mesh = fly_mesh
 					n.material_override = fly_mat
 					add_child(n)
-					shots.append({"node": n, "pos": c, "dir": d, "left": float(spec.range), "pierce": int(spec.pierce)})
+					shots.append({"node": n, "pos": c, "dir": d, "left": reach(), "pierce": fly_pierce()})
 	# 효과 흐려지기
 	if fx and fx.visible:
 		fx_t -= delta
@@ -114,7 +132,7 @@ func tick(delta: float) -> void:
 		var step: float = spec.speed * delta
 		s.pos += s.dir * step
 		s.left -= step
-		s.pierce -= horde.hit_circle(s.pos, spec.radius, spec.dmg, spec.knock, s.dir, s.pierce, c)
+		s.pierce -= horde.hit_circle(s.pos, fly_radius(), dmg(), spec.knock, s.dir, s.pierce, c)
 		var node: MeshInstance3D = s.node
 		node.position = Vector3(s.pos.x, 0.9, s.pos.y)
 		node.rotation.y = atan2(s.dir.x, s.dir.y)
