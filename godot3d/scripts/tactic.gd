@@ -29,7 +29,7 @@ func setup(tactic_id: String, pl: Node3D, h: Node3D) -> void:
 	mat_blade = _mat(Color("d8dce0"), false)
 	mat_blade.metallic = 0.6
 	mat_mark = _mat(Color(0.9, 0.25, 0.2, 0.5), true)
-	mat_fire = _mat(Color(1.0, 0.45, 0.1, 0.55), true)
+	mat_fire = _mat(Color(1.0, 0.72, 0.15, 0.45), true)   # 노란 주황 — 적장 예고(붉은색)와 구분(D-290)
 	mat_bolt = _mat(Color(1.0, 0.95, 0.5, 0.9), true)
 	set_level(1)
 

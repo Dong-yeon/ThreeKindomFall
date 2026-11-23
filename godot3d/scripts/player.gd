@@ -23,6 +23,7 @@ var _dash_key_was := false
 var _move_dir := Vector3.ZERO
 var has_goal := false          # 봇(D-289): 목표 자리로 가서 그 둘레를 돎(진영 정예와 싸우기)
 var goal := Vector3.ZERO
+var orbit_r := 4.0             # 목표 둘레를 도는 반지름(보스전은 main이 키움)
 var goal_direct := false       # 목표 위로 곧장(상자 줍기) — 아니면 둘레를 돎
 
 func setup_qinggong(spec: Dictionary) -> void:
@@ -100,7 +101,7 @@ func _process(delta: float) -> void:
 			if d > 6.0 or (goal_direct and d > 0.3):
 				dir = to / d
 			elif d > 0.01:   # 목표 둘레를 반지름 4쯤으로 돎
-				dir = (Vector3(-to.z, 0, to.x) / d + to / d * (d - 4.0) * 0.4).normalized()
+				dir = (Vector3(-to.z, 0, to.x) / d + to / d * (d - orbit_r) * 0.4).normalized()
 		elif _t > 0.6:
 			var a := (_t - 0.6) * 0.9
 			dir = Vector3(cos(a), 0, -sin(a))

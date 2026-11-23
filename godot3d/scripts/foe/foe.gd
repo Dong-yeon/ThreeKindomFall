@@ -207,6 +207,25 @@ func tick(delta: float, player: Vector2, dmg_mul: float) -> float:
 	dealt += out
 	return out
 
+func threatens(p: Vector2) -> bool:
+	## 지금 예고 중인 공격 범위 안에 p가 있나(봇이 피하기용, D-290).
+	if state != "wind":
+		return false
+	var me := pos2()
+	match cur.type:
+		"sweep": return p.distance_to(me) <= cur.range + 0.6
+		"charge":
+			var d := p - me
+			var along := d.dot(act_dir)
+			return along > -1.0 and along < cur.dist + 1.0 and absf(d.cross(act_dir)) < cur.width * 0.5 + 0.8
+		"circles":
+			for cp in circle_pts:
+				if p.distance_to(cp) <= cur.r + 0.3:
+					return true
+			return false
+		"ring": return p.distance_to(me) <= cur.r
+	return false
+
 func _ready_pattern(dist: float) -> int:
 	for k in patterns.size():
 		var p: Dictionary = patterns[k]

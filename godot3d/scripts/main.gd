@@ -78,6 +78,17 @@ var nei_back: ColorRect
 var kit_lbl: Label
 var stage: Node3D             # 황건적 스테이지(D-289 — 진영 · 정예 · 상자)
 var foe_dmg_total := 0.0
+# 여포 보스전(D-290)
+const ARENA_R := 14.0
+const BOSS_GUARDS := 20
+var boss_active := false
+var boss: Node3D
+var boss_t0 := 0.0
+var arena_c := Vector2.ZERO
+var boss_back: ColorRect
+var boss_bar: ColorRect
+var boss_lbl: Label
+var boss_result := ""
 var bot_react := 0.0          # 봇 경공 반응 지연 누적
 var bot_rest := 0.0           # 봇이 경공을 놓친 뒤 쉬는 시간
 var god := false
@@ -178,6 +189,20 @@ func _ready() -> void:
 		print("EVOLVE forced %s -> %s" % [UltTable.LIST[ult_id].name, UltTable.display_name(ult_id, true)])
 	if opts.has("neigong"):   # --neigong=100: 처음 내공(점검용)
 		neigong.value = float(opts["neigong"])
+	if opts.has("boss"):   # --boss: 9분대 평균쯤으로 키워서 곧바로 보스전(점검용)
+		t = WaveTable.RUN_TIME - 0.02
+		_apply_wave()
+		var keep := auto_pick
+		auto_pick = true
+		for k in int(opts.get("boss-lv", "45")) - 1:
+			level += 1
+			choices = _offers()
+			_apply_upgrade(choices[_auto_choice()])
+		auto_pick = keep
+		if ult_id == "militia":
+			allies.level = level
+			allies.add(Vector2(player.position.x, player.position.z), 30, UltTable.params("militia", evolved))
+		print("BOSSTEST lv=%d evolved=%s picks=%s" % [level, evolved, str(ups)])
 	if opts.has("tactic"):   # --tactic=orbit,rain … (쉼표로 여럿)
 		for tid in String(opts["tactic"]).split(","):
 			_apply_upgrade("t:" + tid)
@@ -246,6 +271,23 @@ func _ready() -> void:
 	lv_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
 	lv_lbl.add_theme_constant_override("outline_size", 4)
 	layer.add_child(lv_lbl)
+	boss_back = ColorRect.new()   # 보스 체력 막대(화면 위 가운데)
+	boss_back.color = Color(0, 0, 0, 0.7)
+	boss_back.position = Vector2(340, 84); boss_back.size = Vector2(600, 18)
+	layer.add_child(boss_back)
+	boss_bar = ColorRect.new()
+	boss_bar.color = Color("c82a2a")
+	boss_bar.position = Vector2(342, 86); boss_bar.size = Vector2(596, 14)
+	layer.add_child(boss_bar)
+	boss_lbl = Label.new()
+	boss_lbl.position = Vector2(340, 104); boss_lbl.size = Vector2(600, 30)
+	boss_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	boss_lbl.add_theme_font_size_override("font_size", 20)
+	boss_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+	boss_lbl.add_theme_constant_override("outline_size", 5)
+	layer.add_child(boss_lbl)
+	for n in [boss_back, boss_bar, boss_lbl]:
+		n.visible = false
 	_build_pick(layer)
 	add_child(layer)
 	if not bench and not opts.has("no-stage"):   # --no-stage: 빈 들판(예전 시험)
@@ -345,9 +387,13 @@ func _process(delta: float) -> void:
 		return
 	if horde and not dead and not cleared:
 		if waves:
-			_apply_wave()
-			if t >= WaveTable.RUN_TIME:
-				_win()
+			if not boss_active:
+				_apply_wave()
+			if t >= WaveTable.RUN_TIME and not boss_active:
+				if stage:
+					_start_boss()   # D-290: 10분을 버티면 호뢰관 여포
+				else:
+					_win()
 		var hits: float = horde.update(delta, p2)   # 찌르기 1 · 화살은 궁병 배율(D-288)
 		weapon.tick(delta)
 		for tac in tactics.values():
@@ -385,7 +431,7 @@ func _process(delta: float) -> void:
 		kit_lbl.text = "절기 %s%s\n경공 %s %s [Shift]" % [ult_txt, "  · 주화입마 %.0f초" % neigong.zhuhuo_t if neigong.zhuhuo_t > 0.0 else "", hero.qinggong.name, dots]
 	if timer_lbl and waves:
 		var left := maxf(WaveTable.RUN_TIME - t, 0.0)
-		timer_lbl.text = "%d:%02d" % [int(left) / 60, int(left) % 60]
+		timer_lbl.text = "%d:%02d" % [int(left) / 60, int(left) % 60] if not boss_active else "호뢰관"
 		timer_lbl.add_theme_color_override("font_color", Color("ff6a50") if t >= WaveTable.FINAL_AT else Color.WHITE)
 	if banner_t > 0.0:
 		banner_t -= delta
@@ -554,6 +600,15 @@ func _stage_tick(delta: float, p2: Vector2) -> void:
 	var b: Rect2 = StageYellow.BOUNDS
 	player.position.x = clampf(player.position.x, b.position.x + 0.5, b.end.x - 0.5)
 	player.position.z = clampf(player.position.z, b.position.y + 0.5, b.end.y - 0.5)
+	if boss_active:   # 목책 고리 안에 묶음 · 보스 막대
+		var off := Vector2(player.position.x, player.position.z) - arena_c
+		if off.length() > ARENA_R - 0.6:
+			off = off.normalized() * (ARENA_R - 0.6)
+			player.position.x = arena_c.x + off.x
+			player.position.z = arena_c.y + off.y
+		if boss and boss.alive:
+			boss_bar.size.x = 596.0 * boss.hp / boss.hp_max
+			boss_lbl.text = "여포%s  %d / %d" % [" — 패왕 진각!" if boss.phase2 else "", int(boss.hp), int(boss.hp_max)]
 	var fd: float = stage.tick(delta, p2, enemy_dmg / 7.8, t)
 	if fd > 0.0 and invuln <= 0.0 and player.iframe_t <= 0.0 and not god:
 		hero_hp -= fd * armor
@@ -564,6 +619,13 @@ func _stage_tick(delta: float, p2: Vector2) -> void:
 			_die()
 			return
 	# 봇: 체력이 넉넉하고 1분이 지났으면 가장 가까운 진영으로(진영 진행을 재려고)
+	if player.auto_walk and boss_active:   # 보스전 봇: 여포 둘레를 조금 멀리 돎
+		player.has_goal = boss != null and boss.alive
+		player.goal_direct = false
+		player.orbit_r = 6.5
+		if player.has_goal:
+			player.goal = boss.position
+		return
 	if player.auto_walk:
 		player.has_goal = false
 		player.goal_direct = false
@@ -653,7 +715,22 @@ func _martial_tick(delta: float, p2: Vector2) -> void:
 	# 경공: 자동 봇은 둘러싸이면 / 돌진 중 부딪힌 적 밀침(관우)
 	if player.auto_walk:   # 봇 경공(D-287 인간화): 둘러싸인 뒤 반응 지연, 가끔 놓침
 		bot_rest = maxf(bot_rest - delta, 0.0)
-		if horde.count_within(p2, MartialRules.BOT_DASH_R) >= MartialRules.BOT_DASH_N:
+		var threat := Vector2.ZERO   # 적장 예고 범위 안이면 옆으로 피함(D-290)
+		if stage:
+			for fo in stage.foes:
+				if fo.alive and fo.threatens(p2):
+					threat = (p2 - fo.pos2()).normalized()
+		if threat != Vector2.ZERO:
+			bot_react += delta
+			if bot_react >= MartialRules.BOT_REACT and bot_rest <= 0.0:
+				bot_react = 0.0
+				if randf() < MartialRules.BOT_MISS:
+					bot_rest = MartialRules.BOT_MISS_REST
+				else:
+					var side := Vector2(-threat.y, threat.x) if randf() < 0.5 else Vector2(threat.y, -threat.x)
+					var dd := (side + threat).normalized()
+					player.try_dash(Vector3(dd.x, 0, dd.y))
+		elif horde.count_within(p2, MartialRules.BOT_DASH_R) >= MartialRules.BOT_DASH_N:
 			bot_react += delta
 			if bot_react >= MartialRules.BOT_REACT and bot_rest <= 0.0:
 				bot_react = 0.0
@@ -717,10 +794,42 @@ func _apply_wave() -> void:
 		banner_t = 3.0
 		print("FINAL t=%.1f" % t)
 
+func _start_boss() -> void:
+	## 호뢰관: 남은 잡병을 흩고 장수 둘레에 목책 고리 → 여포 등장, 호위 잡병만 조금(D-290).
+	boss_active = true
+	boss_t0 = t
+	var p2 := Vector2(player.position.x, player.position.z)
+	var b: Rect2 = StageYellow.BOUNDS
+	arena_c = Vector2(clampf(p2.x, b.position.x + ARENA_R + 2, b.end.x - ARENA_R - 2), clampf(p2.y, b.position.y + ARENA_R + 2, b.end.y - ARENA_R - 2))
+	horde.scatter(p2)
+	horde.target = BOSS_GUARDS
+	horde.spawn_points = PackedVector2Array()
+	stage.boss_mode = true
+	stage.build_arena(arena_c, ARENA_R)
+	boss = preload("res://scripts/foe/foe.gd").new()
+	stage.add_child(boss)
+	boss.setup("lubu", arena_c + Vector2(0, -ARENA_R * 0.6), horde, load("res://assets/fonts/Galmuri11.ttf"))
+	boss.engaged = true
+	boss.died.connect(_on_boss_dead)
+	stage.add_foe(boss)
+	boss_back.visible = true
+	boss_bar.visible = true
+	boss_lbl.visible = true
+	_banner("호뢰관\n여포가 나타났다!", 3.0)
+	print("BOSS start t=%.1f lv=%d hp=%d" % [t, level, hero_hp])
+
+func _on_boss_dead(_fo) -> void:
+	boss_result = "win"
+	print("BOSS defeated t=%.1f dur=%.1f hp=%d" % [t, t - boss_t0, hero_hp])
+	_win()
+
 func _win() -> void:
 	cleared = true
 	player.set_process(false)
-	msg.text = "버텼습니다!\n10분 · 처치 %d\nR — 다시" % horde.kills
+	if boss_active:
+		msg.text = "여포를 물리쳤다!\n처치 %d · %d초 만에\nR — 다시" % [horde.kills, int(t - boss_t0)]
+	else:
+		msg.text = "버텼습니다!\n10분 · 처치 %d\nR — 다시" % horde.kills
 	msg.visible = true
 	print("CLEAR t=%.1f kills=%d hp=%d" % [t, horde.kills, hero_hp])
 
@@ -730,6 +839,9 @@ func _exit_tree() -> void:
 		print("PICKS ", " ".join(pick_log))
 		for tid in tactics:
 			print("TACTIC %s lv=%d fired=%d hits=%d" % [tid, tactics[tid].lv, tactics[tid].fired, tactics[tid].hits])
+		if boss_active:
+			print("BOSS result=%s dur=%.1f boss_hp=%d/%d casts=%s" % [boss_result if boss_result != "" else ("lose" if dead else "timeout"),
+				t - boss_t0, int(boss.hp) if boss else 0, int(boss.hp_max) if boss else 0, str(boss.casts) if boss else ""])
 		if stage:
 			print("STAGE camps_broken=%s foe_dmg=%.0f foes=%s" % [",".join(stage.broken_log), foe_dmg_total,
 				",".join(stage.foes.map(func(f): return "%s:%d/%d:%s" % [f.id, int(f.hp), int(f.hp_max), str(f.casts)]))])

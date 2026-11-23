@@ -11,6 +11,7 @@ var camps: Array = []         # [{spec, foe, alive, broken_t, marker: Label, che
 var font: Font
 var foes: Array = []          # 판에 있는 적장(진영 정예 + 보스)
 var broken_log: Array[String] = []
+var boss_mode := false        # 보스전 중엔 진영 표시를 끔
 
 func setup(h: Node3D, pl: Node3D, camera: Camera3D, layer: CanvasLayer, f: Font) -> void:
 	horde = h
@@ -197,6 +198,25 @@ func alive_camps() -> Array:
 			out.append(c)
 	return out
 
+func build_arena(c: Vector2, r: float) -> void:
+	## 호뢰관 목책 고리(D-290 — 2D판 일기토 울타리처럼). 장수는 main이 고리 안에 묶음.
+	var post := BoxMesh.new()
+	post.size = Vector3(0.4, 2.0, 0.4)
+	post.material = _mat(Color("5a3a24"))
+	var xs: Array[Transform3D] = []
+	for k in 56:
+		var a := TAU * k / 56.0
+		xs.append(Transform3D(Basis(), Vector3(c.x + cos(a) * r, 1.0, c.y + sin(a) * r)))
+	_multimesh(post, xs)
+	var fl := MeshInstance3D.new()   # 붉은 바닥 테
+	var tm := TorusMesh.new()
+	tm.inner_radius = r - 0.3; tm.outer_radius = r + 0.3; tm.rings = 48; tm.ring_segments = 4
+	tm.material = _mat(Color("8a2a22"))
+	fl.mesh = tm
+	fl.position = Vector3(c.x, 0.02, c.y)
+	fl.scale = Vector3(1, 0.05, 1)
+	add_child(fl)
+
 func add_foe(fo) -> void:
 	## 보스 등 진영 밖 적장(D-290).
 	foes.append(fo)
@@ -218,8 +238,8 @@ func tick(delta: float, p2: Vector2, dmg_mul: float, now: float) -> float:
 				c.chest = null
 				chest_opened.emit()
 		var lb: Label = c.marker
-		lb.visible = c.alive
-		if not c.alive:
+		lb.visible = c.alive and not boss_mode
+		if not c.alive or boss_mode:
 			continue
 		var cp: Vector2 = c.spec.pos
 		var w := Vector3(cp.x, 2.0, cp.y)

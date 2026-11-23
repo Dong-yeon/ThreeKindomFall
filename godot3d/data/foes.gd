@@ -8,6 +8,7 @@ class_name FoeTable
 ##   circles 장수 발밑 근처 원 n개(r · spread)  ring 퍼지는 고리(r 최대 · speed · width)
 ##   summon 둘레로 잡병 n명 불러옴
 ## phase2: 체력이 at 비율 아래면 speed_mul · cd_mul · patterns 추가(보스).
+## D-290 여포 맞춤: 체력 9000 · 휩쓸기 22 → 7500 · 12(시간표 피해 배율 ×2.7이 곱해져 한 번 58이던 것) — `--boss`로 잼.
 
 const LIST := {
 	"zhangbao": {"name": "장보", "glb": "res://assets/models/elite_zhangbao.glb", "hp": 700.0, "hp_time": 120.0,
@@ -28,13 +29,13 @@ const LIST := {
 			{"type": "circles", "cd": 3.2, "wind": 1.0, "dmg": 12.0, "n": 3, "r": 1.7, "spread": 2.5},
 			{"type": "ring", "cd": 6.0, "wind": 0.8, "dmg": 10.0, "r": 9.0, "speed": 9.0, "width": 0.9},
 		]},
-	"lubu": {"name": "여포", "glb": "res://assets/models/lu_bu.glb", "hp": 9000.0, "hp_time": 0.0,
+	"lubu": {"name": "여포", "glb": "res://assets/models/lu_bu.glb", "hp": 7500.0, "hp_time": 0.0,
 		"speed": 3.2, "radius": 1.0, "scale": 1.35, "knock": 0.03, "stun": 0.0, "leash": 0.0, "aggro": 99.0, "color": Color("c82a2a"),
 		"boss": true,
 		"patterns": [
-			{"type": "sweep", "cd": 2.8, "wind": 0.7, "dmg": 22.0, "range": 4.5, "arc": 200.0},
-			{"type": "charge", "cd": 5.5, "wind": 0.9, "dmg": 26.0, "dist": 14.0, "speed": 20.0, "width": 1.8},
+			{"type": "sweep", "cd": 2.8, "wind": 0.7, "dmg": 12.0, "range": 4.5, "arc": 200.0},
+			{"type": "charge", "cd": 5.5, "wind": 0.9, "dmg": 13.5, "dist": 14.0, "speed": 20.0, "width": 1.8},
 		],
 		"phase2": {"at": 0.5, "speed_mul": 1.25, "cd_mul": 0.75,
-			"patterns": [{"type": "ring", "cd": 7.0, "wind": 1.0, "dmg": 20.0, "r": 11.0, "speed": 10.0, "width": 1.0, "name": "패왕 진각"}]}},
+			"patterns": [{"type": "ring", "cd": 7.0, "wind": 1.0, "dmg": 10.5, "r": 11.0, "speed": 10.0, "width": 1.0, "name": "패왕 진각"}]}},
 }
