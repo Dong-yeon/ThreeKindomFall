@@ -30,7 +30,7 @@ const BENCH_MEASURE := 5.0     # 다음 5초를 잼
 var player: Node3D
 var horde: Node3D
 var cam: Camera3D
-var hud: Label
+var hud: Control              # scripts/ui/hud.gd(D-297)
 var weapon: Node3D
 var hero_id := "guan_yu"
 var hero: Dictionary
@@ -52,9 +52,6 @@ var choosing := false
 var choices: Array = []
 var auto_pick := false
 var pick_box: Control
-var pick_btns: Array[Button] = []
-var xp_bar: ColorRect
-var lv_lbl: Label
 var pick_log: Array[String] = []
 var tactics := {}             # 책략 id → 노드(D-284, 최대 TacticTable.MAX_SLOTS)
 var atk_mul := 1.0            # 무력 — 책략 피해에 곱함(대표 무기는 weapon.mods.dmg)
@@ -73,9 +70,6 @@ var last_hits := 0
 var last_kills := 0
 var dyn := 1.0                # 이번 프레임 공격 배율(주화입마 × 광폭)
 var curve_marks := [60.0, 180.0, 360.0, 540.0]
-var nei_bar: ColorRect
-var nei_back: ColorRect
-var kit_lbl: Label
 var stage: Node3D             # 황건적 스테이지(D-289 — 진영 · 정예 · 상자)
 var foe_dmg_total := 0.0
 # 여포 보스전(D-290)
@@ -85,9 +79,6 @@ var boss_active := false
 var boss: Node3D
 var boss_t0 := 0.0
 var arena_c := Vector2.ZERO
-var boss_back: ColorRect
-var boss_bar: ColorRect
-var boss_lbl: Label
 var boss_result := ""
 var bot_react := 0.0          # 봇 경공 반응 지연 누적
 var bot_rest := 0.0           # 봇이 경공을 놓친 뒤 쉬는 시간
@@ -97,15 +88,12 @@ var best_nohit := 0.0
 var lowhp_t := 0.0            # 체력 30% 아래로 버틴 시간(누적)
 var gems_got := 0
 var run_ended := false
+var cam_ready := false
 var god := false
 var dead := false
 var cleared := false
 var waves := true
 var final_shown := false
-var timer_lbl: Label
-var banner_t := 0.0
-var hp_bar: ColorRect
-var hp_back: ColorRect
 var flash: ColorRect
 var msg: Label
 var opts := {}
@@ -214,87 +202,12 @@ func _ready() -> void:
 		for tid in String(opts["tactic"]).split(","):
 			_apply_upgrade("t:" + tid)
 	auto_pick = opts.get("pick", "") == "auto" or ((opts.has("auto") or bench or shots_dir != "") and opts.get("pick", "") != "manual")
-	hud = Label.new()
-	hud.position = Vector2(12, 8)
-	hud.add_theme_font_size_override("font_size", 18)
-	hud.add_theme_color_override("font_outline_color", Color.BLACK)
-	hud.add_theme_constant_override("outline_size", 4)
 	var layer := CanvasLayer.new()
-	flash = ColorRect.new()   # 맞으면 화면이 잠깐 붉어짐
-	flash.color = Color(0.8, 0.05, 0.05, 0.0)
-	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
-	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(flash)
+	hud = preload("res://scripts/ui/hud.gd").new()   # 전투 HUD(D-297 — scripts/ui/hud.gd)
 	layer.add_child(hud)
-	hp_back = ColorRect.new()
-	hp_back.color = Color(0, 0, 0, 0.6)
-	# 체력 막대는 왼쪽 아래(기준 화면 1280×720)
-	hp_back.position = Vector2(12, 720 - 30); hp_back.size = Vector2(240, 14)
-	layer.add_child(hp_back)
-	hp_bar = ColorRect.new()
-	hp_bar.color = Color("d83a2a")
-	hp_bar.position = Vector2(14, 720 - 28); hp_bar.size = Vector2(236, 10)
-	layer.add_child(hp_bar)
-	msg = Label.new()
-	msg.set_anchors_preset(Control.PRESET_CENTER)
-	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	msg.add_theme_font_size_override("font_size", 32)
-	msg.add_theme_color_override("font_outline_color", Color.BLACK)
-	msg.add_theme_constant_override("outline_size", 6)
-	msg.visible = false
-	layer.add_child(msg)
-	timer_lbl = Label.new()   # 위쪽 가운데 남은 시간(기준 화면 1280×720 — 앵커를 쓰면 위치가 두 번 밀림)
-	timer_lbl.position = Vector2(640 - 60, 36)   # 맨 윗줄 HUD 글 아래
-	timer_lbl.size = Vector2(120, 40)
-	timer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	timer_lbl.add_theme_font_size_override("font_size", 30)
-	timer_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
-	timer_lbl.add_theme_constant_override("outline_size", 6)
-	timer_lbl.visible = waves
-	layer.add_child(timer_lbl)
-	var xb := ColorRect.new()   # 맨 위 경험치 막대
-	xb.color = Color(0, 0, 0, 0.5); xb.position = Vector2(0, 0); xb.size = Vector2(1280, 6)
-	layer.add_child(xb)
-	xp_bar = ColorRect.new()
-	xp_bar.color = Color("5ad0e8"); xp_bar.position = Vector2(0, 0); xp_bar.size = Vector2(0, 6)
-	layer.add_child(xp_bar)
-	nei_back = ColorRect.new()   # 체력 막대 위 내공 막대(보라 — 주화입마 때 붉게 깜빡임)
-	nei_back.color = Color(0, 0, 0, 0.6)
-	nei_back.position = Vector2(12, 720 - 46); nei_back.size = Vector2(240, 10)
-	layer.add_child(nei_back)
-	nei_bar = ColorRect.new()
-	nei_bar.color = Color("9a5ad8")
-	nei_bar.position = Vector2(14, 720 - 44); nei_bar.size = Vector2(0, 6)
-	layer.add_child(nei_bar)
-	kit_lbl = Label.new()        # 막대 오른쪽: 절기 · 경공 상태
-	kit_lbl.position = Vector2(262, 720 - 56)
-	kit_lbl.add_theme_font_size_override("font_size", 18)
-	kit_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
-	kit_lbl.add_theme_constant_override("outline_size", 4)
-	layer.add_child(kit_lbl)
-	lv_lbl = Label.new()        # 내공 막대 위 레벨
-	lv_lbl.position = Vector2(12, 720 - 74)
-	lv_lbl.add_theme_font_size_override("font_size", 20)
-	lv_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
-	lv_lbl.add_theme_constant_override("outline_size", 4)
-	layer.add_child(lv_lbl)
-	boss_back = ColorRect.new()   # 보스 체력 막대(화면 위 가운데)
-	boss_back.color = Color(0, 0, 0, 0.7)
-	boss_back.position = Vector2(340, 84); boss_back.size = Vector2(600, 18)
-	layer.add_child(boss_back)
-	boss_bar = ColorRect.new()
-	boss_bar.color = Color("c82a2a")
-	boss_bar.position = Vector2(342, 86); boss_bar.size = Vector2(596, 14)
-	layer.add_child(boss_bar)
-	boss_lbl = Label.new()
-	boss_lbl.position = Vector2(340, 104); boss_lbl.size = Vector2(600, 30)
-	boss_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	boss_lbl.add_theme_font_size_override("font_size", 20)
-	boss_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
-	boss_lbl.add_theme_constant_override("outline_size", 5)
-	layer.add_child(boss_lbl)
-	for n in [boss_back, boss_bar, boss_lbl]:
-		n.visible = false
+	hud.setup(self)
+	flash = hud.flash
+	msg = hud.msg
 	_build_pick(layer)
 	add_child(layer)
 	if not bench and not opts.has("no-stage"):   # --no-stage: 빈 들판(예전 시험)
@@ -430,27 +343,6 @@ func _process(delta: float) -> void:
 			flash.color.a = 0.35
 			if hero_hp <= 0.0:
 				_die()
-	if flash:
-		flash.color.a = maxf(flash.color.a - delta * 1.5, 0.0)
-		hp_bar.size.x = 236.0 * maxf(hero_hp, 0.0) / max_hp
-		xp_bar.size.x = 1280.0 * xp / UpgradeTable.need(level)
-		lv_lbl.text = "Lv %d" % level
-		nei_bar.size.x = 236.0 * neigong.value / MartialRules.NEIGONG_MAX
-		nei_bar.color = (Color("e84a3a") if fmod(t, 0.3) < 0.15 else Color("ffb040")) if neigong.zhuhuo_t > 0.0 else Color("9a5ad8")
-		var cost: float = UltTable.LIST[ult_id].cost
-		var ult_txt := "%s %s" % [UltTable.display_name(ult_id, evolved), "준비! [Space]" if neigong.can_spend(cost) else "%d%%" % int(100.0 * neigong.value / cost)]
-		var dots := ""
-		for k in int(player.qg.charges):
-			dots += "●" if k < player.charges else "○"
-		kit_lbl.text = "절기 %s%s\n경공 %s %s [Shift]" % [ult_txt, "  · 주화입마 %.0f초" % neigong.zhuhuo_t if neigong.zhuhuo_t > 0.0 else "", hero.qinggong.name, dots]
-	if timer_lbl and waves:
-		var left := maxf(WaveTable.RUN_TIME - t, 0.0)
-		timer_lbl.text = "%d:%02d" % [int(left) / 60, int(left) % 60] if not boss_active else "호뢰관"
-		timer_lbl.add_theme_color_override("font_color", Color("ff6a50") if t >= WaveTable.FINAL_AT else Color.WHITE)
-	if banner_t > 0.0:
-		banner_t -= delta
-		if banner_t <= 0.0 and not dead and not cleared:
-			msg.visible = false
 	if (dead or cleared) and Input.is_physical_key_pressed(KEY_R):
 		get_tree().reload_current_scene()
 		return
@@ -459,39 +351,22 @@ func _process(delta: float) -> void:
 		return
 	# 3인칭 고정 각도로 뒤 · 위에서 따라감(마우스 시점은 다음 단계)
 	var target := player.position + Vector3(0, 1.0, 0)
-	cam.position = cam.position.lerp(target + CAM_OFFSET, clampf(delta * 6.0, 0, 1)) if t > 0.05 else target + CAM_OFFSET
+	cam.position = cam.position.lerp(target + CAM_OFFSET, clampf(delta * 6.0, 0, 1)) if cam_ready else target + CAM_OFFSET   # 첫 프레임은 바로 맞춤(--start여도, D-297)
+	cam_ready = true
 	cam.look_at(target)
 	if hud:
 		fps_acc += delta; fps_n += 1
 		if fps_acc >= 0.5:
 			fps_show = fps_n / fps_acc; fps_acc = 0.0; fps_n = 0
-		hud.text = "%s · %s   Lv %d   FPS %d  적 %d  처치 %d  체력 %d%s  적 갱신 %.2fms%s" % [hero.name, hero.weapon.name, level, fps_show, horde.count, horde.kills, maxf(hero_hp, 0.0), " (무적)" if god else "",
-			horde.last_update_us / 1000.0, ("\n" + "\n".join(b_rows)) if bench else ""]
+		hud.refresh(self, delta)
 	if bench:
 		_bench_tick(delta)
 
 # ── 레벨업 고르기 ──
 func _build_pick(layer: CanvasLayer) -> void:
-	pick_box = VBoxContainer.new()
-	pick_box.position = Vector2(640 - 210, 200)
-	pick_box.size = Vector2(420, 0)
-	pick_box.add_theme_constant_override("separation", 12)
-	var title := Label.new()
-	title.text = "레벨 업! — 하나를 고르세요 (1 · 2 · 3)"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 24)
-	title.add_theme_color_override("font_outline_color", Color.BLACK)
-	title.add_theme_constant_override("outline_size", 5)
-	pick_box.add_child(title)
-	for k in 3:
-		var b := Button.new()
-		b.custom_minimum_size = Vector2(420, 70)
-		b.add_theme_font_size_override("font_size", 20)
-		b.pressed.connect(_choose.bind(k))
-		pick_box.add_child(b)
-		pick_btns.append(b)
-	pick_box.visible = false
+	pick_box = preload("res://scripts/ui/levelup.gd").new()   # 레벨업 카드(D-298 — scripts/ui/levelup.gd)
 	layer.add_child(pick_box)
+	pick_box.setup(self)
 
 func _offers() -> Array:
 	var pool := []
@@ -541,11 +416,7 @@ func _open_pick() -> void:
 	choosing = true
 	pick_open_ms = Time.get_ticks_msec()
 	player.set_process(false)
-	for k in 3:
-		pick_btns[k].visible = k < choices.size()
-		if k < choices.size():
-			pick_btns[k].text = "%d.  %s" % [k + 1, _label(choices[k])]
-	pick_box.visible = true
+	pick_box.open(choices)
 
 func _auto_choice() -> int:
 	## 자동(봇 · 시험): 무기 피해 → 속도 → 갑옷 → 강건 → 범위 → 나머지 순으로 좋아함.
@@ -631,9 +502,6 @@ func _stage_tick(delta: float, p2: Vector2) -> void:
 			off = off.normalized() * (ARENA_R - 0.6)
 			player.position.x = arena_c.x + off.x
 			player.position.z = arena_c.y + off.y
-		if boss and boss.alive:
-			boss_bar.size.x = 596.0 * boss.hp / boss.hp_max
-			boss_lbl.text = "여포%s  %d / %d" % [" — 패왕 진각!" if boss.phase2 else "", int(boss.hp), int(boss.hp_max)]
 	var fd: float = stage.tick(delta, p2, enemy_dmg / 7.8, t)
 	if fd > 0.0 and invuln <= 0.0 and player.iframe_t <= 0.0 and not god:
 		hero_hp -= fd * armor
@@ -694,10 +562,8 @@ func _have(key: String) -> int:
 	return int(ups.get(key, 0))
 
 func _banner(text: String, sec: float) -> void:
-	if msg and not dead and not cleared:
-		msg.text = text
-		msg.visible = true
-		banner_t = sec
+	if hud and not dead and not cleared:
+		hud.banner(text, sec)   # 위쪽 알림 띠(D-297)
 
 # ── 무공(D-285): 내공 · 주화입마 · 고유 심법 · 절기 · 경공 ──
 func _martial_tick(delta: float, p2: Vector2) -> void:
@@ -836,9 +702,7 @@ func _apply_wave() -> void:
 	horde.mix = EnemyTable.mix_at(t)   # 잡병 4종 비율(D-288)
 	if t >= WaveTable.FINAL_AT and not final_shown and msg:   # msg는 _ready 뒤쪽에서 만듦(--start로 9분 뒤 시작할 때)
 		final_shown = true
-		msg.text = "마지막 대군!\n1분만 버티면 된다"
-		msg.visible = true
-		banner_t = 3.0
+		_banner("마지막 대군!\n1분만 버티면 된다", 3.0)
 		print("FINAL t=%.1f" % t)
 
 func _start_boss() -> void:
@@ -859,9 +723,7 @@ func _start_boss() -> void:
 	boss.engaged = true
 	boss.died.connect(_on_boss_dead)
 	stage.add_foe(boss)
-	boss_back.visible = true
-	boss_bar.visible = true
-	boss_lbl.visible = true
+	hud.show_boss(true)
 	_banner("호뢰관\n여포가 나타났다!", 3.0)
 	print("BOSS start t=%.1f lv=%d hp=%d" % [t, level, hero_hp])
 
