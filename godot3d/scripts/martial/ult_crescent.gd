@@ -24,7 +24,7 @@ func tick(delta: float) -> bool:
 		var w: Dictionary = waves[k]
 		var step: float = p.speed * delta
 		# 이번 프레임에 지나간 구간(step 길이)을 직사각형으로 벰 — 맞음 대기(0.3초) 덕에 같은 적은 한 번
-		hits += ctx.horde.hit_line(w.pos, w.dir, step + 0.6, p.width * 0.5, p.dmg * ctx.atk_mul, p.knock)
+		hits += ctx.horde.hit_line(w.pos, w.dir, step + 0.6, p.width * 0.5, p.dmg * ctx.atk_mul, p.knock, ctx.horde.CH_ULT)
 		w.pos += w.dir * step
 		w.left -= step
 		var node: MeshInstance3D = w.node

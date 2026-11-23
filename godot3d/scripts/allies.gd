@@ -100,7 +100,7 @@ func update(delta: float, player: Vector2) -> void:
 		if cd[i] <= 0.0 and not tg.is_empty() and p.distance_to(tg[0]) <= spec.reach:
 			cd[i] = spec.cd
 			var dir := (tg[0] - p).normalized()
-			hits += horde.hit_arc(p, atan2(dir.y, dir.x), deg_to_rad(spec.arc) * 0.5, spec.reach, dmg, 0.4, true)
+			hits += horde.hit_arc(p, atan2(dir.y, dir.x), deg_to_rad(spec.arc) * 0.5, spec.reach, dmg, 0.4, horde.CH_ALLY)
 			swings += 1
 		# 붙어 있는 적에게 깎임
 		var near: int = horde.count_within(p, CONTACT_R)

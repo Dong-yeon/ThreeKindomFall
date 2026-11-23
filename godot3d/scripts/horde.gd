@@ -27,7 +27,14 @@ var pos := PackedVector2Array()     # XZ
 var phase := PackedFloat32Array()
 var face := PackedFloat32Array()
 var hp := PackedFloat32Array()
-var hit_cd := PackedFloat32Array()
+# 맞음 대기(D-287): 공격 출처(채널)마다 따로 — 같은 출처는 HIT_CD 간격, 다른 출처끼리는 막지 않음.
+# 한 배열에 [적 i × N_CH + ch]로 둠(Array 안의 Packed 배열은 값 복사라 쓰기가 번거로움).
+const CH_WEAPON := 0          # 대표 무기(시작 초식)
+const CH_ULT := 1             # 절기 · 경공 부딪힘
+const CH_ALLY := 2            # 의용군
+const CH_TACTIC := 3          # 추가 초식 — 슬롯마다 3, 4, 5
+const N_CH := 6
+var cd := PackedFloat32Array()
 var atk := PackedFloat32Array()     # 찌르기 준비 시간
 var lunge := PackedFloat32Array()   # 남은 찌르기 동작 시간(0이면 안 찌름)
 var mm: Array[MultiMesh] = []
@@ -41,7 +48,6 @@ var spawn_hp := HP          # 새로 나오는 적의 체력(D-282 시간표가 
 var speed := SPEED           # 적 걷는 속도(시간표가 올림)
 var last_update_us := 0
 var hit_count := 0          # 지금까지 맞힌 수(D-285 — main이 늘어난 만큼 내공으로)
-var ally_cd := PackedFloat32Array()   # 의용군 전용 맞음 대기(D-286 — 장수 공격과 따로: 같이 쓰면 화계 등에 막혀 의용군 휘두름의 43%가 헛침)
 var stun := PackedFloat32Array()   # 남은 기절 시간(사자후) — 기절하면 안 움직이고 안 찌름
 var stun_total := 0         # 기절시킨 수(점검용)
 
@@ -49,7 +55,7 @@ func setup(max_count: int) -> void:
 	cap = max_count
 	rng.seed = 11
 	pos.resize(cap); phase.resize(cap); face.resize(cap); next.resize(cap)
-	hp.resize(cap); hit_cd.resize(cap); atk.resize(cap); lunge.resize(cap); stun.resize(cap); ally_cd.resize(cap)
+	hp.resize(cap); atk.resize(cap); lunge.resize(cap); stun.resize(cap); cd.resize(cap * N_CH)
 	head.resize(GRID * GRID)
 	var src: Node = load(POSES_GLB).instantiate()
 	for i in FRAMES:
@@ -75,20 +81,17 @@ func _spawn_pos(center: Vector2, near := 22.0) -> Vector2:
 func _respawn(i: int, center: Vector2, near := 22.0) -> void:
 	pos[i] = _spawn_pos(center, near)   # 죽은 자리 대신 먼 고리에서 다시 나옴(수를 유지)
 	hp[i] = spawn_hp
-	hit_cd[i] = 0.0
+	for c in N_CH:
+		cd[i * N_CH + c] = 0.0
 	atk[i] = rng.randf() * ATK_WIND * 0.5   # 처음 찌르는 때를 흩어 둠
 	lunge[i] = 0.0
 	stun[i] = 0.0
-	ally_cd[i] = 0.0
 
 # ── 맞히기(D-281: 장수 무기마다 모양이 달라 판정을 나눔) ──
-func _damage(i: int, push: Vector2, dmg: float, knock: float, center: Vector2, ally := false) -> bool:
-	## 피해 · 밀려남. 죽으면 먼 고리에서 다시 나오고 true. ally면 의용군 전용 맞음 대기를 씀.
+func _damage(i: int, push: Vector2, dmg: float, knock: float, center: Vector2, ch := CH_WEAPON) -> bool:
+	## 피해 · 밀려남. 죽으면 먼 고리에서 다시 나오고 true. ch = 맞힌 출처(그 출처의 맞음 대기만 걺).
 	hp[i] -= dmg
-	if ally:
-		ally_cd[i] = HIT_CD
-	else:
-		hit_cd[i] = HIT_CD
+	cd[i * N_CH + ch] = HIT_CD
 	hit_count += 1
 	atk[i] = 0.0
 	lunge[i] = 0.0
@@ -167,13 +170,12 @@ func random_in(center: Vector2, max_r: float, n: int) -> PackedVector2Array:
 				break
 	return out
 
-func hit_arc(center: Vector2, dir: float, half: float, r_out: float, dmg: float, knock: float, ally := false) -> int:
+func hit_arc(center: Vector2, dir: float, half: float, r_out: float, dmg: float, knock: float, ch := CH_WEAPON) -> int:
 	## 휘두르기: center에서 dir(rad, XZ 평면 atan2(z, x)) ±half, 반지름 r_out 안. 밀려남은 바깥쪽으로.
-	## ally = 의용군(전용 맞음 대기).
 	var n := 0
 	var ro2 := r_out * r_out
 	for i in count:
-		if (ally_cd[i] if ally else hit_cd[i]) > 0.0:
+		if cd[i * N_CH + ch] > 0.0:
 			continue
 		var d := pos[i] - center
 		var d2 := d.length_squared()
@@ -182,14 +184,14 @@ func hit_arc(center: Vector2, dir: float, half: float, r_out: float, dmg: float,
 		if absf(angle_difference(atan2(d.y, d.x), dir)) > half:
 			continue
 		n += 1
-		_damage(i, d / sqrt(d2), dmg, knock, center, ally)
+		_damage(i, d / sqrt(d2), dmg, knock, center, ch)
 	return n
 
-func hit_line(origin: Vector2, dir: Vector2, length: float, half_w: float, dmg: float, knock: float) -> int:
+func hit_line(origin: Vector2, dir: Vector2, length: float, half_w: float, dmg: float, knock: float, ch := CH_WEAPON) -> int:
 	## 찌르기: origin에서 dir(단위) 방향 길이 length, 폭 ±half_w 직사각형. 밀려남은 찌른 방향으로.
 	var n := 0
 	for i in count:
-		if hit_cd[i] > 0.0:
+		if cd[i * N_CH + ch] > 0.0:
 			continue
 		var d := pos[i] - origin
 		var along := d.dot(dir)
@@ -198,22 +200,22 @@ func hit_line(origin: Vector2, dir: Vector2, length: float, half_w: float, dmg: 
 		if absf(d.cross(dir)) > half_w:
 			continue
 		n += 1
-		_damage(i, dir, dmg, knock, origin)
+		_damage(i, dir, dmg, knock, origin, ch)
 	return n
 
-func hit_circle(center: Vector2, r: float, dmg: float, knock: float, push_dir: Vector2, max_hits: int, respawn_center: Vector2) -> int:
+func hit_circle(center: Vector2, r: float, dmg: float, knock: float, push_dir: Vector2, max_hits: int, respawn_center: Vector2, ch := CH_WEAPON) -> int:
 	## 날아가는 것: center 반지름 r 안, 최대 max_hits명. 밀려남은 push_dir(날아가는 방향)으로.
 	var n := 0
 	var r2 := r * r
 	for i in count:
 		if n >= max_hits:
 			break
-		if hit_cd[i] > 0.0:
+		if cd[i * N_CH + ch] > 0.0:
 			continue
 		if pos[i].distance_squared_to(center) > r2:
 			continue
 		n += 1
-		_damage(i, push_dir, dmg, knock, respawn_center)
+		_damage(i, push_dir, dmg, knock, respawn_center, ch)
 	return n
 
 func update(delta: float, player: Vector2) -> int:
@@ -253,10 +255,10 @@ func update(delta: float, player: Vector2) -> int:
 		if dist > STOP_D and lunge[i] <= 0.0 and not stunned:
 			v = to / dist * speed
 		# 찌르기: 붙어 있으면 준비 → 찌름(동작 중 맞으면 피해 한 번)
-		if hit_cd[i] > 0.0:
-			hit_cd[i] -= delta
-		if ally_cd[i] > 0.0:
-			ally_cd[i] -= delta
+		for c in N_CH:
+			var k := i * N_CH + c
+			if cd[k] > 0.0:
+				cd[k] -= delta
 		if stunned:
 			pass
 		elif lunge[i] > 0.0:

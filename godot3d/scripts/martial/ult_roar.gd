@@ -7,7 +7,7 @@ var ring: MeshInstance3D
 func _start() -> void:
 	var o: Vector2 = ctx.origin
 	ctx.horde.stun_circle(o, p.r, p.stun)   # 기절이 먼저 — 밀친 뒤면 반지름 밖이라 안 걸림
-	hits = ctx.horde.hit_circle(o, p.r, p.dmg * ctx.atk_mul, 0.0, Vector2.ZERO, 9999, o)
+	hits = ctx.horde.hit_circle(o, p.r, p.dmg * ctx.atk_mul, 0.0, Vector2.ZERO, 9999, o, ctx.horde.CH_ULT)
 	ctx.horde.push_from(o, p.r, p.knock)
 	ring = MeshInstance3D.new()
 	var tm := TorusMesh.new()

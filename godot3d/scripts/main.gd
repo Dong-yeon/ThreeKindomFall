@@ -76,6 +76,8 @@ var curve_marks := [60.0, 180.0, 360.0, 540.0]
 var nei_bar: ColorRect
 var nei_back: ColorRect
 var kit_lbl: Label
+var bot_react := 0.0          # 봇 경공 반응 지연 누적
+var bot_rest := 0.0           # 봇이 경공을 놓친 뒤 쉬는 시간
 var god := false
 var dead := false
 var cleared := false
@@ -503,6 +505,7 @@ func _apply_upgrade(key: String) -> void:
 		else:
 			var tac := preload("res://scripts/tactic.gd").new()
 			add_child(tac)
+			tac.ch = horde.CH_TACTIC + tactics.size()   # 추가 초식은 슬롯마다 자기 맞음 대기(D-287)
 			tac.setup(tid, player, horde)
 			tac.atk_mul = atk_mul
 			tactics[tid] = tac
@@ -596,12 +599,22 @@ func _martial_tick(delta: float, p2: Vector2) -> void:
 				opts["dash_%d" % k] = "1"
 				player.try_dash()
 	# 경공: 자동 봇은 둘러싸이면 / 돌진 중 부딪힌 적 밀침(관우)
-	if player.auto_walk and horde.count_within(p2, MartialRules.BOT_DASH_R) >= MartialRules.BOT_DASH_N:
-		player.try_dash()
+	if player.auto_walk:   # 봇 경공(D-287 인간화): 둘러싸인 뒤 반응 지연, 가끔 놓침
+		bot_rest = maxf(bot_rest - delta, 0.0)
+		if horde.count_within(p2, MartialRules.BOT_DASH_R) >= MartialRules.BOT_DASH_N:
+			bot_react += delta
+			if bot_react >= MartialRules.BOT_REACT and bot_rest <= 0.0:
+				bot_react = 0.0
+				if randf() < MartialRules.BOT_MISS:
+					bot_rest = MartialRules.BOT_MISS_REST
+				else:
+					player.try_dash()
+		else:
+			bot_react = 0.0
 	if player.is_dashing() and hero.qinggong.has("impact"):
 		var im: Dictionary = hero.qinggong.impact
 		var dd := Vector2(player.dash_dir.x, player.dash_dir.z)
-		horde.hit_circle(p2, im.r, im.dmg * atk_mul * dyn, im.knock, dd, 99, p2)
+		horde.hit_circle(p2, im.r, im.dmg * atk_mul * dyn, im.knock, dd, 99, p2, horde.CH_ULT)
 	# 절기: Space · K(자동 봇은 내공이 차면 — --ult-hold면 안 씀)
 	var cost: float = UltTable.LIST[ult_id].cost
 	var want := false

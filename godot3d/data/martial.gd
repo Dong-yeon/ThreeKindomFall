@@ -22,3 +22,6 @@ const KEYS_ULT := [KEY_SPACE, KEY_K]
 # 자동 봇(--auto): 이 반지름 안에 적이 이만큼 있으면 경공
 const BOT_DASH_R := 1.2
 const BOT_DASH_N := 3
+const BOT_REACT := 0.25        # 둘러싸이고 이만큼 지나야 경공(D-287: 사람처럼 반응이 늦음)
+const BOT_MISS := 0.25         # 이 확률로 놓침 → BOT_MISS_REST초 동안 안 씀
+const BOT_MISS_REST := 1.0

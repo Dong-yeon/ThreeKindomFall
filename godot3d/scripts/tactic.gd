@@ -8,6 +8,7 @@ var p: Dictionary
 var player: Node3D
 var horde: Node3D
 var atk_mul := 1.0            # 무력(main이 넣음)
+var ch := 3                   # 맞음 대기 채널(D-287 — main이 슬롯마다 다르게)
 var cd := 0.5
 var fired := 0                # 발동 횟수(--stats)
 var hits := 0                 # 맞힌 적 수(--stats)
@@ -78,7 +79,7 @@ func tick(delta: float) -> void:
 				var bp: Vector2 = c + Vector2(cos(a), sin(a)) * p.r
 				blades[k].position = Vector3(bp.x, 0.8, bp.y)
 				blades[k].rotation.y = -a
-				hits += horde.hit_circle(bp, p.size, dmg, p.knock, (bp - c).normalized(), 99, c)
+				hits += horde.hit_circle(bp, p.size, dmg, p.knock, (bp - c).normalized(), 99, c, ch)
 		"rain":
 			cd -= delta
 			if cd <= 0.0:
@@ -92,7 +93,7 @@ func tick(delta: float) -> void:
 				var node: MeshInstance3D = e.node
 				(node.material_override as StandardMaterial3D).albedo_color.a = 0.25 + 0.5 * (1.0 - e.t / p.delay)
 				if e.t <= 0.0:
-					hits += horde.hit_circle(e.pos, p.r, dmg, p.knock, Vector2.ZERO, 999, c)
+					hits += horde.hit_circle(e.pos, p.r, dmg, p.knock, Vector2.ZERO, 999, c, ch)
 					node.queue_free()
 					pending.remove_at(k)
 					_flash(e.pos, 2.5, Color(0.9, 0.85, 0.6, 0.8), 0.12)
@@ -108,7 +109,7 @@ func tick(delta: float) -> void:
 			for k in range(fires.size() - 1, -1, -1):
 				var e: Dictionary = fires[k]
 				e.t -= delta
-				hits += horde.hit_circle(e.pos, p.r, dmg, p.knock, Vector2.ZERO, 999, c)   # 맞음 대기(0.3초)마다 한 번씩
+				hits += horde.hit_circle(e.pos, p.r, dmg, p.knock, Vector2.ZERO, 999, c, ch)   # 맞음 대기(0.3초)마다 한 번씩
 				var node: MeshInstance3D = e.node
 				(node.material_override as StandardMaterial3D).albedo_color.a = 0.35 + 0.2 * sin(e.t * 12.0)
 				if e.t <= 0.0:
@@ -120,7 +121,7 @@ func tick(delta: float) -> void:
 				cd = p.cd
 				fired += 1
 				for tp in horde.random_in(c, p.seek, int(p.count)):
-					hits += horde.hit_circle(tp, p.r, dmg, p.knock, Vector2.ZERO, 999, c)
+					hits += horde.hit_circle(tp, p.r, dmg, p.knock, Vector2.ZERO, 999, c, ch)
 					_flash(tp, 6.0, Color(1.0, 0.95, 0.5, 0.9), 0.15)
 	for k in range(flashes.size() - 1, -1, -1):
 		var f: Dictionary = flashes[k]
