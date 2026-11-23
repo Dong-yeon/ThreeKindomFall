@@ -1,7 +1,9 @@
 extends Node3D
 ## 3D 시제품 시험 판(D-274~281): 장수(관우 · 장비 · 유비)가 들판을 걷고, 황건적 떼가 몰려온다.
 ## 옵션 — 명령줄(`--` 뒤) 또는 웹 주소(?n=500&bench=1):
-##   --n=<수>        적 수(기본 300)
+##   (기본) 한 판 10분: 시간이 갈수록 적 수 · 체력 · 속도가 오르고 9분부터 마지막 대군, 10분 버티면 승리(data/waves.gd)
+##   --n=<수>        적 수를 고정(시간표 끔 — 무기 비교용)
+##   --start=<초>    판을 이 시각부터 시작(뒤쪽 시간대 점검)
 ##   --hero=<id>     장수(guan_yu 기본 · zhang_fei · liu_bei — 모델 · 무기는 data/heroes.gd)
 ##   --auto          자동으로 원을 그리며 걸음(창 없이 밸런스 볼 때) · --stats 끝날 때 버틴 시간 · 처치 · 체력 출력
 ##   --god           장수가 피해를 안 받음(--bench · --shots도 무적, --shots에 --hurt를 붙이면 피해 받음)
@@ -33,6 +35,11 @@ var hero_hp := HERO_HP
 var invuln := 0.0
 var god := false
 var dead := false
+var cleared := false
+var waves := true
+var final_shown := false
+var timer_lbl: Label
+var banner_t := 0.0
 var hp_bar: ColorRect
 var hp_back: ColorRect
 var flash: ColorRect
@@ -87,7 +94,12 @@ func _ready() -> void:
 	horde = preload("res://scripts/horde.gd").new()
 	add_child(horde)
 	horde.setup(BENCH_LEVELS[-1])
-	horde.target = BENCH_LEVELS[0] if bench else int(opts.get("n", "300"))
+	waves = not bench and not opts.has("n")
+	if waves:
+		t = float(opts.get("start", "0"))
+		_apply_wave()
+	else:
+		horde.target = BENCH_LEVELS[0] if bench else int(opts.get("n", "300"))
 	weapon = preload("res://scripts/weapon.gd").new()
 	add_child(weapon)
 	weapon.setup(hero.weapon, player, horde)
@@ -120,6 +132,15 @@ func _ready() -> void:
 	msg.add_theme_constant_override("outline_size", 6)
 	msg.visible = false
 	layer.add_child(msg)
+	timer_lbl = Label.new()   # 위쪽 가운데 남은 시간(기준 화면 1280×720 — 앵커를 쓰면 위치가 두 번 밀림)
+	timer_lbl.position = Vector2(640 - 60, 36)   # 맨 윗줄 HUD 글 아래
+	timer_lbl.size = Vector2(120, 40)
+	timer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	timer_lbl.add_theme_font_size_override("font_size", 30)
+	timer_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+	timer_lbl.add_theme_constant_override("outline_size", 6)
+	timer_lbl.visible = waves
+	layer.add_child(timer_lbl)
 	add_child(layer)
 	if bench:
 		print("BENCH start levels=", BENCH_LEVELS, " web=", OS.has_feature("web"),
@@ -203,7 +224,11 @@ func _add_multimesh(mesh: Mesh, color: Color, xforms: Array[Transform3D]) -> voi
 func _process(delta: float) -> void:
 	t += delta
 	var p2 := Vector2(player.position.x, player.position.z)
-	if horde and not dead:
+	if horde and not dead and not cleared:
+		if waves:
+			_apply_wave()
+			if t >= WaveTable.RUN_TIME:
+				_win()
 		var hits: int = horde.update(delta, p2)
 		weapon.tick(delta)
 		invuln = maxf(invuln - delta, 0.0)
@@ -216,7 +241,15 @@ func _process(delta: float) -> void:
 	if flash:
 		flash.color.a = maxf(flash.color.a - delta * 1.5, 0.0)
 		hp_bar.size.x = 236.0 * maxf(hero_hp, 0.0) / HERO_HP
-	if dead and Input.is_physical_key_pressed(KEY_R):
+	if timer_lbl and waves:
+		var left := maxf(WaveTable.RUN_TIME - t, 0.0)
+		timer_lbl.text = "%d:%02d" % [int(left) / 60, int(left) % 60]
+		timer_lbl.add_theme_color_override("font_color", Color("ff6a50") if t >= WaveTable.FINAL_AT else Color.WHITE)
+	if banner_t > 0.0:
+		banner_t -= delta
+		if banner_t <= 0.0 and not dead and not cleared:
+			msg.visible = false
+	if (dead or cleared) and Input.is_physical_key_pressed(KEY_R):
 		get_tree().reload_current_scene()
 		return
 	# 3인칭 고정 각도로 뒤 · 위에서 따라감(마우스 시점은 다음 단계)
@@ -241,9 +274,28 @@ func _process(delta: float) -> void:
 		if shot_times.is_empty():
 			get_tree().quit()
 
+func _apply_wave() -> void:
+	var w := WaveTable.at(t)
+	horde.target = w[0]
+	horde.spawn_hp = w[1]
+	horde.speed = w[2]
+	if t >= WaveTable.FINAL_AT and not final_shown and msg:   # msg는 _ready 뒤쪽에서 만듦(--start로 9분 뒤 시작할 때)
+		final_shown = true
+		msg.text = "마지막 대군!\n1분만 버티면 된다"
+		msg.visible = true
+		banner_t = 3.0
+		print("FINAL t=%.1f" % t)
+
+func _win() -> void:
+	cleared = true
+	player.set_process(false)
+	msg.text = "버텼습니다!\n10분 · 처치 %d\nR — 다시" % horde.kills
+	msg.visible = true
+	print("CLEAR t=%.1f kills=%d hp=%d" % [t, horde.kills, hero_hp])
+
 func _exit_tree() -> void:
 	if opts.has("stats") and horde:
-		print("STATS hero=%s t=%.1f kills=%d hp=%d attacks=%d dead=%s" % [hero_id, t, horde.kills, maxf(hero_hp, 0.0), weapon.attacks, dead])
+		print("STATS hero=%s t=%.1f kills=%d hp=%d attacks=%d dead=%s cleared=%s enemies=%d enemy_hp=%.1f" % [hero_id, t, horde.kills, maxf(hero_hp, 0.0), weapon.attacks, dead, cleared, horde.count, horde.spawn_hp])
 
 func _die() -> void:
 	dead = true

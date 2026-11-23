@@ -36,6 +36,8 @@ var head := PackedInt32Array()      # 격자 칸마다 첫 적(-1 없음)
 var next := PackedInt32Array()      # 같은 칸의 다음 적
 var rng := RandomNumberGenerator.new()
 var kills := 0
+var spawn_hp := HP          # 새로 나오는 적의 체력(D-282 시간표가 올림)
+var speed := SPEED           # 적 걷는 속도(시간표가 올림)
 var last_update_us := 0
 
 func setup(max_count: int) -> void:
@@ -67,7 +69,7 @@ func _spawn_pos(center: Vector2, near := 22.0) -> Vector2:
 
 func _respawn(i: int, center: Vector2, near := 22.0) -> void:
 	pos[i] = _spawn_pos(center, near)   # 죽은 자리 대신 먼 고리에서 다시 나옴(수를 유지)
-	hp[i] = HP
+	hp[i] = spawn_hp
 	hit_cd[i] = 0.0
 	atk[i] = rng.randf() * ATK_WIND * 0.5   # 처음 찌르는 때를 흩어 둠
 	lunge[i] = 0.0
@@ -159,7 +161,7 @@ func update(delta: float, player: Vector2) -> int:
 	## 적 이동 · 밀어내기 · 찌르기 · 그리기 버퍼. 돌려주는 값 = 이번 프레임에 장수를 찌른 수.
 	var t0 := Time.get_ticks_usec()
 	while count < mini(target, cap):
-		_respawn(count, player, 7.0 if kills == 0 else 22.0)   # 처음 무리는 가까이서 시작
+		_respawn(count, player, 12.0 if kills == 0 else 22.0)   # 처음 무리는 조금 가까이서 시작
 		phase[count] = rng.randf()
 		count += 1
 	count = mini(count, target)
@@ -187,7 +189,7 @@ func update(delta: float, player: Vector2) -> int:
 		var dist := to.length()
 		var v := Vector2.ZERO
 		if dist > STOP_D and lunge[i] <= 0.0:
-			v = to / dist * SPEED
+			v = to / dist * speed
 		# 찌르기: 붙어 있으면 준비 → 찌름(동작 중 맞으면 피해 한 번)
 		if hit_cd[i] > 0.0:
 			hit_cd[i] -= delta
