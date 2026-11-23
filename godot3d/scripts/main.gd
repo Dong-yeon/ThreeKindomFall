@@ -1,24 +1,15 @@
 extends Node3D
-## 3D 시제품 시험 판(D-274 · D-275): 관우가 들판을 걷고, 황건적 떼가 몰려온다.
+## 3D 시제품 시험 판(D-274~281): 장수(관우 · 장비 · 유비)가 들판을 걷고, 황건적 떼가 몰려온다.
 ## 옵션 — 명령줄(`--` 뒤) 또는 웹 주소(?n=500&bench=1):
 ##   --n=<수>        적 수(기본 300)
-##   --hero=<id>     장수(guan_yu 기본 · zhang_fei · liu_bei)
+##   --hero=<id>     장수(guan_yu 기본 · zhang_fei · liu_bei — 모델 · 무기는 data/heroes.gd)
+##   --auto          자동으로 원을 그리며 걸음(창 없이 밸런스 볼 때) · --stats 끝날 때 버틴 시간 · 처치 · 체력 출력
 ##   --god           장수가 피해를 안 받음(--bench · --shots도 무적, --shots에 --hurt를 붙이면 피해 받음)
 ##   --bench         성능 시험: 자동으로 걷고 적 수를 200→1000으로 올리며 단계마다 FPS · 갱신 시간을 잼, 끝나면 표를 출력
 ##   --shots=<폴더>  자동으로 원을 그리며 걷고 스크린샷 몇 장 찍은 뒤 끝냄(--shot-at=초,초…로 시각 지정)
 ##   --test          모델 · 동작 이름만 확인하고 끝냄(headless 가능)
 
 const CAM_OFFSET := Vector3(0, 7.0, 8.5)
-# 장수는 모델 파일만 바꿔 끼움(뼈 이름 · 동작이 같음) — --hero=<id> 또는 웹 ?hero=<id>, 기본 관우
-const HEROES := {
-	"guan_yu": "res://assets/models/guan_yu.glb",
-	"zhang_fei": "res://assets/models/zhang_fei.glb",
-	"liu_bei": "res://assets/models/liu_bei.glb",
-}
-const ATTACK_R := 2.4          # 회전 칼날 바깥 끝(시험용)
-const BLADE_R := 2.0           # 칼날이 도는 반지름
-const BLADE_SPIN := 5.0        # rad/초
-const BLADE_HALF_W := 0.3      # 칼날 하나가 맞히는 각도 폭(±rad)
 const HERO_HP := 100.0
 const HIT_DMG := 6.0           # 창 한 번
 const IFRAME := 0.35           # 맞은 뒤 무적 시간 — 여럿이 한꺼번에 찔러도 이 간격으로만 맞음
@@ -31,7 +22,9 @@ var player: Node3D
 var horde: Node3D
 var cam: Camera3D
 var hud: Label
-var blades: Node3D
+var weapon: Node3D
+var hero_id := "guan_yu"
+var hero: Dictionary
 var shots_dir := ""
 var shot_times := [0.4, 1.0, 1.6, 2.2, 3.0]
 var t := 0.0
@@ -44,7 +37,6 @@ var hp_bar: ColorRect
 var hp_back: ColorRect
 var flash: ColorRect
 var msg: Label
-var blade_base := PackedFloat32Array()
 var opts := {}
 # 성능 시험
 var bench := false
@@ -84,17 +76,21 @@ func _ready() -> void:
 	player = preload("res://scripts/player.gd").new()
 	player.name = "Player"
 	add_child(player)
-	player.setup(load(HEROES.get(opts.get("hero", "guan_yu"), HEROES["guan_yu"])))
-	player.auto_walk = (shots_dir != "" or bench) and not opts.has("stand")   # --stand: 자동 걷기 없이 서 있음
+	hero_id = opts.get("hero", "guan_yu")
+	hero = HeroTable.get_hero(hero_id)
+	player.setup(load(hero.glb))
+	player.auto_walk = (shots_dir != "" or bench or opts.has("auto")) and not opts.has("stand")   # --stand: 자동 걷기 없이 서 있음
 	if opts.has("test"):
-		print("TEST hero=", opts.get("hero", "guan_yu"), " anims=", player.anim_names(), " walk_loop=", player.walk_loops())
+		print("TEST hero=", hero_id, " weapon=", hero.weapon.name, "(", hero.weapon.type, ") anims=", player.anim_names(), " walk_loop=", player.walk_loops())
 		get_tree().quit()
 		return
 	horde = preload("res://scripts/horde.gd").new()
 	add_child(horde)
 	horde.setup(BENCH_LEVELS[-1])
 	horde.target = BENCH_LEVELS[0] if bench else int(opts.get("n", "300"))
-	_build_blades()
+	weapon = preload("res://scripts/weapon.gd").new()
+	add_child(weapon)
+	weapon.setup(hero.weapon, player, horde)
 	hud = Label.new()
 	hud.position = Vector2(12, 8)
 	hud.add_theme_font_size_override("font_size", 18)
@@ -128,25 +124,6 @@ func _ready() -> void:
 	if bench:
 		print("BENCH start levels=", BENCH_LEVELS, " web=", OS.has_feature("web"),
 			" renderer=", RenderingServer.get_video_adapter_name())
-
-func _build_blades() -> void:
-	# 관우 둘레를 도는 칼날 셋(회전 언월 흉내 — 처치가 눈에 보이게)
-	blades = Node3D.new()
-	add_child(blades)
-	var m := StandardMaterial3D.new()
-	m.albedo_color = Color("c8d0d8")
-	m.metallic = 0.6
-	for i in 3:
-		var mi := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = Vector3(0.9, 0.06, 0.22)
-		mi.mesh = bm
-		mi.material_override = m
-		var a := TAU * i / 3.0
-		mi.position = Vector3(cos(a) * BLADE_R, 0.8, sin(a) * BLADE_R)
-		mi.rotation.y = -a
-		blades.add_child(mi)
-		blade_base.append(a)
 
 func _build_world() -> void:
 	var env := WorldEnvironment.new()
@@ -228,13 +205,7 @@ func _process(delta: float) -> void:
 	var p2 := Vector2(player.position.x, player.position.z)
 	if horde and not dead:
 		var hits: int = horde.update(delta, p2)
-		blades.position = player.position
-		blades.rotation.y += delta * BLADE_SPIN
-		# 칼날 월드 각도(XZ 평면) = 처음 각도 − 부모 회전
-		var ang := PackedFloat32Array()
-		for a in blade_base:
-			ang.append(a - blades.rotation.y)
-		horde.blade_hits(p2, ang, BLADE_R - 0.8, ATTACK_R + 0.2, BLADE_HALF_W, 1.0)
+		weapon.tick(delta)
 		invuln = maxf(invuln - delta, 0.0)
 		if hits > 0 and invuln <= 0.0 and not god:
 			hero_hp -= HIT_DMG
@@ -256,7 +227,7 @@ func _process(delta: float) -> void:
 		fps_acc += delta; fps_n += 1
 		if fps_acc >= 0.5:
 			fps_show = fps_n / fps_acc; fps_acc = 0.0; fps_n = 0
-		hud.text = "FPS %d  적 %d  처치 %d  체력 %d%s  적 갱신 %.2fms%s" % [fps_show, horde.count, horde.kills, maxf(hero_hp, 0.0), " (무적)" if god else "",
+		hud.text = "%s · %s   FPS %d  적 %d  처치 %d  체력 %d%s  적 갱신 %.2fms%s" % [hero.name, hero.weapon.name, fps_show, horde.count, horde.kills, maxf(hero_hp, 0.0), " (무적)" if god else "",
 			horde.last_update_us / 1000.0, ("\n" + "\n".join(b_rows)) if bench else ""]
 	if bench:
 		_bench_tick(delta)
@@ -269,6 +240,10 @@ func _process(delta: float) -> void:
 		print("SHOT ", path)
 		if shot_times.is_empty():
 			get_tree().quit()
+
+func _exit_tree() -> void:
+	if opts.has("stats") and horde:
+		print("STATS hero=%s t=%.1f kills=%d hp=%d attacks=%d dead=%s" % [hero_id, t, horde.kills, maxf(hero_hp, 0.0), weapon.attacks, dead])
 
 func _die() -> void:
 	dead = true

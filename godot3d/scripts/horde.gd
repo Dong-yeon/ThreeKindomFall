@@ -1,7 +1,8 @@
 extends Node3D
 ## 적 떼(황건적): 노드 없이 배열로 들고, MultiMesh 4개(walk 4프레임 정지 메시)로 한 번에 그린다(D-275).
 ## 뼈 있는 모델은 MultiMesh로 못 그리므로, 걸음 위상에 따라 프레임 메시를 바꿔 끼운다.
-## D-276: 적 체력 · 칼날에 맞기(밀려남) · 장수에게 붙으면 창 찌르기(앞으로 튀어나옴 → 맞으면 피해).
+## D-276: 적 체력 · 맞으면 밀려남 · 장수에게 붙으면 창 찌르기(앞으로 튀어나옴 → 맞으면 피해).
+## D-281: 맞히는 모양은 무기마다(휘두르기 hit_arc · 찌르기 hit_line · 날아가는 것 hit_circle).
 
 const POSES_GLB := "res://assets/models/yellow_turban_poses.glb"
 const FRAMES := 4
@@ -11,8 +12,7 @@ const CELL := 1.0             # 공간 격자 칸(밀어내기 이웃 찾기)
 const GRID := 96              # 장수 둘레 96×96칸만 격자에 넣음(밖은 밀어내기 생략)
 const STEP_HZ := 2.0          # 걸음 주기 0.5초
 const HP := 3.0               # 칼날 세 번
-const HIT_CD := 0.3           # 같은 적이 칼날에 다시 맞기까지
-const KNOCK := 0.7            # 칼날에 맞으면 밀려나는 거리
+const HIT_CD := 0.3           # 같은 적이 다시 맞기까지(무기 둘 이상 · 꿰뚫는 칼이 같은 적을 연달아 못 때리게)
 const STOP_D := 0.9           # 장수 앞에서 멈추는 거리
 const ATK_RANGE := 1.25       # 이 안에 들면 찌를 준비
 const ATK_WIND := 0.9         # 준비(초) — 이만큼 붙어 있어야 찌름
@@ -72,36 +72,87 @@ func _respawn(i: int, center: Vector2, near := 22.0) -> void:
 	atk[i] = rng.randf() * ATK_WIND * 0.5   # 처음 찌르는 때를 흩어 둠
 	lunge[i] = 0.0
 
-func blade_hits(center: Vector2, angles: PackedFloat32Array, r_in: float, r_out: float, half_w: float, dmg: float) -> int:
-	## 회전 칼날: 장수 둘레 고리(r_in~r_out) 안에서 칼날 각도 ±half_w(rad)에 든 적이 맞음.
+# ── 맞히기(D-281: 장수 무기마다 모양이 달라 판정을 나눔) ──
+func _damage(i: int, push: Vector2, dmg: float, knock: float, center: Vector2) -> bool:
+	## 피해 · 밀려남. 죽으면 먼 고리에서 다시 나오고 true.
+	hp[i] -= dmg
+	hit_cd[i] = HIT_CD
+	atk[i] = 0.0
+	lunge[i] = 0.0
+	if hp[i] <= 0.0:
+		_respawn(i, center)
+		kills += 1
+		return true
+	pos[i] += push * knock
+	return false
+
+func nearest(center: Vector2, max_r: float, n := 1) -> PackedVector2Array:
+	## 가까운 적 n명의 자리(가까운 순). 없으면 빈 배열.
+	var best_i := PackedInt32Array()
+	var best_d := PackedFloat32Array()
+	var mr2 := max_r * max_r
+	for i in count:
+		var d2 := pos[i].distance_squared_to(center)
+		if d2 > mr2:
+			continue
+		var k := best_d.size()
+		while k > 0 and best_d[k - 1] > d2:
+			k -= 1
+		if k < n:
+			best_d.insert(k, d2); best_i.insert(k, i)
+			if best_d.size() > n:
+				best_d.resize(n); best_i.resize(n)
+	var out := PackedVector2Array()
+	for i in best_i:
+		out.append(pos[i])
+	return out
+
+func hit_arc(center: Vector2, dir: float, half: float, r_out: float, dmg: float, knock: float) -> int:
+	## 휘두르기: center에서 dir(rad, XZ 평면 atan2(z, x)) ±half, 반지름 r_out 안. 밀려남은 바깥쪽으로.
 	var n := 0
-	var ri2 := r_in * r_in
 	var ro2 := r_out * r_out
 	for i in count:
 		if hit_cd[i] > 0.0:
 			continue
 		var d := pos[i] - center
 		var d2 := d.length_squared()
-		if d2 < ri2 or d2 > ro2:
+		if d2 > ro2 or d2 < 0.0001:
 			continue
-		var a := atan2(d.y, d.x)
-		var hit := false
-		for ba in angles:
-			if absf(angle_difference(a, ba)) < half_w:
-				hit = true
-				break
-		if not hit:
+		if absf(angle_difference(atan2(d.y, d.x), dir)) > half:
 			continue
-		hp[i] -= dmg
-		hit_cd[i] = HIT_CD
-		atk[i] = 0.0
-		lunge[i] = 0.0
-		if hp[i] <= 0.0:
-			_respawn(i, center)
-			kills += 1
-			n += 1
-		else:
-			pos[i] += d / sqrt(d2) * KNOCK
+		n += 1
+		_damage(i, d / sqrt(d2), dmg, knock, center)
+	return n
+
+func hit_line(origin: Vector2, dir: Vector2, length: float, half_w: float, dmg: float, knock: float) -> int:
+	## 찌르기: origin에서 dir(단위) 방향 길이 length, 폭 ±half_w 직사각형. 밀려남은 찌른 방향으로.
+	var n := 0
+	for i in count:
+		if hit_cd[i] > 0.0:
+			continue
+		var d := pos[i] - origin
+		var along := d.dot(dir)
+		if along < 0.0 or along > length:
+			continue
+		if absf(d.cross(dir)) > half_w:
+			continue
+		n += 1
+		_damage(i, dir, dmg, knock, origin)
+	return n
+
+func hit_circle(center: Vector2, r: float, dmg: float, knock: float, push_dir: Vector2, max_hits: int, respawn_center: Vector2) -> int:
+	## 날아가는 것: center 반지름 r 안, 최대 max_hits명. 밀려남은 push_dir(날아가는 방향)으로.
+	var n := 0
+	var r2 := r * r
+	for i in count:
+		if n >= max_hits:
+			break
+		if hit_cd[i] > 0.0:
+			continue
+		if pos[i].distance_squared_to(center) > r2:
+			continue
+		n += 1
+		_damage(i, push_dir, dmg, knock, respawn_center)
 	return n
 
 func update(delta: float, player: Vector2) -> int:
