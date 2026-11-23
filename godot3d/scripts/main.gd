@@ -91,6 +91,12 @@ var boss_lbl: Label
 var boss_result := ""
 var bot_react := 0.0          # 봇 경공 반응 지연 누적
 var bot_rest := 0.0           # 봇이 경공을 놓친 뒤 쉬는 시간
+# 메타 진행(D-292): 판 기록 → Meta.end_run(과제 · 해금)
+var nohit_t := 0.0            # 지금 안 맞고 버틴 시간
+var best_nohit := 0.0
+var lowhp_t := 0.0            # 체력 30% 아래로 버틴 시간(누적)
+var gems_got := 0
+var run_ended := false
 var god := false
 var dead := false
 var cleared := false
@@ -405,7 +411,13 @@ func _process(delta: float) -> void:
 		for dp in horde.dead_pos:
 			gems.drop(dp)
 		horde.dead_pos.clear()
-		xp += gems.update(delta, p2)
+		var got: int = gems.update(delta, p2)
+		xp += got
+		gems_got += got
+		nohit_t += delta
+		best_nohit = maxf(best_nohit, nohit_t)
+		if hero_hp < max_hp * 0.3:
+			lowhp_t += delta
 		if xp >= UpgradeTable.need(level):
 			xp -= UpgradeTable.need(level)
 			level += 1
@@ -415,6 +427,7 @@ func _process(delta: float) -> void:
 		if hits > 0.0 and invuln <= 0.0 and player.iframe_t <= 0.0 and not god:
 			hero_hp -= enemy_dmg * armor * minf(hits, 1.0)
 			invuln = IFRAME
+			nohit_t = 0.0
 			flash.color.a = 0.35
 			if hero_hp <= 0.0:
 				_die()
@@ -441,6 +454,9 @@ func _process(delta: float) -> void:
 			msg.visible = false
 	if (dead or cleared) and Input.is_physical_key_pressed(KEY_R):
 		get_tree().reload_current_scene()
+		return
+	if (dead or cleared) and Input.is_physical_key_pressed(KEY_ESCAPE):   # 장수 선택으로(새로 연 장수를 고르게, D-292)
+		get_tree().change_scene_to_file("res://scenes/select.tscn")
 		return
 	# 3인칭 고정 각도로 뒤 · 위에서 따라감(마우스 시점은 다음 단계)
 	var target := player.position + Vector3(0, 1.0, 0)
@@ -486,18 +502,24 @@ func _offers() -> Array:
 			continue
 		if u.has("only") and not (hero.weapon.type in u.only):
 			continue
+		if u.kind == "stat" and not Meta.is_unlocked("simbeop", key):   # 잠긴 심법은 카드에 안 나옴(D-292)
+			continue
 		pool.append(key)
-	for tid in TacticTable.LIST:   # 책략: 가진 것은 강화(최대 레벨까지), 없는 것은 자리가 남았을 때 새로
+	for tid in TacticTable.LIST:   # 책략: 가진 것은 강화(최대 레벨까지), 없는 것은 자리가 남았을 때 새로(잠긴 것은 빼고)
 		if tactics.has(tid):
 			if tactics[tid].lv < TacticTable.MAX_LV:
 				pool.append("t:" + tid)
-		elif tactics.size() < TacticTable.MAX_SLOTS:
+		elif tactics.size() < max_slots() and Meta.is_unlocked("tactic", tid):
 			pool.append("t:" + tid)
 	pool.shuffle()
 	pool = pool.slice(0, 3)
 	if pool.is_empty():
 		pool = ["heal"]
 	return pool
+
+func max_slots() -> int:
+	## 추가 초식 칸: 기본 + 과제 해금(D-292).
+	return TacticTable.MAX_SLOTS + Meta.extra_slots()
 
 func _label(key: String) -> String:
 	if key == "heal":
@@ -616,6 +638,7 @@ func _stage_tick(delta: float, p2: Vector2) -> void:
 		hero_hp -= fd * armor
 		foe_dmg_total += fd * armor
 		invuln = IFRAME
+		nohit_t = 0.0
 		flash.color.a = 0.45
 		if hero_hp <= 0.0:
 			_die()
@@ -829,10 +852,11 @@ func _win() -> void:
 	cleared = true
 	player.set_process(false)
 	if boss_active:
-		msg.text = "여포를 물리쳤다!\n처치 %d · %d초 만에\nR — 다시" % [horde.kills, int(t - boss_t0)]
+		msg.text = "여포를 물리쳤다!\n처치 %d · %d초 만에\nR — 다시 · Esc — 장수 선택" % [horde.kills, int(t - boss_t0)]
 	else:
-		msg.text = "버텼습니다!\n10분 · 처치 %d\nR — 다시" % horde.kills
+		msg.text = "버텼습니다!\n10분 · 처치 %d\nR — 다시 · Esc — 장수 선택" % horde.kills
 	msg.visible = true
+	_end_run()
 	print("CLEAR t=%.1f kills=%d hp=%d" % [t, horde.kills, hero_hp])
 
 func _exit_tree() -> void:
@@ -857,9 +881,31 @@ func _exit_tree() -> void:
 func _die() -> void:
 	dead = true
 	player.set_process(false)
-	msg.text = "쓰러졌습니다\n%d초 버팀 · 처치 %d\nR — 다시" % [int(t), horde.kills]
+	msg.text = "쓰러졌습니다\n%d초 버팀 · 처치 %d\nR — 다시 · Esc — 장수 선택" % [int(t), horde.kills]
 	msg.visible = true
+	_end_run()
 	print("DEAD t=%.1f kills=%d" % [t, horde.kills])
+
+func _end_run() -> void:
+	## 판 결과를 메타 진행에 넘기고, 새로 깬 과제가 있으면 결과 창에 '새로 해금!'(D-292).
+	if run_ended:
+		return
+	run_ended = true
+	var elites := 0
+	if stage:
+		for fo in stage.foes:
+			if not fo.alive and fo.id != "lubu":
+				elites += 1
+	var run := {"hero": hero_id, "kills": horde.kills, "elite_kills": elites, "gems": gems_got,
+		"lubu": 1 if boss_result == "win" else 0, "cleared": cleared, "nohit": best_nohit,
+		"camps": stage.broken_log.size() if stage else 0, "lowhp": lowhp_t}
+	var fresh: Array = Meta.end_run(run)
+	print("META run=%s new=%s done=%d saving=%s" % [JSON.stringify(run), ",".join(fresh.map(func(q): return q.id)), Meta.data.done.size(), Meta.saving])
+	if not fresh.is_empty():
+		var lines := []
+		for q in fresh:
+			lines.append("%s — %s" % [q.name, Meta.reward_name(q)])
+		msg.text += "\n\n새로 해금!\n" + "\n".join(lines)
 
 func _shots_tick() -> void:
 	if shots_dir != "" and not shot_times.is_empty() and t >= shot_times[0]:

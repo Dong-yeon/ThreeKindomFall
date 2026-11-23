@@ -8,6 +8,10 @@ config/description="3D 생존형 시제품 — 관우 · 황건적 (D-274)"
 run/main_scene="res://scenes/select.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
+[autoload]
+
+Meta="*res://scripts/meta.gd"
+
 [display]
 
 window/size/viewport_width=1280

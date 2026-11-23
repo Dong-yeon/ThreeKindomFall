@@ -6,14 +6,15 @@ class_name HeroTable
 ##   role 역할 태그 · stars 난이도(★) · star_label · passive 고유 심법(id로 main이 적용) · ult 절기 id(data/ults.gd)
 ##   qinggong 경공 — type dash(돌진: dist 거리 · time 걸리는 시간) | leap(도약: + height 높이)
 ##             · iframe 무적(초) · cd 한 번 충전 시간 · charges 최대 충전 · impact(돌진 중 부딪힌 적: r · dmg · knock, 없으면 안 밀침)
+## stars(D-292): D-291 봇 측정 반영 — 장비 ★ · 관우 ★★ · 유비 ★★(다시 설계 뒤 다시 잼)
 ##   neigong 내공이 차는 배율(data/martial.gd의 기본값에 곱함) · hp 시작 최대 체력(없으면 100, D-291)
 
-const ORDER := ["zhang_fei", "guan_yu", "liu_bei"]   # 선택 화면 순서(쉬운 순)
+const ORDER := ["guan_yu", "zhang_fei", "liu_bei"]   # 선택 화면 순서 — 처음 열린 장수가 앞(D-292, 잠금은 data/unlocks.gd)
 
 const HEROES := {
 	"guan_yu": {
 		"name": "관우", "glb": "res://assets/models/guan_yu.glb",
-		"role": "광역 · 묵직", "stars": 2, "star_label": "", "hp": 160.0,   # D-291: 버티는 수단(기절 · 의용군)이 없어 체력으로(140 → 160)
+		"role": "광역 · 묵직", "stars": 2, "star_label": "기본", "hp": 160.0,   # D-291: 버티는 수단(기절 · 의용군)이 없어 체력으로(140 → 160)
 		"weapon": {"name": "청룡언월도 휩쓸기", "type": "sweep", "cd": 0.8, "dmg": 3.0, "knock": 1.3, "seek": 6.0,
 			"range": 3.4, "arc": 200.0, "color": Color(0.85, 1.0, 0.9)},
 		"passive": {"id": "wipung", "name": "위풍", "desc": "휩쓸기 범위 +15% · 밀어내기 +30%", "area": 1.15, "knock": 1.3},
@@ -34,7 +35,7 @@ const HEROES := {
 	},
 	"liu_bei": {
 		"name": "유비", "glb": "res://assets/models/liu_bei.glb",
-		"role": "소환 · 지원", "stars": 3, "star_label": "대기만성",
+		"role": "소환 · 지원", "stars": 2, "star_label": "대기만성",
 		"weapon": {"name": "쌍고검", "type": "fly", "cd": 0.65, "dmg": 1.7, "knock": 0.5, "seek": 12.0,
 			"count": 1, "speed": 15.0, "range": 11.0, "pierce": 3, "radius": 0.6, "color": Color(1.0, 0.92, 0.6)},
 		"passive": {"id": "indeok", "name": "인덕", "desc": "의용군 공격·체력 +20%(레벨마다 +16%) · 근검: 초당 회복 +0.6",
