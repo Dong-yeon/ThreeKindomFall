@@ -159,6 +159,8 @@ func _ready() -> void:
 	if opts.has("chibi") and ResourceLoader.exists(glb.replace(".glb", "_chibi.glb")):   # 큰 머리 비율 시험(D-302)
 		glb = glb.replace(".glb", "_chibi.glb")
 	player.setup(load(glb))
+	if opts.has("chibi") and player.model:   # 장수는 잡병보다 돋보이게 1.2배(D-303 시험)
+		player.model.scale = Vector3.ONE * 1.2
 	player.auto_walk = (shots_dir != "" or bench or opts.has("auto")) and not opts.has("stand")   # --stand: 자동 걷기 없이 서 있음
 	if opts.has("test"):
 		print("TEST hero=", hero_id, " weapon=", hero.weapon.name, "(", hero.weapon.type, ") anims=", player.anim_names(), " walk_loop=", player.walk_loops(),

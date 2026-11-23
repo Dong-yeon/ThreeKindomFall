@@ -147,6 +147,16 @@ b.cone(0.325, 0.325, 1.32, 1.40, MUSTARD, v=8)
 b.box(0.14, 0.10, 0.11, (0, 0.33, 1.34), MUSTARD)                     # 뒤 매듭
 b.box(0.10, 0.03, 0.42, (-0.07, 0.38, 1.10), MUSTARD, (R(12), R(-8), 0))  # 늘어진 끈
 b.box(0.10, 0.03, 0.36, ( 0.07, 0.38, 1.13), MUSTARD, (R(12), R(10), 0))
+if CHIBI and VARIANT in ("archer", "rusher", "shield"):   # D-303: 위에서 보이는 두건 꼭대기에 종류 표시(머리가 커져 몸 · 무기가 가려짐)
+    if VARIANT == "archer":    # 녹갈 두건 띠 + 깃털 하나
+        b.cone(0.33, 0.33, 1.40, 1.46, DKBRN, v=8)
+        b.box(0.04, 0.16, 0.30, (0.12, 0.10, 1.62), lp.mat("feather", "e8e0c8"), (R(-30), 0, 0))
+    elif VARIANT == "rusher":  # 붉은 머리띠 + 꼭대기 붉은 술
+        b.cone(0.33, 0.33, 1.34, 1.42, RED, v=8)
+        b.cone(0.07, 0.0, 1.55, 1.72, RED, v=5)
+    else:                      # 방패병: 녹슨 쇠 투구 테 + 정수리 쇠판
+        b.cone(0.34, 0.34, 1.30, 1.42, IRON, v=8)
+        b.box(0.30, 0.30, 0.06, (0, 0.02, 1.58), IRON)
 
 mesh = b.join("yellow_turban")
 CH = lp.Chibi(leg_top=0.50, neck=1.0) if CHIBI else None

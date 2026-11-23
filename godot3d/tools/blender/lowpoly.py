@@ -233,7 +233,7 @@ def render_check(out_dir, name, rig, action, frames, target_z=1.0, scale=3.2):
 # 다리(0 ~ LEG_TOP)는 leg배로 줄이고, 몸통(LEG_TOP ~ NECK)은 body배, 목 위 머리 뼈 조각은 목을 축으로 head배로 키움.
 # 같은 함수로 정점과 뼈 위치를 함께 옮겨서 뼈대가 그대로 맞음.
 class Chibi:
-    def __init__(self, leg_top=0.62, neck=1.45, leg=0.6, body=0.75, head=1.55, weapon=0.8):
+    def __init__(self, leg_top=0.62, neck=1.45, leg=0.6, body=0.75, head=1.3, weapon=0.8):   # head 1.55 → 1.3(D-303: 약 2.2등신)
         self.leg_top, self.neck = leg_top, neck
         self.leg, self.body, self.head, self.weapon = leg, body, head, weapon
         self.neck2 = leg_top * leg + (neck - leg_top) * body   # 바뀐 목 높이
