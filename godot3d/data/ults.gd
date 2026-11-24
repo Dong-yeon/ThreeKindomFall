@@ -9,12 +9,13 @@ const LIST := {
 		"base": {"dmg": 30.0, "knock": 2.5, "width": 2.6, "length": 15.0, "speed": 24.0, "count": 1, "fan": 0.35},
 		"evolve": {"name": "청룡파천", "chosik": [["w_dmg", 3], ["t:orbit", 3]], "simbeop": ["mu", 2],
 			"mul": {"dmg": 2.0, "width": 1.5, "count": 3}}},
-	"dragon": {"name": "청룡강림", "script": "res://scripts/martial/ult_dragon.gd", "cost": 100.0,   # D-333 관우: 하늘에서 청룡이 앞 직선으로 내리꽂혀 땅을 훑음
+	"dragon": {"name": "청룡강림", "script": "res://scripts/martial/ult_dragon.gd", "cost": 100.0,   # D-333 관우: 하늘에서 청룡이 앞 직선으로 내리꽂혀 땅을 훑음 · 모델 qinglong.glb(D-335)
 		"base": {"dmg": 34.0, "knock": 2.8, "width": 3.4, "length": 16.0, "speed": 26.0, "land_r": 3.4, "land_dmg": 20.0,
-			"orbit_dur": 0.0, "orbit_r": 3.6, "orbit_dmg": 10.0, "orbit_spin": 1.6},
-		# 오의 청룡파천: 내리꽂힌 청룡이 장수 둘레를 orbit_dur초 감아 돌며 닿는 적을 벰(재료는 언월참 때와 같음)
+			"spiral": 0.0, "drop": 0.3, "spiral_time": 2.0, "spiral_turns": 1.5, "spiral_r": 4.8, "spiral_hit_r": 8.4, "spiral_dmg": 24.0, "swirl": 0.8},
+		# 오의 청룡파천(D-335 연출 명세): 장수 자리로 수직 낙하 → 포효 · 화면 흔들림 → 둘레를 아래에서 위로 1.5바퀴 감아 돎 → 솟구쳐 사라짐.
+		#   spiral_r 고리 반지름(관우 키 2.4 × 2) · spiral_hit_r 밀치는 반지름(× 3.5) · swirl 도는 쪽으로 밀치는 비율. 재료는 언월참 때와 같음
 		"evolve": {"name": "청룡파천", "chosik": [["w_dmg", 3], ["t:orbit", 3]], "simbeop": ["mu", 2],
-			"mul": {"dmg": 1.5, "land_dmg": 1.5}, "add": {"orbit_dur": 5.0}}},
+			"mul": {"land_dmg": 1.5}, "add": {"spiral": 1.0}}},
 	"roar": {"name": "사자후", "script": "res://scripts/martial/ult_roar.gd", "cost": 100.0,
 		"base": {"dmg": 8.0, "knock": 5.0, "r": 6.0, "stun": 2.0, "time": 0.4},
 		"evolve": {"name": "장판교 호령", "chosik": [["w_spd", 3], ["t:fire", 2]], "simbeop": ["gap", 2],

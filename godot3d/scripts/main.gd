@@ -19,7 +19,10 @@ extends Node3D
 ##   --test          모델 · 동작 이름만 확인하고 끝냄(headless 가능)
 
 const CAM_OFFSET := Vector3(0, 13.0, 12.0)   # D-306: 7 · 8.5 · 55° → 13 · 12 · 50°(둘레 무리 · 예고가 보이게)
-var cam_offset := CAM_OFFSET   # 점검 --cam=높이,뒤,화각(D-301 카메라 비교)
+var cam_offset := CAM_OFFSET
+var shake_t := 0.0            # 화면 흔들림 남은 시간(청룡파천 착지, D-335)
+var shake_len := 1.0
+var shake_amp := 0.0   # 점검 --cam=높이,뒤,화각(D-301 카메라 비교)
 const HERO_HP := 100.0          # 시작 최대 체력(레벨업 '강건'이 늘림)
 const HIT_DMG := 6.0           # 창 한 번(시간표가 없을 때 — 있으면 data/waves.gd의 찌르기 피해)
 const IFRAME := 0.35           # 맞은 뒤 무적 시간 — 여럿이 한꺼번에 찔러도 이 간격으로만 맞음
@@ -387,6 +390,10 @@ func _process(delta: float) -> void:
 	cam.position = cam.position.lerp(target + cam_offset, clampf(delta * 6.0, 0, 1)) if cam_ready else target + cam_offset   # 첫 프레임은 바로 맞춤(--start여도, D-297)
 	cam_ready = true
 	cam.look_at(target)
+	if shake_t > 0.0:
+		shake_t -= delta
+		var k := shake_amp * clampf(shake_t / shake_len, 0.0, 1.0)
+		cam.position += Vector3(randf_range(-k, k), randf_range(-k, k), randf_range(-k, k))
 	if hud:
 		fps_acc += delta; fps_n += 1
 		if fps_acc >= 0.5:
@@ -718,6 +725,12 @@ func _blink_fx(at: Vector2) -> void:
 	ps.emitting = true
 	get_tree().create_timer(1.0).timeout.connect(ps.queue_free)
 
+func shake(amp: float, sec: float) -> void:
+	## 화면 흔들림(절기가 ctx.shake로 부름).
+	shake_amp = maxf(shake_amp if shake_t > 0.0 else 0.0, amp)
+	shake_t = maxf(shake_t, sec)
+	shake_len = maxf(sec, 0.01)
+
 func _land_fx(at: Vector2, r: float) -> void:
 	## 용약 내려앉는 자리: 바닥에 퍼지는 고리 + 흙먼지.
 	var ring := MeshInstance3D.new()
@@ -744,7 +757,7 @@ func cast_ult(id: String, origin: Vector2, facing: Vector2, is_evolved: bool) ->
 	var u: Ult = UltTable.make(id)
 	add_child(u)
 	u.cast({"origin": origin, "facing": facing.normalized() if facing.length() > 0.01 else Vector2(0, 1),
-		"horde": horde, "atk_mul": atk_mul * dyn, "evolved": is_evolved, "level": level, "anchor": player,
+		"horde": horde, "atk_mul": atk_mul * dyn, "evolved": is_evolved, "level": level, "anchor": player, "shake": shake,
 		"weather": passive_mod.weather() if passive_mod and passive_mod.has_method("weather") else "",
 		"spec": UltTable.params(id, is_evolved)})
 	active_ults.append(u)

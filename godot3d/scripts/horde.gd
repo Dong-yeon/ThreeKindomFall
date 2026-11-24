@@ -288,6 +288,33 @@ func hit_arc(center: Vector2, dir: float, half: float, r_out: float, dmg: float,
 				n += 1
 	return n
 
+func hit_swirl(center: Vector2, dir: float, half: float, r_out: float, dmg: float, knock: float, swirl: float, ch := CH_ULT) -> int:
+	## 소용돌이 휩쓸기(청룡파천, D-335): hit_arc와 같은 부채꼴인데 밀려남이 바깥 + 도는 쪽(swirl — 부호가 도는 방향).
+	var n := 0
+	var ro2 := r_out * r_out
+	for i in count:
+		if cd[i * N_CH + ch] > 0.0:
+			continue
+		var d := pos[i] - center
+		var d2 := d.length_squared()
+		if d2 > ro2 or d2 < 0.0001:
+			continue
+		if absf(angle_difference(atan2(d.y, d.x), dir)) > half:
+			continue
+		var out := d / sqrt(d2)
+		n += 1
+		_damage(i, (out + Vector2(-out.y, out.x) * swirl).normalized(), dmg, knock, center, ch)
+	for tg in targets:
+		if not tg.alive:
+			continue
+		var d: Vector2 = tg.pos2() - center
+		if d.length() <= r_out + tg.radius and absf(angle_difference(atan2(d.y, d.x), dir)) <= half + 0.3:
+			var out := d.normalized()
+			if tg.hurt(dmg, (out + Vector2(-out.y, out.x) * swirl).normalized(), knock, ch):
+				hit_count += 1
+				n += 1
+	return n
+
 func hit_line(origin: Vector2, dir: Vector2, length: float, half_w: float, dmg: float, knock: float, ch := CH_WEAPON) -> int:
 	## 찌르기: origin에서 dir(단위) 방향 길이 length, 폭 ±half_w 직사각형. 밀려남은 찌른 방향으로.
 	var n := 0
