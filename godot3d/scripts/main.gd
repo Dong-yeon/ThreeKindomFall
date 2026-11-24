@@ -14,7 +14,8 @@ extends Node3D
 ##   --hero=<id>     장수(guan_yu 기본 · zhang_fei · liu_bei — 모델 · 무기는 data/heroes.gd)
 ##   --auto          자동으로 원을 그리며 걸음(창 없이 밸런스 볼 때) · --stats 끝날 때 버틴 시간 · 처치 · 체력 출력
 ##   --god           장수가 피해를 안 받음(--bench · --shots도 무적, --shots에 --hurt를 붙이면 피해 받음)
-##   --bench         성능 시험: 자동으로 걷고 적 수를 200→1000으로 올리며 단계마다 FPS · 갱신 시간을 잼, 끝나면 표를 출력
+##   --bench         성능 시험: 자동으로 걷고 적 수를 200→1000으로 올리며 단계마다 FPS · 갱신 시간 · 삼각형을 잼, 끝나면 표를 출력
+##                   (--bench-levels=0,200,1000처럼 단계를 바꿈 — 0은 적 없이 장수만)
 ##   --shots=<폴더>  자동으로 원을 그리며 걷고 스크린샷 몇 장 찍은 뒤 끝냄(--shot-at=초,초…로 시각 지정)
 ##   --test          모델 · 동작 이름만 확인하고 끝냄(headless 가능)
 
@@ -28,6 +29,7 @@ const HIT_DMG := 6.0           # 창 한 번(시간표가 없을 때 — 있으�
 const IFRAME := 0.35           # 맞은 뒤 무적 시간 — 여럿이 한꺼번에 찔러도 이 간격으로만 맞음
 const PROPS := 300            # 바위 · 나무 수(묶어 그리므로 늘려도 그리기 호출은 그대로)
 const BENCH_LEVELS := [200, 400, 600, 800, 1000]
+var bench_levels: Array = BENCH_LEVELS   # --bench-levels=0,200,…로 바꿈(0 = 적 없이 장수만, D-337) — 1000을 넘지 않게
 const BENCH_SETTLE := 2.0      # 단계마다 처음 2초는 버리고
 const BENCH_MEASURE := 5.0     # 다음 5초를 잼
 
@@ -141,6 +143,10 @@ func _ready() -> void:
 			shot_times.append(float(x))
 	shot_total = shot_times.size()
 	bench = opts.has("bench")
+	if opts.has("bench-levels"):
+		bench_levels = []
+		for x in String(opts["bench-levels"]).split(","):
+			bench_levels.append(clampi(int(x), 0, BENCH_LEVELS[-1]))
 	god = opts.has("god") or bench or (shots_dir != "" and not opts.has("hurt"))
 	_build_world()
 	if opts.has("cam"):
@@ -160,6 +166,8 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 	player.setup(load(hero.glb))
+	if hero.has("toon") and player.model:   # 툰 재질(D-337 — 장수 데이터 "toon" = rim 세기)
+		print("TOON hero=%s materials=%d rim=%.2f" % [hero_id, Toon.apply(player.model, float(hero.toon)), float(hero.toon)])
 	if player.model:   # 장수 모델 크기(데이터 — 큰 머리 그림체에서 잡병보다 돋보이게 기본 1.2배, D-307)
 		player.model.scale = Vector3.ONE * float(hero.get("scale", HeroTable.MODEL_SCALE))
 	player.auto_walk = (shots_dir != "" or bench or opts.has("auto")) and not opts.has("stand")   # --stand: 자동 걷기 없이 서 있음
@@ -176,7 +184,7 @@ func _ready() -> void:
 		t = float(opts.get("start", "0"))
 		_apply_wave()
 	else:
-		horde.target = BENCH_LEVELS[0] if bench else int(opts.get("n", "300"))
+		horde.target = bench_levels[0] if bench else int(opts.get("n", "300"))
 	weapon = preload("res://scripts/weapon.gd").new()
 	add_child(weapon)
 	weapon.setup(hero.weapon, player, horde)
@@ -236,7 +244,7 @@ func _ready() -> void:
 		stage.setup(horde, player, cam, layer, load("res://assets/fonts/Galmuri11.ttf"))
 		stage.chest_opened.connect(_on_chest)
 	if bench:
-		print("BENCH start levels=", BENCH_LEVELS, " web=", OS.has_feature("web"),
+		print("BENCH start levels=", bench_levels, " web=", OS.has_feature("web"),
 			" renderer=", RenderingServer.get_video_adapter_name())
 
 func _build_world() -> void:
@@ -911,7 +919,7 @@ func _bench_tick(delta: float) -> void:
 	var now := Time.get_ticks_usec()
 	var real_ms := (now - last_us) / 1000.0 if last_us > 0 else delta * 1000.0
 	last_us = now
-	if b_level >= BENCH_LEVELS.size():
+	if b_level >= bench_levels.size():
 		return
 	b_t += delta
 	if b_t > BENCH_SETTLE:
@@ -927,16 +935,17 @@ func _bench_tick(delta: float) -> void:
 		var umax := 0.0
 		for v in b_upd: ua += v; umax = maxf(umax, v)
 		ua /= maxf(b_upd.size(), 1)
-		var row := "적 %4d | 평균 %5.1f FPS (%.1fms) | 느린 1%% %.1fms | 적 갱신 평균 %.2fms · 최대 %.2fms | 그리기 호출 %d" % [
-			BENCH_LEVELS[b_level], 1000.0 / maxf(avg, 0.001), avg, p99, ua, umax,
-			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)]
+		var row := "적 %4d | 평균 %5.1f FPS (%.1fms) | 느린 1%% %.1fms | 적 갱신 평균 %.2fms · 최대 %.2fms | 그리기 호출 %d | 삼각형 %d" % [
+			bench_levels[b_level], 1000.0 / maxf(avg, 0.001), avg, p99, ua, umax,
+			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+			Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)]
 		print("BENCH ", row)
 		b_rows.append(row)
 		b_level += 1
 		b_t = 0.0
 		b_frames.clear(); b_upd.clear()
-		if b_level < BENCH_LEVELS.size():
-			horde.target = BENCH_LEVELS[b_level]
+		if b_level < bench_levels.size():
+			horde.target = bench_levels[b_level]
 		else:
 			print("BENCH done")
 			if OS.has_feature("web"):

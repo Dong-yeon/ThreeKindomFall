@@ -15,7 +15,7 @@ const ORDER := ["guan_yu", "zhuge_liang"]   # D-331: 당분간 관우 · 제갈�
 
 const HEROES := {
 	"guan_yu": {
-		"name": "관우", "glb": "res://assets/models/guan_yu.glb",
+		"name": "관우", "glb": "res://assets/models/guan_yu_cute.glb", "toon": 0.4,   # D-337: 귀여움 실험 모델(D-336 · 2차) + 툰 재질(rim 0.4, scripts/toon.gd) — 되돌리려면 guan_yu.glb · toon 지움
 		"role": "근거리 · 청룡", "stars": 2, "star_label": "기본", "hp": 160.0,   # D-291: 버티는 수단(기절 · 의용군)이 없어 체력으로(140 → 160)
 		"weapon": {"name": "청룡언월도 휩쓸기", "type": "sweep", "cd": 0.8, "dmg": 3.0, "knock": 1.3, "seek": 6.0,
 			"range": 3.4, "arc": 200.0, "color": Color(0.85, 1.0, 0.9)},

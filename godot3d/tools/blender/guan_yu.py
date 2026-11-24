@@ -95,36 +95,58 @@ for side in (-1, 1):
     b.box(0.06, 0.10, 0.40, (0.31 * side, 0.06, 1.10), BLACK)         # 양옆 긴 머리(귀 뒤)
     b.box(0.07, 0.10, 0.20, (0.28 * side, -0.14, 1.15), BLACK)        # 구레나룻
 b.box(0.06, 0.05, 0.07, (0, -0.335, 1.24), FACE)                      # 코
-beard = b.cone(0.05, 0.36, 0.56, 1.16, BLACK, y=-0.25, v=10, rot=(R(-8), 0, 0))   # 배까지 오는 넓은 수염(아래가 뾰족)
-beard.scale = (1.0, 0.6, 1.0)
-for side in (-1, 1):
-    b.box(0.10, 0.14, 0.18, (0.25 * side, -0.18, 1.06), BLACK)        # 턱선 수염(구레나룻과 이어짐)
-b.box(0.30, 0.06, 0.05, (0, -0.33, 1.17), BLACK)                      # 콧수염
+if CUTE:   # 2차(D-337): 수염은 입 아래 ~ 가슴(길이 2/3) · 끝 둥글게 · 짙은 갈색빛 검정 / 콧수염은 따로 작게 둘(입 위)
+    BEARD = lp.mat("beard", "2b211e")
+    beard = b.cone(0.10, 0.30, 0.72, 1.10, BEARD, y=-0.25, v=10, rot=(R(-8), 0, 0))
+    beard.scale = (1.0, 0.6, 1.0)
+    b.ball(0.12, (0, -0.255, 0.74), BEARD, 2, (1.0, 0.6, 0.8))           # 둥근 수염 끝
+    for side in (-1, 1):
+        b.box(0.10, 0.14, 0.18, (0.25 * side, -0.18, 1.06), BEARD)    # 턱선 수염(구레나룻과 이어짐)
+        b.box(0.11, 0.04, 0.035, (0.06 * side, -0.335, 1.178), BEARD, (0, R(14 * side), 0))   # 작은 콧수염(바깥으로 처짐)
+else:
+    beard = b.cone(0.05, 0.36, 0.56, 1.16, BLACK, y=-0.25, v=10, rot=(R(-8), 0, 0))   # 배까지 오는 넓은 수염(아래가 뾰족)
+    beard.scale = (1.0, 0.6, 1.0)
+    for side in (-1, 1):
+        b.box(0.10, 0.14, 0.18, (0.25 * side, -0.18, 1.06), BLACK)        # 턱선 수염(구레나룻과 이어짐)
+    b.box(0.30, 0.06, 0.05, (0, -0.33, 1.17), BLACK)                      # 콧수염
 b.box(0.56, 0.16, 0.26, (0, 0.16, 1.14), BLACK)                       # 뒷머리(두건 뒷천에 가려짐)
 # 두건: 이마 띠 → 아래 봉긋 → 위 봉긋(두 겹) · 앞 금 장식 · 뒤 매듭 + 두 끈
-b.cone(0.36, 0.355, 1.42, 1.56, GREEN, v=12)
-b.ball(0.34, (0, 0.02, 1.58), GREEN, 2, (1.0, 1.0, 0.65))
-b.ball(0.27, (0, 0.06, 1.76), GREEN, 2, (1.0, 1.0, 0.75))
-b.box(0.11, 0.04, 0.08, (0, -0.355, 1.50), GOLD, (0, R(45), 0))
-b.box(0.16, 0.10, 0.10, (0, 0.36, 1.48), DKGRN)                      # 뒤 매듭
+TU = 0.06 if CUTE else 0.0   # 2차(D-337): 두건 아래 가장자리를 눈썹 위로 올려 얼굴을 넓게
+b.cone(0.36, 0.355, 1.42 + TU, 1.56 + TU, GREEN, v=12)
+b.ball(0.34, (0, 0.02, 1.58 + TU), GREEN, 2, (1.0, 1.0, 0.65))
+b.ball(0.27, (0, 0.06, 1.76 + TU), GREEN, 2, (1.0, 1.0, 0.75))
+b.box(0.11, 0.04, 0.08, (0, -0.355, 1.50 + TU), GOLD, (0, R(45), 0))
+b.box(0.16, 0.10, 0.10, (0, 0.36, 1.48 + TU), DKGRN)                      # 뒤 매듭
 for side in (-1, 1):
-    b.box(0.07, 0.03, 0.30, (0.05 * side, 0.40, 1.30), DKGRN, (R(8), R(12 * side), 0))
+    b.box(0.07, 0.03, 0.30, (0.05 * side, 0.40, 1.30 + TU), DKGRN, (R(8), R(12 * side), 0))
 
 if CUTE:
     import bpy
-    CREASE = float(next((f.split("=", 1)[1] for f in FLAGS if f.startswith("--crease=")), "0.6"))
-    for o, _ in b.parts:   # 모든 조각: 매끈하게(Subdivision Surface 2단계) — 합칠 때 적용됨
-        # 받침 모서리 없는 저폴리 조각은 그냥 나누면 녹아내림(자루가 실처럼 · 몸통 조각 사이가 벌어짐) → 모든 모서리에 크리스를 줘 부피를 지킴
-        at = o.data.attributes.get("crease_edge") or o.data.attributes.new("crease_edge", "FLOAT", "EDGE")
-        at.data.foreach_set("value", [CREASE] * len(o.data.edges))
+    # 모든 조각: 매끈하게(Subdivision Surface 2단계) — 합칠 때 적용됨
+    # 받침 모서리 없는 저폴리 조각은 그냥 나누면 녹아내림(자루가 실처럼 · 몸통 조각 사이가 벌어짐) → 크리스로 부피를 지킴.
+    # 2차(D-337): 1차의 '모든 모서리 0.6'은 몸이 각져 보여서 조각 종류마다 — 원기둥은 옆 모서리 0(둥근 관) · 위아래 테 CAP,
+    #   상자는 BOX(둥근 베개), 칼날 같은 판(두께 준 다각형)은 PLATE, 공은 0.
+    CAP, BOX, PLATE = 0.8, 0.25, 0.6
+    for o, _ in b.parts:
+        me = o.data
+        if o.name.startswith("Cone"):
+            vals = [0.0 if abs(me.vertices[e.vertices[0]].co.z - me.vertices[e.vertices[1]].co.z) > 1e-5 else CAP for e in me.edges]
+        elif o.name.startswith("Cube"):
+            vals = [BOX] * len(me.edges)
+        elif o.name.startswith("poly"):
+            vals = [PLATE] * len(me.edges)
+        else:
+            vals = [0.0] * len(me.edges)
+        at = me.attributes.get("crease_edge") or me.attributes.new("crease_edge", "FLOAT", "EDGE")
+        at.data.foreach_set("value", vals)
         for md in o.modifiers:
             if md.type == "SOLIDIFY":
-                md.edge_crease_inner = md.edge_crease_outer = md.edge_crease_rim = CREASE
+                md.edge_crease_inner = md.edge_crease_outer = md.edge_crease_rim = PLATE
         md = o.modifiers.new("subd", "SUBSURF")
         md.levels = md.render_levels = 2
     # 얼굴 데칼: 머리 앞 격자 평면(설정화 픽셀 0.00213m — 두 눈 사이 0.26) → 얼굴 공(매끈하게 한 뒤) 곡면에 Shrinkwrap(앞뒤로 투영)
     PNG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "assets", "textures", "face_guanyu_default.png")
-    DW, DH, DTOP = 0.464, 0.332, 1.425   # 데칼 폭 · 높이 · 위끝(눈 줄 z ≈ 1.29, 눈썹은 두건 띠 1.42 아래)
+    DW, DH, DTOP = 0.464, 0.366, 1.477   # 데칼 폭 · 높이 · 위끝(2차: 눈 줄 z ≈ 1.29 · 눈썹 1.36 ~ 1.46 — 올린 두건 띠 1.48 아래 · 입 z ≈ 1.14)
     bpy.ops.mesh.primitive_grid_add(x_subdivisions=24, y_subdivisions=18, size=1, calc_uvs=True,
                                     location=(0, -0.60, DTOP - DH / 2), rotation=(R(90), 0, 0))
     decal = bpy.context.object

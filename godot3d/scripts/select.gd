@@ -115,6 +115,8 @@ func _card(k: int, pos: Vector2) -> void:
 	if ap and ap.has_animation("idle"):
 		ap.get_animation("idle").loop_mode = Animation.LOOP_LINEAR
 		ap.play("idle")
+	if open and h.has("toon"):   # 툰 재질(D-337)
+		Toon.apply(model, float(h.toon))
 	if not open:
 		_silhouette(model)
 	var cam := Camera3D.new()
