@@ -114,10 +114,15 @@ else:
 b.box(0.56, 0.16, 0.26, (0, 0.16, 1.14), BLACK)                       # 뒷머리(두건 뒷천에 가려짐)
 # 두건: 이마 띠 → 아래 봉긋 → 위 봉긋(두 겹) · 앞 금 장식 · 뒤 매듭 + 두 끈
 if CUTE:   # 3차(D-339): 두건이 머리를 감쌈 — 아래 가장자리는 눈썹 바로 위(1.46), 귀 뒤 옆 천 · 뒷머리를 덮고 등으로 늘어지는 뒤 천
-    b.cone(0.372, 0.365, 1.46, 1.60, GREEN, v=14)                        # 이마를 감는 띠(얼굴보다 넓게)
-    b.ball(0.37, (0, 0.03, 1.60), GREEN, 2, (1.0, 1.0, 0.62))            # 머리 윗부분을 덮는 둥근 천
-    b.ball(0.27, (0, 0.07, 1.80), GREEN, 2, (1.0, 1.0, 0.70))            # 위 봉긋(두 겹)
-    b.box(0.11, 0.04, 0.08, (0, -0.37, 1.53), GOLD, (0, R(45), 0))     # 앞 금 장식
+    # 4차(D-340): 폭은 얼굴 공(r 0.34) + 5% 이내(0.355), 아래로 내려 이마를 살짝 파고듦(아래 끝 반지름을 그 높이 얼굴 단면에 맞춤 — 틈 없이),
+    #   띠 위끝과 둥근 천을 같은 반지름 · 같은 높이로 맞추고 그 테의 크리스를 빼 한 덩어리로
+    band = b.cone(0.315, 0.355, 1.435, 1.58, GREEN, v=14)               # 이마를 감는 띠(아래가 좁아 이마에 묻힘)
+    band["soft_top"] = True
+    b.ball(0.355, (0, 0.0, 1.58), GREEN, 2, (1.0, 1.0, 0.62))           # 머리 윗부분을 덮는 둥근 천(띠 위끝과 이어짐)
+    b.ball(0.27, (0, 0.07, 1.78), GREEN, 2, (1.0, 1.0, 0.70))            # 위 봉긋(두 겹)
+    b.box(0.11, 0.04, 0.08, (0, -0.345, 1.52), GOLD, (0, R(45), 0))    # 앞 금 장식
+    for side in (-1, 1):   # 4차: 두건 챙 아래 · 귀 앞 옆머리(얼굴 윤곽과 두건 사이를 이음, 아래 구레나룻으로 이어짐)
+        b.box(0.06, 0.10, 0.26, (0.295 * side, -0.10, 1.32), BLACK, (0, R(-10 * side), R(-12 * side)))
     for side in (-1, 1):
         b.box(0.05, 0.26, 0.44, (0.345 * side, 0.21, 1.27), GREEN)           # 귀 뒤 옆 천(귀는 앞에 보이게)
     b.box(0.70, 0.10, 0.50, (0, 0.30, 1.25), GREEN)                     # 뒷머리를 덮는 천
@@ -144,7 +149,10 @@ if CUTE:
     for o, _ in b.parts:
         me = o.data
         if o.name.startswith("Cone"):
-            vals = [0.0 if abs(me.vertices[e.vertices[0]].co.z - me.vertices[e.vertices[1]].co.z) > 1e-5 else CAP for e in me.edges]
+            ztop = max(v.co.z for v in me.vertices)
+            soft = o.get("soft_top", False)   # 4차: 두건 띠 위 테는 크리스 0(둥근 천과 매끈하게 이어짐)
+            vals = [0.0 if abs(me.vertices[e.vertices[0]].co.z - me.vertices[e.vertices[1]].co.z) > 1e-5
+                    else (0.0 if soft and me.vertices[e.vertices[0]].co.z > ztop - 1e-5 else CAP) for e in me.edges]
         elif o.name.startswith("Cube"):
             vals = [BOX] * len(me.edges)
         elif o.name.startswith("poly"):

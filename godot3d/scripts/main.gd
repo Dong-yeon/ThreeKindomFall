@@ -256,6 +256,13 @@ func _build_world() -> void:
 	e.ambient_light_color = Color("c8d0d8")
 	e.ambient_light_energy = 0.35
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	# D-340: 주변광 차폐(SSAO) — 맞닿는 곳(모자/얼굴 · 수염/몸통 · 팔/몸통)에 은은한 접촉 그림자.
+	#   Godot SSAO는 Forward+ 렌더러에서만 그려짐 — 지금 프로젝트(Compatibility)에선 켜져 있어도 효과 없음.
+	e.ssao_enabled = true
+	e.ssao_radius = 0.5
+	e.ssao_intensity = 3.0
+	e.ssao_power = 1.5
+	e.ssao_light_affect = 0.25   # 직사광 쪽에도 조금(0이면 환경광에만 걸려 거의 안 보임)
 	env.environment = e
 	add_child(env)
 
