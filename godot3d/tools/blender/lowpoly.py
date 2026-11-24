@@ -324,6 +324,15 @@ def render_views(out_dir, prefix, center_z=1.0, ortho=2.8, views=("front", "side
     """설정화와 맞대 보기용 렌더(D-311): 흰 바탕 정면 · 옆 · 뒤(정사영)."""
     from mathutils import Vector
     scn = bpy.context.scene
+    muted = []   # 동작(NLA) 끔 — 안 끄면 마지막 동작 포즈가 겹쳐 찍힘(D-314)
+    for o in bpy.data.objects:
+        if o.animation_data:
+            for tr in o.animation_data.nla_tracks:
+                if not tr.mute:
+                    tr.mute = True
+                    muted.append(tr)
+            o.animation_data.action = None
+    scn.frame_set(0)
     bpy.ops.object.light_add(type="SUN", location=(0, -4, 6))
     sun = bpy.context.object
     sun.data.energy = 3.0
@@ -352,3 +361,5 @@ def render_views(out_dir, prefix, center_z=1.0, ortho=2.8, views=("front", "side
         bpy.ops.render.render(write_still=True)
     bpy.data.objects.remove(sun)
     bpy.data.objects.remove(cam)
+    for tr in muted:
+        tr.mute = False
