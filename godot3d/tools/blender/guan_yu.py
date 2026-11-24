@@ -19,10 +19,11 @@ CUTE = "--cute" in FLAGS
 lp.reset_scene()
 R = math.radians
 
-FACE   = lp.mat("face",   "d4594c")          # 붉은 얼굴 · 주먹
+# 3차(D-339, --cute만): 녹색은 설정화의 차분한 숲 녹색 #4F8A5B, 얼굴 붉은색은 채도를 조금 낮춤
+FACE   = lp.mat("face",   "cd6258" if CUTE else "d4594c")          # 붉은 얼굴 · 주먹
 BLUSH  = lp.mat("blush",  "e8737a")
-GREEN  = lp.mat("green",  "4f9a5e")          # 전포 · 두건
-DKGRN  = lp.mat("dkgreen", "3d7d4a")         # 바지 · 띠 · 뒷천 그늘
+GREEN  = lp.mat("green",  "4f8a5b" if CUTE else "4f9a5e")          # 전포 · 두건
+DKGRN  = lp.mat("dkgreen", "3d6e48" if CUTE else "3d7d4a")         # 바지 · 띠 · 뒷천 그늘
 GOLD   = lp.mat("gold",   "d6b04a", 0.45, 0.5)
 BLACK  = lp.mat("black",  "26221f")          # 수염 · 머리 · 눈썹
 BROWN  = lp.mat("brown",  "5c3f2c")          # 허리띠 · 신
@@ -97,9 +98,10 @@ for side in (-1, 1):
 b.box(0.06, 0.05, 0.07, (0, -0.335, 1.24), FACE)                      # 코
 if CUTE:   # 2차(D-337): 수염은 입 아래 ~ 가슴(길이 2/3) · 끝 둥글게 · 짙은 갈색빛 검정 / 콧수염은 따로 작게 둘(입 위)
     BEARD = lp.mat("beard", "2b211e")
-    beard = b.cone(0.10, 0.30, 0.72, 1.10, BEARD, y=-0.25, v=10, rot=(R(-8), 0, 0))
-    beard.scale = (1.0, 0.6, 1.0)
-    b.ball(0.12, (0, -0.255, 0.74), BEARD, 2, (1.0, 0.6, 0.8))           # 둥근 수염 끝
+    # 3차(D-339): 아래 폭을 넓혀 가슴 전체를 덮고 몸통에 붙게(길이는 2차 그대로)
+    beard = b.cone(0.25, 0.31, 0.84, 1.10, BEARD, y=-0.23, v=12, rot=(R(-6), 0, 0))
+    beard.scale = (1.0, 0.55, 1.0)
+    b.ball(0.255, (0, -0.22, 0.84), BEARD, 2, (1.0, 0.55, 0.50))         # 둥근 수염 끝(넓은 U자 — 아래 끝 z ≈ 0.71)
     for side in (-1, 1):
         b.box(0.10, 0.14, 0.18, (0.25 * side, -0.18, 1.06), BEARD)    # 턱선 수염(구레나룻과 이어짐)
         b.box(0.11, 0.04, 0.035, (0.06 * side, -0.335, 1.178), BEARD, (0, R(14 * side), 0))   # 작은 콧수염(바깥으로 처짐)
@@ -111,14 +113,26 @@ else:
     b.box(0.30, 0.06, 0.05, (0, -0.33, 1.17), BLACK)                      # 콧수염
 b.box(0.56, 0.16, 0.26, (0, 0.16, 1.14), BLACK)                       # 뒷머리(두건 뒷천에 가려짐)
 # 두건: 이마 띠 → 아래 봉긋 → 위 봉긋(두 겹) · 앞 금 장식 · 뒤 매듭 + 두 끈
-TU = 0.06 if CUTE else 0.0   # 2차(D-337): 두건 아래 가장자리를 눈썹 위로 올려 얼굴을 넓게
-b.cone(0.36, 0.355, 1.42 + TU, 1.56 + TU, GREEN, v=12)
-b.ball(0.34, (0, 0.02, 1.58 + TU), GREEN, 2, (1.0, 1.0, 0.65))
-b.ball(0.27, (0, 0.06, 1.76 + TU), GREEN, 2, (1.0, 1.0, 0.75))
-b.box(0.11, 0.04, 0.08, (0, -0.355, 1.50 + TU), GOLD, (0, R(45), 0))
-b.box(0.16, 0.10, 0.10, (0, 0.36, 1.48 + TU), DKGRN)                      # 뒤 매듭
-for side in (-1, 1):
-    b.box(0.07, 0.03, 0.30, (0.05 * side, 0.40, 1.30 + TU), DKGRN, (R(8), R(12 * side), 0))
+if CUTE:   # 3차(D-339): 두건이 머리를 감쌈 — 아래 가장자리는 눈썹 바로 위(1.46), 귀 뒤 옆 천 · 뒷머리를 덮고 등으로 늘어지는 뒤 천
+    b.cone(0.372, 0.365, 1.46, 1.60, GREEN, v=14)                        # 이마를 감는 띠(얼굴보다 넓게)
+    b.ball(0.37, (0, 0.03, 1.60), GREEN, 2, (1.0, 1.0, 0.62))            # 머리 윗부분을 덮는 둥근 천
+    b.ball(0.27, (0, 0.07, 1.80), GREEN, 2, (1.0, 1.0, 0.70))            # 위 봉긋(두 겹)
+    b.box(0.11, 0.04, 0.08, (0, -0.37, 1.53), GOLD, (0, R(45), 0))     # 앞 금 장식
+    for side in (-1, 1):
+        b.box(0.05, 0.26, 0.44, (0.345 * side, 0.21, 1.27), GREEN)           # 귀 뒤 옆 천(귀는 앞에 보이게)
+    b.box(0.70, 0.10, 0.50, (0, 0.30, 1.25), GREEN)                     # 뒷머리를 덮는 천
+    b.box(0.60, 0.06, 0.40, (0, 0.38, 0.98), DKGRN, (R(8), 0, 0))       # 등으로 늘어지는 끝(뒷천과 이어짐)
+    b.box(0.16, 0.10, 0.10, (0, 0.38, 1.52), DKGRN)                      # 뒤 매듭
+    for side in (-1, 1):
+        b.box(0.07, 0.03, 0.30, (0.05 * side, 0.43, 1.34), DKGRN, (R(8), R(12 * side), 0))
+else:
+    b.cone(0.36, 0.355, 1.42, 1.56, GREEN, v=12)
+    b.ball(0.34, (0, 0.02, 1.58), GREEN, 2, (1.0, 1.0, 0.65))
+    b.ball(0.27, (0, 0.06, 1.76), GREEN, 2, (1.0, 1.0, 0.75))
+    b.box(0.11, 0.04, 0.08, (0, -0.355, 1.50), GOLD, (0, R(45), 0))
+    b.box(0.16, 0.10, 0.10, (0, 0.36, 1.48), DKGRN)                      # 뒤 매듭
+    for side in (-1, 1):
+        b.box(0.07, 0.03, 0.30, (0.05 * side, 0.40, 1.30), DKGRN, (R(8), R(12 * side), 0))
 
 if CUTE:
     import bpy
@@ -192,20 +206,32 @@ if CUTE:
         chin = min(mesh.data.vertices[i].co.z for i in face_idx)   # 얼굴 공 아래 끝(가운데)
         return top, chin, (top - chin) / top
     top0, chin0, r0 = ratio()
-    HEAD_K = 1.4
-    for v in hv:   # 머리 무리를 턱 아래(목 자리)를 축으로 1.4배 — 얼굴이 몸 위에 그대로 앉게
+    # 3차(D-339): 머리 1.4 → 1.2배 · 아래로 HEAD_DOWN 내려 목이 안 보이게(어깨에 반쯤 묻힘)
+    HEAD_K, HEAD_DOWN = 1.2, 0.12
+    for v in hv:   # 머리 무리를 턱 아래(목 자리)를 축으로 키운 뒤 내림
         x, y, z = v.co
-        v.co = (x * HEAD_K, y * HEAD_K, chin0 + (z - chin0) * HEAD_K)
+        v.co = (x * HEAD_K, y * HEAD_K, chin0 + (z - chin0) * HEAD_K - HEAD_DOWN)
+    # 몸통 · 어깨 폭 1.25배(몸통 뼈 조각 x), 팔은 그만큼 바깥으로(어깨에 붙게)
+    BODY_W = 1.25
+    ARM_OUT = 0.33 * (BODY_W - 1.0)    # 윗몸 반지름 0.33이 늘어난 만큼
+    for v in mesh.data.vertices:
+        g = names[v.groups[0].group] if v.groups else ""
+        if g == "torso":
+            v.co.x *= BODY_W
+        elif g in ("arm_L", "arm_R"):
+            v.co.x += ARM_OUT * (1 if g == "arm_L" else -1)
     top1, chin1, r1 = ratio()
     print("HEAD ratio before %.2f (chin %.2f top %.2f) -> after %.2f (top %.2f)" % (r0, chin0, top0, r1, top1))
+AO = ARM_OUT if CUTE else 0.0          # 3차: 넓힌 어깨만큼 팔 뼈도 바깥으로
+HZ = HEAD_DOWN if CUTE else 0.0        # 3차: 내린 머리만큼 머리 뼈도
 rig = lp.make_rig("guan_yu", mesh, [
     ("root",  (0, 0, 0),            (0, 0, 0.3),            None),
-    ("torso", (0, 0, 0.50),         (0, 0, 1.00),           "root"),
-    ("head",  (0, 0, 1.00),         (0, 0, 1.60),           "torso"),
+    ("torso", (0, 0, 0.50),         (0, 0, 1.00 - HZ),      "root"),
+    ("head",  (0, 0, 1.00 - HZ),    (0, 0, 1.60 - HZ),      "torso"),
     ("leg_L", ( 0.14, 0, 0.28),     ( 0.14, 0, 0.0),        "root"),
     ("leg_R", (-0.14, 0, 0.28),     (-0.14, 0, 0.0),        "root"),
-    ("arm_L", ( 0.32, 0, 0.94),     ( 0.58, 0, 0.52),       "torso"),
-    ("arm_R", (-0.32, 0, 0.94),     (-0.58, -0.08, 0.52),   "torso"),
+    ("arm_L", ( 0.32 + AO, 0, 0.94),     ( 0.58 + AO, 0, 0.52),       "torso"),
+    ("arm_R", (-0.32 - AO, 0, 0.94),     (-0.58 - AO, -0.08, 0.52),   "torso"),
 ])
 
 def idle(f):   # 0 ~ 24 (1초): 숨쉬듯 위아래

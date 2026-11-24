@@ -2,7 +2,7 @@ extends SceneTree
 ## 관우 귀여움 실험 비교 사진: 왼쪽 지금 관우(guan_yu.glb, 원래 재질) · 오른쪽 실험(guan_yu_cute.glb + 툰 재질 Toon.apply)을
 ## 같은 조명 · 같은 각도로 나란히(판 크기 1.2배, idle 첫 장면).
 ## 실행(창 모드): Godot --path godot3d --script res://tools/cute_compare.gd -- --out=<폴더> [--cam=높이,뒤,화각]
-## 2차(D-337): 환경광 0.35 → 0.6 · 해 0.55 → 0.35 · 부드러운 그림자(shadow_blur · 부드러운 필터) — 판 조명은 그대로(이 비교 사진에만).
+## 2차(D-337): 환경광 · 해 = 판 0.35 · 0.55 → 0.4 · 0.2(3차, D-339) · 부드러운 그림자(shadow_blur · 부드러운 필터) — 판 조명은 그대로(이 비교 사진에만).
 ##   --solo: 실험 관우만 가운데 정면으로(설정화 정면과 맞대기용, cute_front.png) · 툰 적용 재질 수 · 값을 출력.
 
 var out := "."
@@ -31,13 +31,13 @@ func _initialize() -> void:
 	e.background_color = Color("9fb3c8")
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color("c8d0d8")
-	e.ambient_light_energy = 0.6   # 2차: 환경광을 높임(판은 0.35)
+	e.ambient_light_energy = 0.4   # 2차: 해보다 환경광 비중을 높임(판은 0.35 · 해 0.55) — 3차: 전체 밝기를 설정화 색에 맞춰 낮춤
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.environment = e
 	root3.add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, 35, 0)
-	sun.light_energy = 0.35   # 2차: 환경광을 올린 만큼 해는 낮춤(판은 0.55 — 안 낮추면 색이 날아감)
+	sun.light_energy = 0.2   # 2차 · 3차: 환경광 비중을 높이고 전체는 낮춤(0.6 · 0.35면 녹색이 형광처럼 뜸)
 	sun.shadow_enabled = true
 	sun.shadow_blur = 2.5          # 2차: 부드러운 그림자
 	root3.add_child(sun)
