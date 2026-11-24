@@ -4174,3 +4174,22 @@
   - `guan_yu.py --cute`(그전엔 줄인 적 없음): 소매 손목 쪽 r 0.18 → 0.1525(어깨 0.125와의 차이 절반) · 소맷부리 0.185 → 0.1575, 자락 아래 r 0.48 → 0.405(위 0.33과의 차이 절반) · 앞자락 판 아래 폭 0.19 → 0.17 · 판을 자락 쪽으로 붙임.
   - `main.gd` `CAM_OFFSET` 13 · 12 → 10.4 · 9.6: 피치는 이미 47.3°(범위 안, 그대로) · 거리 17.7 → 14.2. D-306에서 '둘레 무리 · 예고가 보이게' 넓힌 거리를 좁힌 것이라 화면에 보이는 둘레는 줄어듦.
 - **확인:** 게임 스크린샷 `godot3d/art/experiments/guan_yu_d343_game.png`, `--test` 정상, 1분 자동 판 오류 0. AA 비용(같은 조건 `--bench --bench-levels=0,600`, 이 환경은 소프트웨어 렌더라 실제보다 훨씬 크게 나옴): 적 0 149 → 190ms · 적 600 609 → 1510ms(AA 끔 → 켬). 실제 GPU에서 다시 재야 함 — 무거우면 MSAA를 2x로.
+
+### D-344. 렌더러 Forward+(PC) · TAA 비교 (2026-11-24)
+- **사용자:** "렌더러 Forward+로 바꾸고 TAA 비교해 줘."
+- **구성:**
+  - `godot3d/project.godot`: `rendering_method="forward_plus"`(PC) · `rendering_method.mobile` · `.web`은 `gl_compatibility` — 이 프로젝트의 내보내기 프리셋은 웹 하나뿐이고 웹은 Compatibility만 되므로 웹 빌드는 그대로(SSAO · TAA 없음, 녹색이 밝게 뜨는 것도 그대로). `config/features` "GL Compatibility" → "Forward Plus". AA 설정(MSAA 3D 4x · FXAA, D-343)은 그대로 둠.
+  - D-340의 SSAO가 판에서 그려짐(Forward+). D-339 · 340에서 본 '형광 녹색'도 풀림.
+- **TAA 비교**(같은 seed · 같은 장면, 서 있음 · 걷는 중 확대 → `godot3d/art/experiments/aa_compare_fplus.png`, 왼쪽부터 MSAA 4x+FXAA · TAA · TAA+MSAA 4x):
+  - 화질: 셋 다 계단은 거의 없음. MSAA+FXAA가 가장 또렷, TAA는 조금 부드럽게(흐리게) 보임. 걷는 장면에서 TAA 잔상은 이 크기에선 눈에 띄지 않음.
+  - 성능(`--bench --bench-levels=0,600`, 소프트웨어 Vulkan — 절대값은 의미 없음, MSAA가 실제 GPU보다 훨씬 비싸게 나옴):
+
+    | AA | 적 0 | 적 600 |
+    |---|---|---|
+    | MSAA 4x + FXAA | 162ms | 933ms |
+    | TAA | 143ms | 560ms |
+    | TAA + MSAA 4x | 207ms | 960ms |
+- **확인:** 기본 실행이 Forward+로 뜸(`Vulkan … Forward+`), 관우 · 제갈량 30초 자동 판 스크립트 오류 0(소리 장치 경고만), 게임 화면 `godot3d/art/experiments/forward_plus_game.png`.
+- **남은 것:**
+  - 조명값(환경광 0.35 · 해 0.55)이 Compatibility에 맞춰져 있어 Forward+에선 화면이 전체적으로 어둡고 탁해짐 — 다시 맞출 일.
+  - 실제 GPU PC에서 AA 비용 · 판 성능을 다시 재야 함(이 환경은 GPU 없음). AA는 그때 MSAA+FXAA / TAA 중 고름.
