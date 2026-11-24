@@ -9,8 +9,7 @@ class_name UnlockTable
 ## reward: [종류, id] — hero 장수 · tactic 추가 초식(data/tactics.gd) · simbeop 심법(data/upgrades.gd key) · slot 추가 초식 칸 +1
 
 const QUESTS := [
-	{"id": "lubu", "name": "호뢰관의 맹장", "desc": "여포를 한 번 물리치기", "kind": "total", "key": "lubu", "goal": 1, "reward": ["hero", "zhang_fei"]},
-	{"id": "taoyuan", "name": "도원결의", "desc": "관우와 장비로 각각 한 번씩 클리어", "kind": "clears", "heroes": ["guan_yu", "zhang_fei"], "reward": ["hero", "liu_bei"]},
+	# D-331: 장비 · 유비를 숨기는 동안 두 장수 해금 과제(호뢰관의 맹장 · 도원결의)는 뺌 — 다시 열 때 되살림
 	{"id": "elite5", "name": "장수 사냥", "desc": "정예 장수 누적 5명 처치", "kind": "total", "key": "elite_kills", "goal": 5, "reward": ["tactic", "bolt"]},
 	{"id": "kill7500", "name": "만인적", "desc": "누적 7,500명 처치", "kind": "total", "key": "kills", "goal": 7500, "reward": ["tactic", "knives"]},
 	{"id": "nohit120", "name": "무상", "desc": "한 판에서 2분 동안 안 맞기", "kind": "best", "key": "nohit", "goal": 120, "reward": ["tactic", "drum"]},

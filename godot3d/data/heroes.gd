@@ -10,7 +10,7 @@ class_name HeroTable
 ## stars(D-292): D-291 봇 측정 반영 — 장비 ★ · 관우 ★★ · 유비 ★★(다시 설계 뒤 다시 잼)
 ##   neigong 내공이 차는 배율(data/martial.gd의 기본값에 곱함) · hp 시작 최대 체력(없으면 100, D-291)
 
-const ORDER := ["guan_yu", "zhuge_liang", "zhang_fei", "liu_bei"]   # 선택 화면 순서 — 처음 열린 장수가 앞(D-292, 잠금은 data/unlocks.gd)
+const ORDER := ["guan_yu", "zhuge_liang"]   # D-331: 당분간 관우 · 제갈량만(장비 · 유비는 데이터 · 모델은 남기고 선택 화면에서 숨김 — 봇 · 점검 --hero=로는 씀). 예전: ["guan_yu", "zhuge_liang", "zhang_fei", "liu_bei"]   # 선택 화면 순서 — 처음 열린 장수가 앞(D-292, 잠금은 data/unlocks.gd)
 
 const HEROES := {
 	"guan_yu": {
