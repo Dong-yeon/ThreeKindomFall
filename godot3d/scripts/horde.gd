@@ -50,6 +50,7 @@ var conf_mm: MultiMesh
 var conf_buf := PackedFloat32Array()
 var confused_total := 0              # 혼란시킨 수(점검용)
 var mm: Array[MultiMesh] = []       # [kind × FRAMES + f]
+var kind_scale: PackedFloat32Array   # 종류마다 그리기 크기(data/enemies.gd "scale", D-345)
 var bufs: Array[PackedFloat32Array] = []
 var head := PackedInt32Array()      # 격자 칸마다 첫 적(-1 없음)
 var next := PackedInt32Array()      # 같은 칸의 다음 적
@@ -88,11 +89,22 @@ func setup(max_count: int) -> void:
 	_setup_conf_marks()
 	head.resize(GRID * GRID)
 	for kd in EnemyTable.KINDS:
+		kind_scale.append(float(kd.get("scale", 1.0)))
 		var src: Node = load(kd.glb).instantiate()
 		for i in FRAMES:
 			var mi := src.find_child("pose_%d" % i, true, false) as MeshInstance3D
 			var m := MultiMesh.new()
 			m.transform_format = MultiMesh.TRANSFORM_3D
+			if EnemyTable.TOON > 0.0:   # 툰 재질(D-345) — MultiMesh라 메시 재질을 복사해 바꿔 끼움
+				for si in mi.mesh.get_surface_count():
+					var sm := mi.mesh.surface_get_material(si) as StandardMaterial3D
+					if sm:
+						sm = sm.duplicate() as StandardMaterial3D
+						sm.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+						sm.specular_mode = BaseMaterial3D.SPECULAR_TOON
+						sm.rim_enabled = true
+						sm.rim = EnemyTable.TOON
+						mi.mesh.surface_set_material(si, sm)
 			m.mesh = mi.mesh
 			m.instance_count = cap
 			m.visible_instance_count = 0
@@ -548,6 +560,7 @@ func update(delta: float, player: Vector2) -> float:
 		var f := g % FRAMES
 		var b := bufs[g]
 		bufs[g] = PackedFloat32Array()
+		var sc: float = kind_scale[kk]   # 그리기 크기만(D-345 — 충돌 반지름은 그대로)
 		var k := 0
 		for i in count:
 			if kind[i] != kk or int(phase[i] * FRAMES) % FRAMES != f:
@@ -560,9 +573,9 @@ func update(delta: float, player: Vector2) -> float:
 				var o := LUNGE_D * sin(PI * (1.0 - lunge[i] / LUNGE_T))
 				px += s * o
 				pz += c * o
-			b[k] = c;    b[k + 1] = 0.0; b[k + 2] = s;   b[k + 3] = px
-			b[k + 4] = 0.0; b[k + 5] = 1.0; b[k + 6] = 0.0; b[k + 7] = 0.0
-			b[k + 8] = -s; b[k + 9] = 0.0; b[k + 10] = c; b[k + 11] = pz
+			b[k] = c * sc;    b[k + 1] = 0.0; b[k + 2] = s * sc;   b[k + 3] = px
+			b[k + 4] = 0.0; b[k + 5] = sc; b[k + 6] = 0.0; b[k + 7] = 0.0
+			b[k + 8] = -s * sc; b[k + 9] = 0.0; b[k + 10] = c * sc; b[k + 11] = pz
 			k += 12
 		mm[g].buffer = b
 		mm[g].visible_instance_count = k / 12
