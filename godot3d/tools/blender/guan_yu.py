@@ -114,17 +114,62 @@ for side in (-1, 1):
         b.ball(0.015, (0.11 * side, -0.345, 1.34), lp.mat("white", "f8f8f4"), 1)   # 눈 빛
         b.box(0.17, 0.06, 0.06, (0.13 * side, -0.30, 1.42), BLACK, (0, R(-20 * side), 0))  # 굵은 성난 눈썹(안쪽이 내려감)
     b.box(0.07, 0.02, 0.04, (0.21 * side, -0.28, 1.22), BLUSH)        # 볼 홍조
-    b.box(0.06, 0.10, 0.40, (0.31 * side, 0.06, 1.10), BLACK)         # 양옆 긴 머리(귀 뒤)
-    b.box(0.07, 0.10, 0.20, (0.28 * side, -0.14, 1.15), BLACK)        # 구레나룻
+    if CUTE:   # D-342: 귀 뒤 옆머리는 두건 아래로 짧게만 · 구레나룻은 수염 한 덩어리(아래)가 맡음
+        b.box(0.06, 0.10, 0.14, (0.31 * side, 0.06, 1.37), BLACK)
+    else:
+        b.box(0.06, 0.10, 0.40, (0.31 * side, 0.06, 1.10), BLACK)         # 양옆 긴 머리(귀 뒤)
+        b.box(0.07, 0.10, 0.20, (0.28 * side, -0.14, 1.15), BLACK)        # 구레나룻
 b.box(0.06, 0.05, 0.07, (0, -0.335, 1.24), FACE)                      # 코
 if CUTE:   # 2차(D-337): 수염은 입 아래 ~ 가슴(길이 2/3) · 끝 둥글게 · 짙은 갈색빛 검정 / 콧수염은 따로 작게 둘(입 위)
     BEARD = lp.mat("beard", "2b211e")
     # 3차(D-339): 아래 폭을 넓혀 가슴 전체를 덮고 몸통에 붙게(길이는 2차 그대로)
     # 4차(D-341): 아래가 뾰족한 V자(끝은 머리 변환 뒤 허리띠 바로 위 z ≈ 0.62), 위는 양 볼까지(볼 수염 둘), 가장자리 둥글게
-    beard = b.cone(0.03, 0.33, 0.775, 1.10, BEARD, y=-0.23, v=12, rot=(R(-6), 0, 0))
-    beard.scale = (1.0, 0.55, 1.0)
+    # D-342: 옆머리 · 볼 수염 · 가운데 수염이 세 덩어리로 읽혀서 → 얼굴 둘레를 감는 껍데기 한 장(한 메시)으로:
+    #   얼굴 앞에서 각도 θ(0 = 정면, ±80° = 귀 바로 앞)마다 세로 띠 — 위끝은 옆(구레나룻, 두건 띠 아래 1.44)에서 가운데(입 아래 1.10)로 내려오고,
+    #   아래끝은 턱 끝 V자(가운데 0.775 → 머리 변환 뒤 허리띠 바로 위). 얼굴 높이에선 얼굴 공 표면 + 0.03, 턱 아래로는 가슴 앞으로 둥글게 내려옴.
+    #   두께 0.13(안쪽으로) · 턱 아래 가운데는 앞으로 볼록 · 매끈하게(크리스 0) — 볼 홍조 · 입은 위끝 아래로 드러남.
+    import bpy, bmesh as _bm
+    def _sstep(t):
+        t = max(0.0, min(1.0, t))
+        return t * t * (3 - 2 * t)
+    TH_MAX, NC, NR = 80.0, 21, 10
+    bm = _bm.new()
+    grid = []
+    for i in range(NC):
+        th = -TH_MAX + 2 * TH_MAX * i / (NC - 1)
+        a = abs(th)
+        z_top = 1.10 + 0.34 * _sstep((a - 45.0) / 35.0)            # 가운데 입 아래 → 옆 구레나룻(두건 아래)
+        z_bot = 0.775 + (1.12 - 0.775) * (a / TH_MAX) ** 0.9        # 턱 끝 V자
+        col = []
+        for j in range(NR):
+            z = z_bot + (z_top - z_bot) * j / (NR - 1)
+            dz = (z - 1.27) / 0.98
+            rf = math.sqrt(max(0.0, 0.34 ** 2 - dz * dz))            # 그 높이 얼굴 단면 반지름
+            k = _sstep((z - 0.95) / 0.20)                            # 0 = 턱 아래(가슴 앞) · 1 = 얼굴 높이
+            rx = 0.31 + (rf + 0.03 - 0.31) * k
+            ry = 0.33 + (0.95 * rf + 0.03 - 0.33) * k
+            yo = -0.05 * (1 - k)
+            t = math.radians(th)
+            bulge = 0.06 * (1 - k) * math.cos(t) ** 2                # 턱 아래 가운데를 앞으로 볼록하게(납작한 판처럼 안 보이게)
+            col.append(bm.verts.new((rx * math.sin(t), -(ry + bulge) * math.cos(t) + yo, z)))
+        grid.append(col)
+    for i in range(NC - 1):
+        for j in range(NR - 1):
+            bm.faces.new((grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]))
+    bm.normal_update()
+    bm.faces.ensure_lookup_table()
+    if bm.faces[len(bm.faces) // 2].normal.y > 0:                   # 바깥(앞)을 보게
+        _bm.ops.reverse_faces(bm, faces=list(bm.faces))
+    _me = bpy.data.meshes.new("beardshell")
+    bm.to_mesh(_me)
+    bm.free()
+    shell = bpy.data.objects.new("beardshell", _me)
+    bpy.context.scene.collection.objects.link(shell)
+    sm = shell.modifiers.new("solid", "SOLIDIFY")
+    sm.thickness = 0.13
+    shell["soft_rim"] = True
+    b._done(shell, BEARD)
     for side in (-1, 1):
-        b.ball(0.13, (0.24 * side, -0.20, 1.10), BEARD, 2, (0.85, 0.75, 1.25))   # 볼을 덮는 수염(구레나룻 · 옆머리와 이어짐)
         b.box(0.11, 0.04, 0.035, (0.06 * side, -0.335, 1.178), BEARD, (0, R(14 * side), 0))   # 작은 콧수염(바깥으로 처짐)
 else:
     beard = b.cone(0.05, 0.36, 0.56, 1.16, BLACK, y=-0.25, v=10, rot=(R(-8), 0, 0))   # 배까지 오는 넓은 수염(아래가 뾰족)
@@ -142,8 +187,7 @@ if CUTE:   # 3차(D-339): 두건이 머리를 감쌈 — 아래 가장자리는 
     b.ball(0.355, (0, 0.0, 1.58), GREEN, 2, (1.0, 1.0, 0.62))           # 머리 윗부분을 덮는 둥근 천(띠 위끝과 이어짐)
     b.ball(0.27, (0, 0.07, 1.78), GREEN, 2, (1.0, 1.0, 0.70))            # 위 봉긋(두 겹)
     b.box(0.11, 0.04, 0.08, (0, -0.345, 1.52), GOLD, (0, R(45), 0))    # 앞 금 장식
-    for side in (-1, 1):   # 4차: 두건 챙 아래 · 귀 앞 옆머리(얼굴 윤곽과 두건 사이를 이음, 아래 구레나룻으로 이어짐)
-        b.box(0.06, 0.10, 0.26, (0.295 * side, -0.10, 1.32), BLACK, (0, R(-10 * side), R(-12 * side)))
+    # (D-340의 귀 앞 옆머리 상자는 D-342에서 수염 껍데기 위끝(구레나룻)으로 합침)
     for side in (-1, 1):
         b.box(0.05, 0.26, 0.44, (0.345 * side, 0.21, 1.27), GREEN)           # 귀 뒤 옆 천(귀는 앞에 보이게)
     b.box(0.70, 0.10, 0.50, (0, 0.30, 1.25), GREEN)                     # 뒷머리를 덮는 천
@@ -184,8 +228,8 @@ if CUTE:
         at = me.attributes.get("crease_edge") or me.attributes.new("crease_edge", "FLOAT", "EDGE")
         at.data.foreach_set("value", vals)
         for md in o.modifiers:
-            if md.type == "SOLIDIFY":
-                md.edge_crease_inner = md.edge_crease_outer = md.edge_crease_rim = PLATE
+            if md.type == "SOLIDIFY":   # 수염 껍데기(D-342)는 가장자리도 둥글게
+                md.edge_crease_inner = md.edge_crease_outer = md.edge_crease_rim = 0.1 if o.get("soft_rim", False) else PLATE
         md = o.modifiers.new("subd", "SUBSURF")
         md.levels = md.render_levels = 2
     # 얼굴 데칼: 머리 앞 격자 평면(설정화 픽셀 0.00213m — 두 눈 사이 0.26) → 얼굴 공(매끈하게 한 뒤) 곡면에 Shrinkwrap(앞뒤로 투영)
