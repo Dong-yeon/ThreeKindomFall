@@ -24,7 +24,7 @@ const ARROW_CAP := 256
 # 맞음 대기 채널(D-287) — 한 배열에 [적 i × N_CH + ch]
 const CH_WEAPON := 0          # 대표 무기(시작 초식)
 const CH_ULT := 1             # 절기 · 경공 부딪힘
-const CH_PASSIVE := 2         # 고유 심법이 내는 공격(청룡 기운 · 부적, D-332 — 예전 의용군 CH_ALLY 자리)
+const CH_PASSIVE := 2         # 고유 심법이 내는 공격(청룡 기운 · 부적, D-333 — 예전 의용군 CH_ALLY 자리)
 const CH_TACTIC := 3          # 추가 초식 — 슬롯마다 3~7(기본 3칸 + 과제 칸 + 와룡 칸, D-292)
 const CH_RETURN := 8          # 돌아오는 무기(쌍고검 회선 — 가는 길과 같은 적을 또 맞힘, D-293)
 const N_CH := 9
@@ -51,7 +51,7 @@ var kills := 0
 var dead_pos := PackedVector2Array()   # 이번 프레임에 쓰러진 자리
 var spawn_hp := HP          # 새로 나오는 적의 체력(시간표)
 var speed := SPEED           # 적 걷는 속도(시간표)
-var weather_slow := 1.0       # 모든 잡병 속도 배율(천기 비 — 고유 심법이 매 프레임 넣음, D-333)
+var weather_slow := 1.0       # 모든 잡병 속도 배율(천기 비 — 고유 심법이 매 프레임 넣음, D-334)
 var mix: Array = [1.0, 0.0, 0.0, 0.0]   # 종류 비율(EnemyTable.mix_at — main이 넣음)
 var spawn_points := PackedVector2Array()   # 살아 있는 진영 자리(stage.gd) — 생성의 camp_share를 여기서
 var camp_share := 0.3

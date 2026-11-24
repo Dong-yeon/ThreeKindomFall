@@ -1,7 +1,7 @@
 class_name Ult
 extends Node3D
 ## 절기 공통(D-285) — 독립 모듈. 장수 노드나 main에 직접 기대지 않고 '시전 맥락' ctx 하나만 받음:
-##   origin Vector2(XZ) · facing Vector2(단위) · horde(적 떼) · atk_mul(공격 배율) · anchor(따라갈 Node3D — 없을 수 있음, D-332)
+##   origin Vector2(XZ) · facing Vector2(단위) · horde(적 떼) · atk_mul(공격 배율) · anchor(따라갈 Node3D — 없을 수 있음, D-333)
 ##   · evolved(오의인가) · spec(UltTable.params 결과) · level(시전자 레벨 — 레벨 따라 커지는 절기용, D-286)
 ## 그래서 나중에 '어시스트 호출'(다른 장수 판에서 이 절기를 부름)도 같은 모듈에 ctx만 만들어 넘기면 됨.
 ## 쓰는 쪽: var u := UltTable.make(id); parent.add_child(u); u.cast(ctx) → 매 프레임 u.tick(delta)가 true면 u.queue_free().

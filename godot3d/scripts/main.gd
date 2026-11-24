@@ -69,7 +69,7 @@ var ult_key_was := false
 var last_hits := 0
 var last_kills := 0
 var dyn := 1.0                # 이번 프레임 공격 배율(주화입마 × 광폭)
-var passive_mod: Node3D       # 고유 심법 모듈(D-332 — 청룡의 피 · 천기: scripts/martial/passive_*.gd, 없으면 null)
+var passive_mod: Node3D       # 고유 심법 모듈(D-333 — 청룡의 피 · 천기: scripts/martial/passive_*.gd, 없으면 null)
 const PASSIVE_MODS := {"dragon": "res://scripts/martial/passive_dragon.gd", "weather": "res://scripts/martial/passive_weather.gd"}
 var curve_marks := [60.0, 180.0, 360.0, 540.0]
 var stage: Node3D             # 황건적 스테이지(D-289 — 진영 · 정예 · 상자)
@@ -186,7 +186,7 @@ func _ready() -> void:
 		add_child(passive_mod)
 		passive_mod.setup(self)
 	match hero.passive.id:
-		"wipung":   # (예전 관우 — D-332에서 청룡의 피로 바뀜)
+		"wipung":   # (예전 관우 — D-333에서 청룡의 피로 바뀜)
 			weapon.mods.area *= hero.passive.area
 			weapon.mods.knock *= hero.passive.knock
 			weapon.refresh_fx()
@@ -667,7 +667,7 @@ func _martial_tick(delta: float, p2: Vector2) -> void:
 	if player.blinked:   # 축지: 닿은 자리에 잠깐 빛
 		player.blinked = false
 		_blink_fx(p2)
-	if player.landed:   # 도약이 내려앉음: 용약 충격파(D-332)
+	if player.landed:   # 도약이 내려앉음: 용약 충격파(D-333)
 		player.landed = false
 		if hero.qinggong.has("land"):
 			var ld: Dictionary = hero.qinggong.land
@@ -836,6 +836,8 @@ func _end_run(head: String) -> void:
 	if run_ended:
 		return
 	run_ended = true
+	if opts.has("auto") and shots_dir == "":   # 자동 판(밸런스 측정)은 끝나면 1초 뒤 닫음 — --stats 줄이 찍히게(D-334)
+		get_tree().create_timer(1.0).timeout.connect(get_tree().quit)
 	var elites := 0
 	if stage:
 		for fo in stage.foes:

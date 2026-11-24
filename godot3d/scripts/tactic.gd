@@ -9,7 +9,7 @@ var player: Node3D
 var horde: Node3D
 var atk_mul := 1.0            # 무력(main이 넣음)
 var strat_mul := 1.0          # 책략 계열 배율(예전 제갈량 와룡 — main이 넣음, D-295 · 지금은 쓰는 장수 없음)
-var weather_mul := 1.0        # 날씨 피해 배율(천기 — 번개 때 낙뢰 · 동남풍 때 불, D-333)
+var weather_mul := 1.0        # 날씨 피해 배율(천기 — 번개 때 낙뢰 · 동남풍 때 불, D-334)
 var knock_mul := 1.0          # 날씨 밀침 배율(천기 바람)
 var ch := 3                   # 맞음 대기 채널(D-287 — main이 슬롯마다 다르게)
 var cd := 0.5

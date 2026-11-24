@@ -24,11 +24,11 @@ var attacks := 0
 # 레벨업으로 붙는 배율 · 더하기(D-283) — 실제 값은 아래 함수로 읽음
 var mods := {"dmg": 1.0, "cd": 1.0, "area": 1.0, "count": 0, "pierce": 0, "knock": 1.0}
 var dyn := 1.0               # 매 프레임 바뀌는 공격 배율(주화입마 · 광폭 — main이 넣음, D-285)
-var haste := 1.0             # 매 프레임 바뀌는 공격 속도 배율(인덕 · 청룡 상태 — main · 고유 심법이 넣음, D-293 · D-332)
-var dyn_area := 1.0          # 잠깐 바뀌는 범위 배율(청룡 상태 — 바꾸면 refresh_fx, D-332)
-var swing_hits := 0          # 마지막 휘두르기 · 찌르기에 맞힌 수(청룡의 피 용기, D-332)
+var haste := 1.0             # 매 프레임 바뀌는 공격 속도 배율(인덕 · 청룡 상태 — main · 고유 심법이 넣음, D-293 · D-333)
+var dyn_area := 1.0          # 잠깐 바뀌는 범위 배율(청룡 상태 — 바꾸면 refresh_fx, D-333)
+var swing_hits := 0          # 마지막 휘두르기 · 찌르기에 맞힌 수(청룡의 피 용기, D-333)
 var swing_dir := Vector2(0, 1)   # 마지막 휘두른 쪽
-var dyn_speed := 1.0         # 날아가는 속도 배율(천기 바람, D-333)
+var dyn_speed := 1.0         # 날아가는 속도 배율(천기 바람, D-334)
 var dyn_knock := 1.0         # 밀침 배율(천기 바람)
 var dyn_pierce := 0          # 꿰뚫음 더하기(천기 비)
 var hit_hook: Callable       # 바람날이 맞힐 때 (자리, 맞힌 수)를 받음(천기 번개 — 없으면 안 부름)

@@ -1,5 +1,5 @@
 extends Node3D
-## 청룡의 피(관우 고유 심법, D-332): 휩쓸기로 맞힌 적 수만큼 용기(gauge)가 참 — 한 번 휘두름에 cap까지.
+## 청룡의 피(관우 고유 심법, D-333): 휩쓸기로 맞힌 적 수만큼 용기(gauge)가 참 — 한 번 휘두름에 cap까지.
 ## 가득 차면 dur초 청룡 상태: 휩쓸기 범위 area배 · 피해 dmg배 · 공격 속도 haste배, 휘두를 때마다 청룡 기운(wave)이 앞으로 날아가 줄에 선 적을 벰.
 ## 모델에 청록 빛(덧입힌 재질 · 둘레 불빛 · 오르는 불씨). 끝나면 용기는 0(그 상태에서 절기를 썼으면 refund)부터.
 ## main이 setup(main) → 매 프레임 tick(delta) (weapon.dyn을 넣은 뒤) · 절기 쓸 때 on_ult() · HUD는 hud_info() · --stats는 stats().

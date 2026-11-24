@@ -25,7 +25,7 @@ var hp: UiKit.Bar
 var hp_flash := 0.0
 var last_hp := -1.0
 var nei: UiKit.Bar
-var gauge: UiKit.Bar          # 고유 심법 막대(D-332 — 관우 용기 · 제갈량 날씨, passive_mod.hud_info()가 있을 때만)
+var gauge: UiKit.Bar          # 고유 심법 막대(D-333 — 관우 용기 · 제갈량 날씨, passive_mod.hud_info()가 있을 때만)
 var zhuhuo_lbl: Label
 var build_box: Panel
 var build_lbl: RichTextLabel
