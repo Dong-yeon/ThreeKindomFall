@@ -20,7 +20,7 @@ for f in FLAGS:
     if f.startswith("--variant="):
         VARIANT = f.split("=", 1)[1]
 MILITIA = VARIANT == "militia"
-# --variant=zhangbao|zhangliang|daoshi: 진영 정예(D-289 — 갑옷 · 망토 · 고유 무기, 게임에선 1.4배)
+# --variant=zhangbao|zhangliang|daoshi: 진영 정예(D-289, 게임에선 1.4배) — D-329부터 설정화대로: 장보(청동 비늘 갑옷) · 장량(자주 도포 · 노란 어깨 망토) · daoshi = 장각(흰 머리 · 노란 도포)
 ELITE = VARIANT in ["zhangbao", "zhangliang", "daoshi"]
 NAME = {"militia": "militia", "archer": "yt_archer", "rusher": "yt_rusher", "shield": "yt_shield",
         "zhangbao": "elite_zhangbao", "zhangliang": "elite_zhangliang", "daoshi": "elite_daoshi"}.get(VARIANT, "yellow_turban")
@@ -31,6 +31,7 @@ R = math.radians
 
 SKIN    = lp.mat("skin",    "c98e68")       # 그을린 피부
 HAIR    = lp.mat("hair",    "2a221e")       # 머리 · 수염 · 눈
+WHITEH  = lp.mat("whiteh",  "e8e6e0")       # 장각 흰 머리 · 수염(D-329)
 MUSTARD = lp.mat("mustard", "4f8a3e" if MILITIA else "c49a42")       # 두건 · 띠 — D-321 새 설정화(yellow_turban_v2.webp)의 노란 두건(D-280의 탁한 겨자색보다 밝게, 판 조명에서 형광처럼 뜨지 않게 채도는 낮춤)
 ROBE    = lp.mat("robe",    "7a6450")       # 해진 갈색 옷 · 바지(D-321)
 PATCH   = lp.mat("patch",   "584636")       # 기운 자국
@@ -189,15 +190,51 @@ else:                        # 졸병 · 방패병 · 의용군: 창
             b.box(0.30, 0.07, 0.03, (SX, SY, SZ + 0.52 * side), ROPE)     # 새끼줄 테(위아래)
         b.cone(0.12, 0.12, -0.02, 0.02, MUSTARD, x=SX, y=SY - 0.05, v=12, rot=(R(90), 0, 0)).location.z = SZ   # 가운데 노란 원
 
-if ELITE:
+if ELITE:   # D-329: 정예 셋을 설정화대로(elite_zhangbao · elite_zhangliang · elite_zhangjiao.webp) — 공통 해진 옷 위에 덧입힘
     b.bone = "torso"
-    if VARIANT == "daoshi":
-        b.cone(0.36, 0.28, 0.08, 0.66, CAPE, v=8)                     # 긴 도포
-    else:
-        b.box(0.44, 0.06, 0.34, (0, -0.28, 0.84), BRONZE)             # 가슴 갑옷
+    YROBE = lp.mat("yrobe", "d8a844")
+    if VARIANT == "zhangbao":    # 장보: 청동 비늘 갑옷(가슴 · 치마) · 큰 견갑 · 가죽 허리띠 + 버클 · 노란 옷자락
+        SCALE = lp.mat("scale", "9a7458", 0.5, 0.4)
+        DSCALE = lp.mat("dscale", "7a5a44", 0.5, 0.4)
+        b.cone(0.36, 0.30, 0.16, 0.40, YROBE, v=10)                   # 노란 옷자락(아래로 보임)
+        b.cone(0.35, 0.31, 0.32, 0.64, SCALE, v=10)                   # 비늘 치마
+        b.cone(0.31, 0.30, 0.64, 1.00, SCALE, v=10)                   # 비늘 가슴 갑옷
+        for z in (0.40, 0.50, 0.74, 0.84, 0.94):
+            b.cone(0.315 + (0.04 if z < 0.6 else 0), 0.31 + (0.04 if z < 0.6 else 0), z, z + 0.02, DSCALE, v=10)   # 비늘 결
+        b.cone(0.33, 0.33, 0.62, 0.69, lp.mat("lbelt", "6e4a34"), v=10)   # 가죽 허리띠
+        b.box(0.14, 0.04, 0.09, (0, -0.33, 0.655), DSCALE)            # 육각 버클
         for side in (-1, 1):
-            b.box(0.18, 0.24, 0.08, (0.32 * side, 0, 0.98), BRONZE, (0, R(-20 * side), 0))   # 어깨 갑옷
-    b.box(0.46, 0.04, 0.80, (0, 0.27, 0.58), CAPE, (R(8), 0, 0))       # 망토
+            b.ball(0.17, (0.32 * side, 0, 0.96), SCALE, 1, (1.15, 1.2, 0.7))   # 큰 비늘 견갑
+            b.cone(0.18, 0.18, 0.88, 0.91, DSCALE, x=0.34 * side, v=8)
+    elif VARIANT == "zhangliang":   # 장량: 자주색 도포 · 노란 어깨 망토(깃) · 검은 띠 · 노란 부적 둘 · 구름 무늬
+        PURPLE = lp.mat("purple", "5e3858")
+        b.cone(0.36, 0.30, 0.10, 0.66, PURPLE, v=10)                  # 긴 자주 도포
+        b.cone(0.30, 0.29, 0.62, 1.00, PURPLE, v=10)
+        b.cone(0.31, 0.31, 0.62, 0.68, BLACK if False else HAIR, v=10)   # 검은 허리띠
+        b.box(0.05, 0.03, 0.44, (-0.08, -0.29, 0.82), HAIR, (0, R(-22), R(-30)))   # 검은 깃(대각선)
+        b.cone(0.44, 0.24, 0.84, 1.02, YROBE, v=10)                   # 노란 어깨 망토(넓은 깃)
+        for k, x in enumerate((0.06, 0.15)):
+            b.box(0.07, 0.02, 0.16, (x, -0.33, 0.52 - 0.02 * k), YROBE)   # 노란 부적
+            b.box(0.02, 0.025, 0.10, (x, -0.345, 0.52 - 0.02 * k), lp.mat("ink", "b03a2a"))   # 부적 붉은 글씨
+        for side in (-1, 1):
+            b.box(0.16, 0.02, 0.05, (0.18 * side, -0.33, 0.24), HAIR, (0, 0, R(10 * side)))   # 구름 무늬(흉내)
+    else:   # daoshi = 장각: 노란 도포 + 흰 테 · 흰 허리띠 · 부적 여러 장 · 등 번개 무늬
+        WHITE2 = lp.mat("white2", "eeeae2")
+        b.cone(0.38, 0.30, 0.10, 0.66, YROBE, v=10)                   # 긴 노란 도포
+        b.cone(0.385, 0.38, 0.08, 0.14, WHITE2, v=10)                 # 흰 단
+        b.cone(0.30, 0.29, 0.62, 1.00, YROBE, v=10)
+        b.box(0.06, 0.03, 0.80, (0.10, -0.33, 0.52), WHITE2, (R(-8), 0, 0))   # 흰 앞섶 테
+        b.cone(0.31, 0.31, 0.62, 0.69, WHITE2, v=10)                  # 흰 허리띠
+        for k in range(7):
+            a = R(-60 + k * 20)
+            b.box(0.06, 0.02, 0.14, (math.sin(a) * 0.32, -math.cos(a) * 0.32, 0.54), YROBE, (0, 0, -a))   # 부적 여러 장
+        b.poly([(0.02, 0.92), (-0.08, 0.78), (0.0, 0.78), (-0.06, 0.64), (0.08, 0.82), (0.0, 0.82)], 0.305, 0.02, lp.mat("bolt", "c88a20"))   # 등 번개 무늬
+    for side, bone in ((1, "arm_L"), (-1, "arm_R")):   # 소매 색을 옷에 맞춤
+        b.bone = bone
+        col = {"zhangbao": YROBE, "zhangliang": lp.mat("purple", "5e3858"), "daoshi": YROBE}[VARIANT]
+        b.cone(0.13, 0.14, 0.72, 0.99, col, x=0.32 * side, v=8)
+        if VARIANT == "daoshi":
+            b.cone(0.145, 0.145, 0.70, 0.76, lp.mat("white2", "eeeae2"), x=0.33 * side, v=8)   # 흰 소맷부리
 
 b.bone = "head"   # D-321: 시무룩한 얼굴 · 덥수룩한 수염 · 노란 두 겹 두건
 b.ball(0.31, (0, 0, 1.22), SKIN, 2, (1.0, 0.95, 1.02))
@@ -207,17 +244,28 @@ for side in (-1, 1):
         b.box(0.08, 0.02, 0.02, (0.11, -0.29, 1.25), HAIR, (0, 0, R(-15)))   # 찡긋 감은 눈(궁병)
     else:
         b.ball(0.035, (0.11 * side, -0.28, 1.25), HAIR, 1)            # 까만 눈
-    b.box(0.15, 0.05, 0.05, (0.12 * side, -0.28, 1.34), HAIR, (0, R(-24 * side), 0))  # 성난 굵은 눈썹
-    if VARIANT not in ("archer", "shield"):
-        b.box(0.07, 0.10, 0.20, (0.27 * side, -0.06, 1.12), HAIR)     # 구레나룻
-    if VARIANT != "rusher":
-        b.box(0.06, 0.12, 0.18, (0.28 * side, 0.10, 1.18), HAIR)      # 두건 밖 옆머리
+    b.box(0.15, 0.05, 0.05, (0.12 * side, -0.28, 1.34), WHITEH if VARIANT == "daoshi" else HAIR, (0, R((10 if VARIANT == "daoshi" else -24) * side), 0))  # 굵은 눈썹(장각은 흰 · 처진 눈썹)
+    if VARIANT not in ("archer", "shield", "zhangliang"):
+        b.box(0.07, 0.10, 0.20, (0.27 * side, -0.06, 1.12), WHITEH if VARIANT == "daoshi" else HAIR)   # 구레나룻
+    if VARIANT == "zhangliang":
+        b.box(0.07, 0.16, 0.50, (0.30 * side, 0.06, 1.02), HAIR)      # 양옆으로 늘어진 긴 머리(장량)
+    elif VARIANT != "rusher":
+        b.box(0.06, 0.12, 0.18, (0.28 * side, 0.10, 1.18), WHITEH if VARIANT == "daoshi" else HAIR)   # 두건 밖 옆머리
 b.box(0.06, 0.06, 0.07, (0, -0.30, 1.19), SKIN)                       # 코
 if VARIANT == "shield":   # 방패병(D-325): 수염 없이 콧수염 · 악문 이
     b.box(0.24, 0.05, 0.04, (0, -0.295, 1.14), HAIR, (0, 0, 0))
     b.box(0.16, 0.03, 0.05, (0, -0.30, 1.08), lp.mat("teeth", "f2efe8"))
     for side in (-1, 1):
         b.box(0.07, 0.02, 0.05, (0.19 * side, -0.27, 1.17), lp.mat("blush", "e09a8a"))
+elif VARIANT == "zhangliang":   # 장량(D-329): 수염 없이 끝이 말린 콧수염 · 교활하게 웃는 입
+    for side in (-1, 1):
+        b.box(0.13, 0.04, 0.035, (0.07 * side, -0.30, 1.15), HAIR, (0, 0, R(-18 * side)))
+        b.box(0.04, 0.04, 0.05, (0.14 * side, -0.29, 1.17), HAIR)
+    b.box(0.13, 0.02, 0.02, (0, -0.305, 1.09), lp.mat("mouth", "8a3a30"), (0, 0, R(6)))
+elif VARIANT == "daoshi":   # 장각(D-329): 흰 눈썹 · 가늘게 뜬 눈 · 길고 흰 수염 · 웃는 입
+    b.cone(0.05, 0.26, 0.70, 1.16, WHITEH, y=-0.22, v=10)             # 길고 흰 수염(가슴까지)
+    b.box(0.26, 0.06, 0.05, (0, -0.29, 1.13), WHITEH)                 # 흰 콧수염
+    b.box(0.10, 0.02, 0.02, (0, -0.31, 1.09), lp.mat("mouth", "8a3a30"))
 elif VARIANT == "archer":   # 궁병(D-323 설정화): 수염 없는 젊은 얼굴 · 한쪽 눈 찡긋 · 씩 웃는 입 · 볼 홍조
     b.box(0.12, 0.02, 0.02, (0.03, -0.305, 1.10), lp.mat("mouth", "8a3a30"), (0, 0, R(-10)))
     for side in (-1, 1):
@@ -229,12 +277,22 @@ else:
         b.box(0.12, 0.03, 0.07, (0, -0.30, 1.09), lp.mat("mouth", "7a2a28"))   # 고함치는 벌린 입
     else:
         b.box(0.10, 0.02, 0.02, (0, -0.305, 1.09), lp.mat("mouth", "8a3a30"), (0, 0, 0))   # 시무룩한 입(ㅅ 흉내)
-if VARIANT != "rusher":
-    b.box(0.50, 0.20, 0.26, (0, 0.17, 1.12), HAIR)                    # 뒷머리(돌격병은 빡빡 깎은 머리)
+if VARIANT == "zhangliang":
+    b.box(0.56, 0.20, 0.60, (0, 0.18, 1.00), HAIR)                    # 등까지 내려오는 긴 뒷머리(장량)
+elif VARIANT != "rusher":
+    b.box(0.50, 0.20, 0.26, (0, 0.17, 1.12), WHITEH if VARIANT == "daoshi" else HAIR)   # 뒷머리(돌격병은 빡빡 깎은 머리)
 b.cone(0.325, 0.32, 1.30, 1.42, MUSTARD, v=10)                        # 노란 두건: 이마 띠
-if VARIANT != "shield":
+if VARIANT == "daoshi":   # 장각: 두건 대신 흰 머리 위 노란 띠 + 작은 노란 관
+    b.ball(0.32, (0, 0.04, 1.36), WHITEH, 2, (1.0, 1.0, 0.75))        # 흰 머리
+    b.ball(0.10, (0, 0.04, 1.58), WHITEH, 1)                          # 상투
+    b.box(0.20, 0.16, 0.12, (0, 0.03, 1.66), MUSTARD)                 # 작은 노란 관
+    b.box(0.26, 0.20, 0.03, (0, 0.03, 1.61), MUSTARD)                 # 관 받침
+elif VARIANT != "shield":
     b.ball(0.31, (0, 0.03, 1.42), MUSTARD, 2, (1.0, 1.0, 0.6))        # 아래 봉긋(방패병은 삿갓 아래 노란 띠만)
-if VARIANT not in ("rusher", "shield"):
+if VARIANT == "zhangbao":   # 장보: 두건 앞 청동 이마 판
+    b.box(0.36, 0.05, 0.10, (0, -0.31, 1.38), lp.mat("scale", "9a7458", 0.5, 0.4), (R(-10), 0, 0))
+    b.box(0.10, 0.04, 0.12, (0, -0.335, 1.39), lp.mat("dscale", "7a5a44", 0.5, 0.4), (R(-10), 0, 0))
+if VARIANT not in ("rusher", "shield", "zhangliang", "daoshi"):
     b.ball(0.23, (0, 0.07, 1.58), MUSTARD, 2, (1.0, 1.0, 0.7))        # 위 봉긋(두 겹 — 돌격병은 납작한 한 겹)
 b.box(0.14, 0.10, 0.11, (0, 0.33, 1.34), MUSTARD)                     # 뒤 매듭
 b.box(0.10, 0.03, 0.42, (-0.07, 0.38, 1.10), MUSTARD, (R(12), R(-8), 0))  # 늘어진 끈

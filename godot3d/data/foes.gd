@@ -23,7 +23,8 @@ const LIST := {
 			{"type": "sweep", "cd": 3.5, "wind": 0.9, "dmg": 16.0, "range": 4.2, "arc": 220.0},
 			{"type": "summon", "cd": 9.0, "wind": 0.6, "n": 10},
 		]},
-	"daoshi": {"name": "황건 도사", "glb": "res://assets/models/elite_daoshi.glb", "hp": 600.0, "hp_time": 120.0,
+	"daoshi": {"name": "장각",   # D-329: 설정화(elite_zhangjiao.webp)대로 장각 — id는 그대로
+		 "glb": "res://assets/models/elite_daoshi.glb", "hp": 600.0, "hp_time": 120.0,
 		"speed": 2.0, "radius": 0.8, "scale": 1.4, "knock": 0.2, "stun": 0.5, "leash": 16.0, "aggro": 14.0, "color": Color("e8d080"),
 		"patterns": [
 			{"type": "circles", "cd": 3.2, "wind": 1.0, "dmg": 12.0, "n": 3, "r": 1.7, "spread": 2.5},

@@ -41,12 +41,13 @@ func _initialize() -> void:
 	gm.albedo_color = Color("8a9a6a")
 	g.material_override = gm
 	root3.add_child(g)
-	# 앞줄: 장수 넷(1.2배, 서기) · 뒷줄 가운데: 관우 개그 동작(휘두르기 · 비틀 · 엉덩방아) — D-307 큰 머리 기본 모델
+	# 앞줄: 장수 넷(1.2배) · 가운데 줄: 정예 셋(1.4배) + 여포(2.0배) — 판 크기 그대로(D-329)
 	var heroes := ["guan_yu", "zhuge_liang", "zhang_fei", "liu_bei"]
 	for k in heroes.size():
 		_put(root3, "res://assets/models/%s.glb" % heroes[k], Vector3(-4.5 + k * 3.0, 0, 1.5), "idle", 0.0, 1.2)
-	for k in 3:
-		_put(root3, "res://assets/models/guan_yu.glb", Vector3(-3 + k * 3.0, 0, -1.0), ["swing", "stagger", "flop"][k], [0.36, 0.35, 0.6][k], 1.2)
+	var foes := [["elite_zhangbao", 1.4], ["elite_zhangliang", 1.4], ["elite_daoshi", 1.4], ["lu_bu", 2.0]]
+	for k in foes.size():
+		_put(root3, "res://assets/models/%s.glb" % foes[k][0], Vector3(-5.0 + k * 3.4, 0, -1.2), "idle", 0.0, foes[k][1])
 	# 크기 비교용 황건적(뒷줄)
 	for k in 6:
 		var y := load("res://assets/models/yellow_turban.glb").instantiate() as Node3D
