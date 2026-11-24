@@ -41,16 +41,16 @@ func _initialize() -> void:
 	gm.albedo_color = Color("8a9a6a")
 	g.material_override = gm
 	root3.add_child(g)
-	# 줄: 지금 관우 | 큰 머리 관우 서기 · 휘두르기 · 휘청 · 엉덩방아
-	_put(root3, "res://assets/models/guan_yu.glb", Vector3(-6, 0, 0), "idle", 0.0)
-	_put(root3, "res://assets/models/guan_yu_chibi.glb", Vector3(-3, 0, 0), "idle", 0.0)
-	_put(root3, "res://assets/models/guan_yu_chibi.glb", Vector3(0, 0, 0), "swing", 0.36)
-	_put(root3, "res://assets/models/guan_yu_chibi.glb", Vector3(3, 0, 0), "stagger", 0.35)
-	_put(root3, "res://assets/models/guan_yu_chibi.glb", Vector3(6, 0, 0), "flop", 0.6)
+	# 앞줄: 장수 넷(1.2배, 서기) · 뒷줄 가운데: 관우 개그 동작(휘두르기 · 비틀 · 엉덩방아) — D-307 큰 머리 기본 모델
+	var heroes := ["guan_yu", "zhuge_liang", "zhang_fei", "liu_bei"]
+	for k in heroes.size():
+		_put(root3, "res://assets/models/%s.glb" % heroes[k], Vector3(-4.5 + k * 3.0, 0, 1.5), "idle", 0.0, 1.2)
+	for k in 3:
+		_put(root3, "res://assets/models/guan_yu.glb", Vector3(-3 + k * 3.0, 0, -1.0), ["swing", "stagger", "flop"][k], [0.36, 0.35, 0.6][k], 1.2)
 	# 크기 비교용 황건적(뒷줄)
 	for k in 6:
 		var y := load("res://assets/models/yellow_turban.glb").instantiate() as Node3D
-		y.position = Vector3(-7.5 + k * 3.0, 0, -3.5)
+		y.position = Vector3(-7.5 + k * 3.0, 0, -4.0)
 		root3.add_child(y)
 	var cam := Camera3D.new()
 	cam.fov = fov
@@ -58,9 +58,10 @@ func _initialize() -> void:
 	var cp := Vector3(0, 1, 0) + cam_off
 	cam.transform = Transform3D(Basis.looking_at(Vector3(0, 1, 0) - cp), cp)   # _initialize에선 아직 트리 밖이라 look_at 대신
 
-func _put(parent: Node3D, path: String, pos: Vector3, anim: String, at: float) -> void:
+func _put(parent: Node3D, path: String, pos: Vector3, anim: String, at: float, sc := 1.0) -> void:
 	var m := load(path).instantiate() as Node3D
 	m.position = pos
+	m.scale = Vector3.ONE * sc
 	parent.add_child(m)
 	var ap := m.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if ap and ap.has_animation(anim):

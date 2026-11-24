@@ -58,6 +58,8 @@ const HEROES := {
 	},
 }
 
+const MODEL_SCALE := 1.2   # 장수 모델 기본 크기(D-307 큰 머리 그림체 — 잡병보다 돋보이게, 장수마다 "scale"로 바꿀 수 있음)
+
 static var chosen := ""   # 선택 화면에서 고른 장수(scenes/select.tscn → main.tscn, 자동 로드 없이 넘김)
 
 static func get_hero(id: String) -> Dictionary:

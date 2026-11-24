@@ -23,10 +23,8 @@ MILITIA = VARIANT == "militia"
 ELITE = VARIANT in ["zhangbao", "zhangliang", "daoshi"]
 NAME = {"militia": "militia", "archer": "yt_archer", "rusher": "yt_rusher", "shield": "yt_shield",
         "zhangbao": "elite_zhangbao", "zhangliang": "elite_zhangliang", "daoshi": "elite_daoshi"}.get(VARIANT, "yellow_turban")
-# --chibi(D-302 시험): 큰 머리 비율(lowpoly.Chibi — 다리 끝 0.50 · 목 1.0) → <이름>_chibi.glb · <이름>_chibi_poses.glb
-CHIBI = "--chibi" in FLAGS
-if CHIBI:
-    NAME += "_chibi"
+# D-307부터 큰 머리 비율(lowpoly.Chibi — 다리 끝 0.50 · 목 1.0) + 두건 꼭대기 종류 표시가 기본. --classic이면 예전 비율.
+CHIBI = "--classic" not in FLAGS
 lp.reset_scene()
 R = math.radians
 
@@ -148,8 +146,8 @@ b.box(0.14, 0.10, 0.11, (0, 0.33, 1.34), MUSTARD)                     # 뒤 매�
 b.box(0.10, 0.03, 0.42, (-0.07, 0.38, 1.10), MUSTARD, (R(12), R(-8), 0))  # 늘어진 끈
 b.box(0.10, 0.03, 0.36, ( 0.07, 0.38, 1.13), MUSTARD, (R(12), R(10), 0))
 if CHIBI and VARIANT in ("archer", "rusher", "shield"):   # D-303: 위에서 보이는 두건 꼭대기에 종류 표시(머리가 커져 몸 · 무기가 가려짐)
-    if VARIANT == "archer":    # 녹갈 두건 띠 + 깃털 하나
-        b.cone(0.33, 0.33, 1.40, 1.46, DKBRN, v=8)
+    if VARIANT == "archer":    # 흰 두건 띠 + 깃털 하나(D-307: 녹갈 띠는 두건 색과 비슷해 안 보였음)
+        b.cone(0.33, 0.33, 1.40, 1.46, lp.mat("feather", "e8e0c8"), v=8)
         b.box(0.04, 0.16, 0.30, (0.12, 0.10, 1.62), lp.mat("feather", "e8e0c8"), (R(-30), 0, 0))
     elif VARIANT == "rusher":  # 붉은 머리띠 + 꼭대기 붉은 술
         b.cone(0.33, 0.33, 1.34, 1.42, RED, v=8)
@@ -159,7 +157,7 @@ if CHIBI and VARIANT in ("archer", "rusher", "shield"):   # D-303: 위에서 보
         b.box(0.30, 0.30, 0.06, (0, 0.02, 1.58), IRON)
 
 mesh = b.join("yellow_turban")
-CH = lp.Chibi(leg_top=0.50, neck=1.0) if CHIBI else None
+CH = lp.Chibi(leg_top=0.50, neck=1.0, weapon=1.2 if ELITE else 0.9) if CHIBI else None   # 정예 무기는 크게(D-307)
 if CH:
     CH.apply_mesh(mesh)
 BONES = [

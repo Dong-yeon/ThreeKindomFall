@@ -156,12 +156,9 @@ func _ready() -> void:
 		print("MAIN hero=%s (선택 화면에서 고름=%s)" % [hero_id, HeroTable.chosen])
 		get_tree().quit()
 		return
-	var glb: String = hero.glb
-	if opts.has("chibi") and ResourceLoader.exists(glb.replace(".glb", "_chibi.glb")):   # 큰 머리 비율 시험(D-302)
-		glb = glb.replace(".glb", "_chibi.glb")
-	player.setup(load(glb))
-	if opts.has("chibi") and player.model:   # 장수는 잡병보다 돋보이게 1.2배(D-303 시험)
-		player.model.scale = Vector3.ONE * 1.2
+	player.setup(load(hero.glb))
+	if player.model:   # 장수 모델 크기(데이터 — 큰 머리 그림체에서 잡병보다 돋보이게 기본 1.2배, D-307)
+		player.model.scale = Vector3.ONE * float(hero.get("scale", HeroTable.MODEL_SCALE))
 	player.auto_walk = (shots_dir != "" or bench or opts.has("auto")) and not opts.has("stand")   # --stand: 자동 걷기 없이 서 있음
 	if opts.has("test"):
 		print("TEST hero=", hero_id, " weapon=", hero.weapon.name, "(", hero.weapon.type, ") anims=", player.anim_names(), " walk_loop=", player.walk_loops(),
@@ -169,7 +166,6 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 	horde = preload("res://scripts/horde.gd").new()
-	horde.chibi = opts.has("chibi")
 	add_child(horde)
 	horde.setup(BENCH_LEVELS[-1])
 	waves = not bench and not opts.has("n")
