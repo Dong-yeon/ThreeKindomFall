@@ -2,7 +2,7 @@
 # D-295 임시(글 설명, 윤건) → D-311: 설정화(godot3d/art/concept/zhuge_liang.webp)를 보고 처음부터 큰 머리(약 2등신)로:
 #   세로 골이 진 높은 검은 관 + 아래 띠 / 양옆으로 늘어진 긴 검은 머리 / 가는 눈 · 팔자 콧수염 · 뾰족한 턱수염 · 볼 홍조 /
 #   흰 학창의(하늘색 깃 · 앞섶 · 자락 테 · 소맷부리) · 검은 허리띠 + 초록 옥 장식 + 검은 술 · 흰 바지 · 검은 신.
-#   학우선은 설정화에선 가슴에 꽂혀 있지만, 공격 개그(부채질)를 오른팔로 하므로 오른손에 듦.
+#   학우선은 설정화에선 가슴에 꽂혀 있지만 무기라 오른손에 듦 — 모양은 무기 설정화(D-316)대로.
 # 동작: idle · walk + 개그 동작(lowpoly.end_actions: down · cheer, D-313).
 # 실행: python godot3d/tools/blender/zhuge_liang.py <출력 폴더> [--render]   (pip install bpy)
 # 결과: zhuge_liang.glb (--render면 정면 · 옆 · 뒤 zl_*.png)
@@ -53,19 +53,28 @@ for side, bone in ((1, "arm_L"), (-1, "arm_R")):
     b.cone(0.17, 0.14, 0.60, 0.97, WHITE, x=0.44 * side, v=8, rot=rot)   # 넓은 소매
     b.cone(0.175, 0.17, 0.58, 0.65, TRIM, x=0.52 * side, v=8, rot=rot)   # 하늘색 소맷부리
     b.ball(0.11, (0.58 * side, -0.02, 0.50), SKIN, 1)                 # 주먹
-# 학우선(오른손, 크게)
+# 학우선(오른손) — 무기 설정화(D-316, art/concept/zhuge_liang_fan.webp): 두 겹으로 겹친 둥근 흰 깃털(끝 하늘색) ·
+#   갈색 자루 · 갈색 테 안 초록 옥 · 금 고리 · 금 띠 · 하늘색 술
 b.bone = "arm_R"
 FX, FY = -0.60, -0.10
-b.cone(0.025, 0.025, 0.42, 0.66, WOOD, x=FX, y=FY, v=6)
-b.cone(0.045, 0.045, 0.64, 0.70, JADE, x=FX, y=FY, v=6)
-fan = [(FX, 0.68)]
-for k in range(9):
-    a = R(-50 + k * 12.5)
-    fan.append((FX + math.sin(a) * 0.52, 0.68 + math.cos(a) * 0.60))
-b.poly(fan, FY, 0.025, FEATH)
-for k in range(5):   # 깃털 결
-    a = R(-36 + k * 18)
-    b.box(0.015, 0.012, 0.52, (FX + math.sin(a) * 0.28, FY - 0.02, 0.68 + math.cos(a) * 0.30), lp.mat("quill", "d8d8d0"), (0, a, 0))
+FWHITE = lp.mat("fwhite", "f6f6f4")
+FBLUE  = lp.mat("fblue",  "bcd6ee")
+FBROWN = lp.mat("fbrown", "6e5040")
+FGOLD  = lp.mat("fgold",  "e2b860", 0.5, 0.4)
+b.cone(0.03, 0.04, 0.30, 0.80, FBROWN, x=FX, y=FY, v=8)              # 갈색 자루
+b.cone(0.045, 0.045, 0.40, 0.44, FGOLD, x=FX, y=FY, v=8)             # 금 띠
+b.cone(0.04, 0.0, 0.16, 0.30, FBLUE, x=FX, y=FY, v=6)                # 하늘색 술
+b.box(0.03, 0.03, 0.06, (FX, FY - 0.04, 0.70), FGOLD)                # 금 고리
+b.ball(0.10, (FX, FY - 0.01, 0.84), FBROWN, 1, (1.0, 0.45, 1.1))     # 옥 테
+b.ball(0.075, (FX, FY - 0.04, 0.84), JADE, 1, (1.0, 0.45, 1.15))     # 초록 옥
+for layer, (n, ln, spread, dy, base) in enumerate(((7, 0.62, 48, 0.03, 0.86), (5, 0.44, 40, -0.02, 0.86))):
+    for k in range(n):   # 깃털: 굵고 둥근 납작 타원(위로 모임, 뒷줄이 길고 앞줄이 짧게 겹침) + 끝 하늘색
+        a = math.radians(-spread + 2 * spread * k / (n - 1))
+        cx, cz = FX + math.sin(a) * ln * 0.5, base + math.cos(a) * ln * 0.5
+        f = b.ball(0.5, (cx, FY + dy, cz), FWHITE, 2, (0.22, 0.06, ln))
+        f.rotation_euler = (0, a, 0)
+        t = b.ball(0.5, (FX + math.sin(a) * ln * 0.88, FY + dy - 0.012, base + math.cos(a) * ln * 0.88), FBLUE, 2, (0.15, 0.04, ln * 0.22))
+        t.rotation_euler = (0, a, 0)
 
 b.bone = "head"
 b.ball(0.33, (0, 0, 1.26), SKIN, 2, (1.0, 0.95, 1.0))                # 얼굴
