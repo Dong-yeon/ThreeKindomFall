@@ -23,7 +23,7 @@ const HEROES := {
 		#   (범위 area배 · 피해 dmg배 · 공격 속도 haste배 · 휘두를 때마다 청룡 기운 wave가 앞으로 날아감). 밀어내기 knock배는 늘.
 		#   절기를 청룡 상태에서 쓰면 끝난 뒤 용기가 refund부터 참. 모듈 scripts/martial/passive_dragon.gd
 		"passive": {"id": "dragon", "name": "청룡의 피", "desc": "휩쓸기로 맞히면 용기가 차고, 가득 차면 6초 동안 청룡 상태 — 범위 · 피해 · 속도 ↑, 청룡 기운이 날아감",
-			"knock": 1.3, "gauge": 100.0, "per_hit": 2.0, "cap": 16.0, "dur": 6.0, "area": 1.3, "dmg": 1.5, "haste": 1.33, "refund": 35.0,
+			"knock": 1.3, "gauge": 100.0, "per_hit": 1.5, "cap": 6.0, "dur": 6.0, "area": 1.3, "dmg": 1.5, "haste": 1.33, "refund": 35.0,
 			"wave": {"dmg": 0.6, "length": 7.0, "width": 2.4, "speed": 20.0}},
 		"ult": "dragon",
 		# D-333 용약(돌진을 대신): 짧게 뛰어올라 앞에 내려앉으며 둥근 충격파(land)

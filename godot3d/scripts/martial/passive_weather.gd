@@ -76,7 +76,7 @@ func setup(m) -> void:
 	rain_fx.initial_velocity_min = 22.0
 	rain_fx.initial_velocity_max = 26.0
 	rain_fx.position = Vector3(0, 12, 0)
-	wind_fx = _particles(70, Vector3(0.18, 0.04, 0.12), Color(0.6, 0.85, 0.45, 0.9), 2.0)
+	wind_fx = _particles(140, Vector3(0.4, 0.06, 0.25), Color(0.55, 0.85, 0.4, 0.95), 2.2)
 	wind_fx.direction = Vector3(1, 0.15, 0.3)
 	wind_fx.spread = 12.0
 	wind_fx.initial_velocity_min = 7.0

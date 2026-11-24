@@ -112,7 +112,8 @@ func _enter() -> void:
 	count += 1
 	for mi in meshes:
 		(mi as MeshInstance3D).material_overlay = overlay
-	main._banner("청룡의 피가 끓는다!\n범위 · 피해 · 속도 ↑", 1.6)
+	if count == 1:   # 알림은 처음 한 번만(그 뒤는 몸빛 · HUD 막대로)
+		main._banner("청룡의 피가 끓는다!\n범위 · 피해 · 속도 ↑", 1.6)
 	print("DRAGON on t=%.1f n=%d" % [main.t, count])
 
 func _exit() -> void:
