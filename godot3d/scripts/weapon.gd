@@ -68,7 +68,7 @@ func setup(weapon_spec: Dictionary, p: Node3D, h: Node3D) -> void:
 			fx.mesh = bm
 		"fan":
 			var fm := PrismMesh.new()        # 초승달 대신 납작한 세모 칼날(바람)
-			fm.size = Vector3(1.3, 0.7, 0.08)
+			fm.size = Vector3(1.7, 0.9, 0.1)   # D-308 큰 머리 그림체: 보이는 크기만 키움(판정 반지름은 그대로)
 			fly_mesh = fm
 			fly_mat = StandardMaterial3D.new()
 			fly_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -76,7 +76,7 @@ func setup(weapon_spec: Dictionary, p: Node3D, h: Node3D) -> void:
 			fly_mat.albedo_color = Color(col, 0.75)
 		"fly", "boomerang":
 			var sw := BoxMesh.new()          # 날아가는 칼(납작한 막대) · 돌아오는 칼은 눕혀서 빙빙 돎
-			sw.size = Vector3(0.18, 0.06, 1.0) if spec.type == "fly" else Vector3(0.16, 0.05, 1.1)
+			sw.size = Vector3(0.27, 0.08, 1.5) if spec.type == "fly" else Vector3(0.26, 0.08, 1.7)   # D-308: 보이는 크기 ×1.5
 			fly_mesh = sw
 			fly_mat = StandardMaterial3D.new()
 			fly_mat.albedo_color = Color("d8dce0")

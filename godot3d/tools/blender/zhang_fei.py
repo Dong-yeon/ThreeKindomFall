@@ -124,7 +124,10 @@ b.box(0.14, 0.03, 0.62, (-0.10, 0.42, 1.52), NAVY, (R(14), R(-12), 0))
 b.box(0.14, 0.03, 0.56, ( 0.10, 0.42, 1.55), BLACK, (R(14), R(14), 0))
 
 mesh = b.join("zhang_fei")
-rig = lp.make_rig("zhang_fei", mesh, [
+CH = lp.Chibi(leg_top=0.62, neck=1.45, weapon=1.0, blade=1.5, blade_from=2.24, blade_pivot=(PX, PY)) if "--classic" not in FLAGS else None   # D-308: 큰 머리 비율이 기본(--classic이면 예전)
+if CH:
+    CH.apply_mesh(mesh)
+BONES = [
     ("root",  (0, 0, 0),           (0, 0, 0.3),           None),
     ("torso", (0, 0, 0.95),        (0, 0, 1.45),          "root"),
     ("head",  (0, 0, 1.45),        (0, 0, 2.1),           "torso"),
@@ -132,7 +135,8 @@ rig = lp.make_rig("zhang_fei", mesh, [
     ("leg_R", (-0.19, 0, 0.62),    (-0.19, 0, 0.0),       "root"),
     ("arm_L", ( 0.51, 0, 1.30),    ( 0.60, 0, 0.72),      "torso"),
     ("arm_R", (-0.51, 0, 1.30),    (-0.58, -0.12, 0.72),  "torso"),
-])
+]
+rig = lp.make_rig("zhang_fei", mesh, CH.bones(BONES) if CH else BONES)
 
 def idle(f):
     t = f / 24 * 2 * math.pi
@@ -148,6 +152,8 @@ def walk(f):   # 관우보다 조금 거칠게(몸을 더 비틂)
 
 lp.make_action(rig, "idle", list(range(0, 25, 2)), idle)
 lp.make_action(rig, "walk", list(range(0, 17, 2)), walk)
+if CH:
+    lp.gag_actions(rig, "thrust")   # 개그 동작(D-308)
 print("TRIS", lp.tris(mesh))
 
 if "--render" in FLAGS:

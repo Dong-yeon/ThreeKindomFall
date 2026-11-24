@@ -110,7 +110,10 @@ for side in (-1, 1):
     b.cone(0.035, 0.0, 0.0, 0.07, GOLD, x=0.335 * side, y=0.04, v=4, rot=(0, R(90 * side), 0)).location.z = 2.27
 
 mesh = b.join("liu_bei")
-rig = lp.make_rig("liu_bei", mesh, [
+CH = lp.Chibi(leg_top=0.60, neck=1.45) if "--classic" not in FLAGS else None   # D-308: 큰 머리 비율이 기본(--classic이면 예전)
+if CH:
+    CH.apply_mesh(mesh)
+BONES = [
     ("root",  (0, 0, 0),         (0, 0, 0.3),        None),
     ("torso", (0, 0, 0.95),      (0, 0, 1.45),       "root"),
     ("head",  (0, 0, 1.45),      (0, 0, 2.1),        "torso"),
@@ -118,7 +121,8 @@ rig = lp.make_rig("liu_bei", mesh, [
     ("leg_R", (-0.16, 0, 0.60),  (-0.16, 0, 0.0),    "root"),
     ("arm_L", ( 0.42, 0, 1.32),  ( 0.74, 0, 0.78),   "torso"),
     ("arm_R", (-0.42, 0, 1.32),  (-0.74, 0, 0.78),   "torso"),
-])
+]
+rig = lp.make_rig("liu_bei", mesh, CH.bones(BONES) if CH else BONES)
 
 def idle(f):
     t = f / 24 * 2 * math.pi
@@ -134,6 +138,8 @@ def walk(f):   # 손에 든 게 없어 두 팔을 고르게 흔듦, 몸은 덜 �
 
 lp.make_action(rig, "idle", list(range(0, 25, 2)), idle)
 lp.make_action(rig, "walk", list(range(0, 17, 2)), walk)
+if CH:
+    lp.gag_actions(rig, "throw")   # 개그 동작(D-308)
 print("TRIS", lp.tris(mesh))
 
 if "--render" in FLAGS:

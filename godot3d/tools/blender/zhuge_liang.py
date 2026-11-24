@@ -54,12 +54,13 @@ b.bone = "arm_R"
 FX, FY = -0.72, -0.10
 b.cone(0.025, 0.025, 0.66, 0.96, WOOD, x=FX, y=FY, v=6)
 b.cone(0.04, 0.04, 0.95, 1.00, JADE, x=FX, y=FY, v=6)
+FS = 1.0 if "--classic" in FLAGS else 1.6   # D-308: 큰 머리 그림체에선 부채를 크게
 fan = [(FX, 0.98)]
 for k in range(9):
     a = R(-50 + k * 12.5)
-    fan.append((FX + math.sin(a) * 0.42, 0.98 + math.cos(a) * 0.48))
+    fan.append((FX + math.sin(a) * 0.42 * FS, 0.98 + math.cos(a) * 0.48 * FS))
 b.poly(fan, FY, 0.02, FEATH)
-b.poly([(FX, 0.98), (FX - 0.05, 1.30), (FX + 0.05, 1.30)], FY - 0.015, 0.01, BLACK)   # 가운데 깃대
+b.poly([(FX, 0.98), (FX - 0.05 * FS, 0.98 + 0.32 * FS), (FX + 0.05 * FS, 0.98 + 0.32 * FS)], FY - 0.015, 0.01, BLACK)   # 가운데 깃대
 
 b.bone = "head"
 b.ball(0.31, (0, 0, 1.70), SKIN, 2, (0.96, 0.95, 1.08))
@@ -81,7 +82,10 @@ for side in (-1, 1):
     b.box(0.06, 0.02, 0.50, (0.08 * side, 0.36, 1.82), HAT, (R(12), 0, R(6 * side)))
 
 mesh = b.join("zhuge_liang")
-rig = lp.make_rig("zhuge_liang", mesh, [
+CH = lp.Chibi(leg_top=0.56, neck=1.45) if "--classic" not in FLAGS else None   # D-308: 큰 머리 비율이 기본(--classic이면 예전)
+if CH:
+    CH.apply_mesh(mesh)
+BONES = [
     ("root",  (0, 0, 0),         (0, 0, 0.3),        None),
     ("torso", (0, 0, 0.95),      (0, 0, 1.45),       "root"),
     ("head",  (0, 0, 1.45),      (0, 0, 2.1),        "torso"),
@@ -89,7 +93,8 @@ rig = lp.make_rig("zhuge_liang", mesh, [
     ("leg_R", (-0.15, 0, 0.56),  (-0.15, 0, 0.0),    "root"),
     ("arm_L", ( 0.40, 0, 1.32),  ( 0.70, 0, 0.76),   "torso"),
     ("arm_R", (-0.40, 0, 1.32),  (-0.72, -0.10, 0.76), "torso"),
-])
+]
+rig = lp.make_rig("zhuge_liang", mesh, CH.bones(BONES) if CH else BONES)
 
 def idle(f):
     t = f / 24 * 2 * math.pi
@@ -104,6 +109,8 @@ def walk(f):   # 부채 든 팔은 덜 흔듦(차분하게)
 
 lp.make_action(rig, "idle", list(range(0, 25, 2)), idle)
 lp.make_action(rig, "walk", list(range(0, 17, 2)), walk)
+if CH:
+    lp.gag_actions(rig, "fan")   # 개그 동작(D-308)
 print("TRIS", lp.tris(mesh))
 
 if "--render" in FLAGS:

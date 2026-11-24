@@ -42,7 +42,7 @@ func setup(tactic_id: String, pl: Node3D, h: Node3D) -> void:
 	match TacticTable.LIST[id].type:
 		"xbow", "knives":
 			var bm := BoxMesh.new()
-			bm.size = Vector3(0.07, 0.07, 0.8) if TacticTable.LIST[id].type == "xbow" else Vector3(0.12, 0.04, 0.5)
+			bm.size = Vector3(0.1, 0.1, 1.1) if TacticTable.LIST[id].type == "xbow" else Vector3(0.18, 0.06, 0.75)   # D-308: 보이는 크기 ×1.4
 			shot_mesh = bm
 		"drum":
 			ring = _disc(1.0, _mat(Color(0.95, 0.75, 0.35, 0.0), true))
