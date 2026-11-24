@@ -4,7 +4,7 @@
 #   배까지 오는 넓은 검은 수염 · 구레나룻 · 양옆 긴 머리 / 오른쪽 어깨에만 금 견갑 / 녹색 전포 + 가슴을 가로지르는 띠 /
 #   갈색 허리띠 + 금 육각 버클 · 장식 / 앞에 늘어진 녹색 띠 · 녹색 바지 · 갈색 신 · 붉은 주먹.
 #   설정화엔 무기가 없지만 게임용으로 청룡언월도(D-306 C안 크기)를 오른손에.
-# 동작: idle · walk + 개그 동작(lowpoly.gag_actions "sweep": swing · stagger · flop).
+# 동작: idle · walk + 개그 동작(lowpoly.end_actions: 쓰러질 때 down · 승리할 때 cheer, D-313).
 # 실행: python godot3d/tools/blender/guan_yu.py <출력 폴더> [--render]   (pip install bpy)
 # 결과: guan_yu.glb (--render면 정면 · 옆 · 뒤 gy_*.png — 설정화와 맞대 보기용)
 import math, os, sys
@@ -129,7 +129,7 @@ def walk(f):   # 0 ~ 16 (0.67초 한 걸음 주기) — 다리가 짧아 종종�
 
 lp.make_action(rig, "idle", list(range(0, 25, 2)), idle)
 lp.make_action(rig, "walk", list(range(0, 17, 2)), walk)
-lp.gag_actions(rig, "sweep")   # 개그 동작(D-304~307)
+lp.end_actions(rig)   # 개그 동작: 쓰러질 때 down · 승리할 때 cheer(D-313)
 print("TRIS", lp.tris(mesh))
 
 if "--render" in FLAGS:

@@ -283,126 +283,41 @@ class Chibi:
         return out
 
 
-# ── 개그 동작(D-304~307): 공격마다 swing(윗몸) · 3번째마다 stagger(윗몸, 0.75초 이하) · 절기 뒤 flop(몸 전체) ──
-# kind = 장수 무기 모양: sweep 휘두르기(관우) · thrust 찌르기(장비) · throw 던지기(유비) · fan 부채질(제갈량).
-# 게임(player.gd)은 윗몸(몸통 · 머리 · 팔) 뼈만 걸러 swing · stagger를 겹치므로 다리 값은 무시됨(--classic 시험 보기용으로만 둠).
+# ── 개그 동작(D-313): 드문 순간 둘만 — 쓰러질 때 down(마지막 모습 유지) · 승리할 때 cheer(반복). 몸 전체.
+# D-304~312의 '공격마다 swing · 3번째마다 stagger · 절기 뒤 flop'은 반복 피로 · 판정 방향과 어긋남 때문에 뺌.
 def _ease(a, b, k):
     k = max(0.0, min(1.0, k))
     k = k * k * (3 - 2 * k)
     return a + (b - a) * k
 
 
-def _dizzy(f, n=18):   # 공통 비틀: 머리가 원을 그리며 어질어질 · 윗몸 흔들
-    k = f / n
-    a = k * 4 * math.pi
-    w = math.sin(k * math.pi)
-    return a, w, ({"head": (12 * math.sin(a) * w, 0, 18 * math.cos(a) * w), "torso": (8 * math.cos(a) * w, 0, 14 * math.sin(a) * w)},
-                  {"root": (0.18 * math.sin(a * 0.5) * w, 0.07 * abs(math.sin(a)), 0)})
-
-
-def _gag_sweep(f):   # 관우: 까치발로 언월도를 머리 위로 → 무게에 끌려 윗몸이 한 바퀴 → 앞으로 고꾸라질 듯 휘청(0 ~ 14)
-    if f <= 4:
-        k = _ease(0, 1, f / 4)
-        return ({"arm_R": (-150 * k, 0, 20 * k), "arm_L": (-60 * k, 0, 30 * k), "torso": (-18 * k, 0, 0), "head": (-10 * k, 0, 0)},
-                {"root": (0, 0.08 * k, 0)})
+def _end_down(f):   # 0 ~ 40: 비틀비틀 제자리 돌기(0 ~ 10) → 뒤로 벌러덩(10 ~ 18) → 다리 파닥(18 ~ 32) → 축 늘어짐(32 ~ 40, 마지막 모습 유지)
     if f <= 10:
-        k = (f - 4) / 6
-        return ({"arm_R": (-90, 0, -10), "arm_L": (-40, 0, 70), "torso": (12 * k, -360 * _ease(0, 1, k), 0),
-                 "head": (0, 0, 20 * math.sin(k * math.pi))}, {"root": (0, 0.04 * math.sin(k * math.pi), 0)})
-    k = (f - 10) / 4
-    w = math.sin(k * math.pi)
-    return ({"arm_R": (_ease(-90, 0, k), 0, -10), "arm_L": (_ease(-40, 0, k), 0, _ease(70, 0, k)), "torso": (25 * w, 0, 10 * w),
-             "head": (15 * w, 0, -10 * w)}, {})
+        k = f / 10
+        a = k * 3 * math.pi
+        return ({"torso": (8 * math.sin(a), 40 * math.sin(a * 0.5), 12 * math.cos(a)), "head": (0, 0, 20 * math.sin(a)),
+                 "arm_L": (-60 * abs(math.sin(a)), 0, 60), "arm_R": (-60 * abs(math.cos(a)), 0, -60),
+                 "leg_L": (-20 * max(0.0, math.sin(a)), 0, 0), "leg_R": (-20 * max(0.0, -math.sin(a)), 0, 0)}, {})
+    fall = _ease(0, 1, (f - 10) / 8)
+    kick = math.sin((f - 18) / 14 * 6 * math.pi) * (1.0 if 18 <= f <= 32 else 0.0) * (1 - max(0.0, (f - 26) / 6))
+    return ({"root": (-82 * fall, 0, 0), "torso": (-8 * fall, 0, 0), "head": (15 * fall, 0, 10 * fall),
+             "leg_L": (-40 * fall + 30 * kick, 0, -10 * fall), "leg_R": (-40 * fall - 30 * kick, 0, 10 * fall),
+             "arm_L": (-150 * fall, 0, 50 * fall), "arm_R": (-150 * fall, 0, -50 * fall)},
+            {"root": (0, 0.05 * math.sin(fall * math.pi), 0)})
 
 
-def _gag_sweep3(f):   # 관우 3번째: 어질어질 · 언월도를 질질 끔
-    a, w, (rot, loc) = _dizzy(f)
-    rot.update({"arm_R": (40 * w, 0, -20 * w), "arm_L": (-50 * w, 0, 60 * w)})
-    return rot, loc
+def _end_cheer(f):   # 0 ~ 24(1초 반복): 깡충깡충 뛰며 두 팔을 번갈아 흔듦 · 고개 까딱
+    t = f / 24 * 2 * math.pi
+    hop = abs(math.sin(t))
+    return ({"arm_L": (0, 0, -115 + 25 * math.sin(t)), "arm_R": (0, 0, 115 + 25 * math.sin(t)),   # 두 팔을 옆으로 들어 V자 · 번갈아 흔듦(왼팔은 z 음수가 바깥 위 — 뼈 회전을 재서 맞춤)
+             "torso": (0, 0, 8 * math.sin(t)), "head": (-10 * hop, 0, 12 * math.sin(t)),
+             "leg_L": (-25 * hop, 0, -8), "leg_R": (-25 * hop, 0, 8)},
+            {"root": (0, 0.18 * hop, 0)})
 
 
-def _gag_thrust(f):   # 장비: 사모를 뒤로 당겼다 힘껏 찌르다 윗몸이 앞으로 쭉 늘어져 고꾸라질 뻔 · 팔 허우적(0 ~ 14)
-    if f <= 4:
-        k = _ease(0, 1, f / 4)
-        return ({"arm_R": (40 * k, 0, 15 * k), "arm_L": (30 * k, 0, -10 * k), "torso": (-15 * k, 25 * k, 0), "head": (-8 * k, 0, 0)}, {})
-    if f <= 8:
-        k = _ease(0, 1, (f - 4) / 4)
-        return ({"arm_R": (40 - 135 * k, 0, 15), "arm_L": (30 - 120 * k, 0, -10), "torso": (-15 + 60 * k, 25 - 40 * k, 0), "head": (-8 + 30 * k, 0, 0)}, {})
-    k = (f - 8) / 6   # 앞으로 고꾸라질 뻔 → 팔을 허우적대며 버팀
-    w = math.sin(k * math.pi)
-    flail = math.sin(k * 6 * math.pi) * w
-    return ({"arm_R": (_ease(-95, 0, k), 0, 15 * (1 - k)), "arm_L": (-60 * w + 50 * flail, 0, 60 * w), "torso": (_ease(45, 0, k), -15 * (1 - k), 0),
-             "head": (_ease(22, 0, k), 0, 15 * flail)}, {})
-
-
-def _gag_thrust3(f):   # 장비 3번째: 사모 끝이 땅에 박혀 두 손으로 낑낑 당김(0 ~ 18)
-    k = f / 18
-    w = math.sin(k * math.pi)
-    jerk = abs(math.sin(k * 5 * math.pi)) * w
-    return ({"arm_R": (-50 * w, 0, -10 * w), "arm_L": (-55 * w, 0, -35 * w), "torso": (-30 * jerk, 0, 6 * math.sin(k * 5 * math.pi) * w),
-             "head": (-20 * jerk, 0, 0)}, {"root": (0, 0.03 * jerk, 0)})
-
-
-def _gag_throw(f):   # 유비: 두 팔을 풍차처럼 크게 돌려 쌍검 던지기 → 반동에 휘청(0 ~ 14)
-    k = f / 14
-    a = _ease(0, 1, min(k / 0.7, 1.0)) * 2 * math.pi
-    w = math.sin(min(k / 0.7, 1.0) * math.pi)
-    after = max(0.0, (k - 0.7) / 0.3)
-    return ({"arm_R": (-math.degrees(a) * 0.9, 0, -20 * w), "arm_L": (-math.degrees(a + math.pi) * 0.9 * w, 0, 20 * w),
-             "torso": (10 * math.sin(after * math.pi), 30 * math.sin(a), -12 * math.sin(after * math.pi)), "head": (0, 0, 15 * math.sin(a))}, {})
-
-
-def _gag_throw3(f):   # 유비 3번째: 돌아오는 칼에 깜짝 — 머리를 감싸고 움츠림(0 ~ 18)
-    k = f / 18
-    w = math.sin(k * math.pi)
-    shake = math.sin(k * 8 * math.pi) * w
-    return ({"arm_R": (-160 * w, 0, 40 * w), "arm_L": (-160 * w, 0, -40 * w), "torso": (30 * w, 0, 8 * shake), "head": (25 * w, 0, 10 * shake)},
-            {"root": (0, -0.08 * w, 0)})
-
-
-def _gag_fan(f):   # 제갈량: 부채를 크게 부치다 반동에 자기가 뒤로 밀려 깡총(0 ~ 14)
-    if f <= 5:
-        k = _ease(0, 1, f / 5)
-        return ({"arm_R": (-40 * k, 0, 70 * k), "torso": (0, 25 * k, 0), "head": (0, 0, 0)}, {})
-    k = (f - 5) / 9
-    sweep = _ease(0, 1, min(k / 0.4, 1.0))
-    w = math.sin(k * math.pi)
-    return ({"arm_R": (-40 - 30 * sweep, 0, 70 - 150 * sweep), "arm_L": (-50 * w, 0, 50 * w), "torso": (-28 * w, 25 - 45 * sweep, 0),
-             "head": (-15 * w, 0, 0)}, {"root": (0, 0.10 * w, 0.15 * w)})
-
-
-def _gag_fan3(f):   # 제갈량 3번째: 너무 세게 부쳐 윗몸이 한 바퀴 → 어질(0 ~ 18)
-    k = f / 18
-    spin = _ease(0, 1, min(k / 0.5, 1.0))
-    a, w, (rot, loc) = _dizzy(max(0.0, f - 9) * 2)
-    rot["torso"] = (rot["torso"][0], -360 * spin, rot["torso"][2])
-    rot.update({"arm_R": (-80 * (1 - spin), 0, -60 * (1 - spin)), "arm_L": (-40 * w, 0, 50 * w)})
-    return rot, loc
-
-
-def _gag_flop(f):   # 공통: 뒤로 털썩 주저앉음 → 어리둥절 고개 갸웃 → 벌떡(0 ~ 36, 몸 전체)
-    if f <= 6:
-        sit = _ease(0, 1, f / 6)
-    elif f <= 26:
-        sit = 1.0
-    else:
-        sit = _ease(1, 0, (f - 26) / 10)
-    wob = math.sin(f / 36 * 8 * math.pi) * (1.0 if 6 < f <= 26 else 0.0)
-    return ({"torso": (-45 * sit, 0, 8 * wob), "head": (20 * sit, 0, 25 * wob),
-             "leg_L": (-95 * sit, 0, -20 * sit), "leg_R": (-95 * sit, 0, 20 * sit),
-             "arm_L": (-40 * sit, 0, 70 * sit), "arm_R": (-30 * sit, 0, -70 * sit)},
-            {"root": (0, -0.42 * sit, 0.10 * sit)})
-
-
-GAGS = {"sweep": (_gag_sweep, _gag_sweep3), "thrust": (_gag_thrust, _gag_thrust3),
-        "throw": (_gag_throw, _gag_throw3), "fan": (_gag_fan, _gag_fan3)}
-
-
-def gag_actions(rig, kind):
-    a, b = GAGS[kind]
-    make_action(rig, "swing", list(range(0, 15)), a)
-    make_action(rig, "stagger", list(range(0, 19)), b)
-    make_action(rig, "flop", list(range(0, 37)), _gag_flop)
+def end_actions(rig):
+    make_action(rig, "down", list(range(0, 41)), _end_down)
+    make_action(rig, "cheer", list(range(0, 25)), _end_cheer)
 
 
 def render_views(out_dir, prefix, center_z=1.0, ortho=2.8, views=("front", "side", "back")):

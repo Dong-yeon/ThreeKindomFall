@@ -3,7 +3,7 @@
 #   세로 골이 진 높은 검은 관 + 아래 띠 / 양옆으로 늘어진 긴 검은 머리 / 가는 눈 · 팔자 콧수염 · 뾰족한 턱수염 · 볼 홍조 /
 #   흰 학창의(하늘색 깃 · 앞섶 · 자락 테 · 소맷부리) · 검은 허리띠 + 초록 옥 장식 + 검은 술 · 흰 바지 · 검은 신.
 #   학우선은 설정화에선 가슴에 꽂혀 있지만, 공격 개그(부채질)를 오른팔로 하므로 오른손에 듦.
-# 동작: idle · walk + 개그 동작(lowpoly.gag_actions "fan").
+# 동작: idle · walk + 개그 동작(lowpoly.end_actions: down · cheer, D-313).
 # 실행: python godot3d/tools/blender/zhuge_liang.py <출력 폴더> [--render]   (pip install bpy)
 # 결과: zhuge_liang.glb (--render면 정면 · 옆 · 뒤 zl_*.png)
 import math, os, sys
@@ -111,7 +111,7 @@ def walk(f):   # 부채 든 팔은 덜 흔듦(차분하게)
 
 lp.make_action(rig, "idle", list(range(0, 25, 2)), idle)
 lp.make_action(rig, "walk", list(range(0, 17, 2)), walk)
-lp.gag_actions(rig, "fan")   # 개그 동작(D-307)
+lp.end_actions(rig)   # 개그 동작: 쓰러질 때 down · 승리할 때 cheer(D-313)
 print("TRIS", lp.tris(mesh))
 
 if "--render" in FLAGS:

@@ -153,7 +153,7 @@ def walk(f):   # 관우보다 조금 거칠게(몸을 더 비틂)
 lp.make_action(rig, "idle", list(range(0, 25, 2)), idle)
 lp.make_action(rig, "walk", list(range(0, 17, 2)), walk)
 if CH:
-    lp.gag_actions(rig, "thrust")   # 개그 동작(D-308)
+    lp.end_actions(rig)   # 개그 동작: 쓰러질 때 down · 승리할 때 cheer(D-313)
 print("TRIS", lp.tris(mesh))
 
 if "--render" in FLAGS:

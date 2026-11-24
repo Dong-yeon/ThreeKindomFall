@@ -19,9 +19,7 @@ var dash_dir := Vector3.ZERO
 var dash_speed := 0.0
 var iframe_t := 0.0           # 경공 무적 남은 시간(main이 피해 계산 때 봄)
 var dash_count := 0
-var action_t := 0.0           # 한 번짜리 동작 남은 시간(D-304)
-var action_name := ""
-var action_count := 0
+var final := false            # 판 끝 개그 동작 중(D-313)
 var blinked := false          # 이번 프레임에 축지했는가(main이 효과를 그리고 끔)
 var _dash_key_was := false
 var _move_dir := Vector3.ZERO
@@ -74,58 +72,7 @@ func setup(scene: PackedScene) -> void:
 		for n in ["idle", "walk"]:
 			if anim.has_animation(n):
 				anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR
-		if anim.has_animation("swing"):
-			_build_tree()
 		_play("idle")
-
-const UPPER := ["torso", "head", "arm_L", "arm_R"]   # 윗몸 뼈 — 개그 동작은 여기만 덮음(D-305)
-var tree: AnimationTree
-var loco := "idle"
-
-func _build_tree() -> void:
-	## 개그 동작이 있는 모델(D-305): 다리는 걷기 · 서기 그대로, 휘두르기 · 비틀은 윗몸 뼈에만 겹침(OneShot + 뼈 필터), 엉덩방아는 몸 전체.
-	var bt := AnimationNodeBlendTree.new()
-	var tr := AnimationNodeTransition.new()
-	tr.xfade_time = 0.15
-	tr.add_input("idle")
-	tr.add_input("walk")
-	bt.add_node("loco", tr, Vector2(0, 0))
-	for n in ["idle", "walk"]:
-		var a := AnimationNodeAnimation.new()
-		a.animation = n
-		bt.add_node(n, a, Vector2(-200, 0))
-	bt.connect_node("loco", 0, "idle")
-	bt.connect_node("loco", 1, "walk")
-	var up_act := AnimationNodeAnimation.new()
-	up_act.animation = "swing"
-	bt.add_node("up_act", up_act)
-	var up := AnimationNodeOneShot.new()
-	up.fadein_time = 0.05
-	up.fadeout_time = 0.1
-	up.filter_enabled = true
-	var src := anim.get_animation("swing")
-	for i in src.get_track_count():
-		var path := src.track_get_path(i)
-		if path.get_subname_count() > 0 and String(path.get_subname(0)) in UPPER:
-			up.set_filter_path(path, true)
-	bt.add_node("up", up)
-	bt.connect_node("up", 0, "loco")
-	bt.connect_node("up", 1, "up_act")
-	var full_act := AnimationNodeAnimation.new()
-	full_act.animation = "flop"
-	bt.add_node("full_act", full_act)
-	var full := AnimationNodeOneShot.new()
-	full.fadein_time = 0.05
-	full.fadeout_time = 0.15
-	bt.add_node("full", full)
-	bt.connect_node("full", 0, "up")
-	bt.connect_node("full", 1, "full_act")
-	bt.connect_node("output", 0, "full")
-	tree = AnimationTree.new()
-	tree.tree_root = bt
-	model.add_child(tree)
-	tree.anim_player = tree.get_path_to(anim)
-	tree.active = true
 
 func anim_names() -> PackedStringArray:
 	return anim.get_animation_list() if anim else PackedStringArray()
@@ -134,46 +81,21 @@ func walk_loops() -> bool:
 	return anim != null and anim.has_animation("walk") and anim.get_animation("walk").loop_mode == Animation.LOOP_LINEAR
 
 func _play(n: String) -> void:
-	if tree:   # 다리(걷기 · 서기)는 개그 동작 중에도 계속 바뀜(D-305)
-		if n != loco and (n == "idle" or n == "walk"):
-			loco = n
-			tree.set("parameters/loco/transition_request", n)
-		return
-	if action_t > 0.0:   # 한 번짜리 동작(공격 개그 등) 중엔 걷기 · 서기로 안 바꿈
+	if final:   # 쓰러짐 · 승리 동작 뒤엔 걷기 · 서기로 안 바꿈
 		return
 	if anim and anim.has_animation(n) and anim.current_animation != n:
 		anim.play(n, 0.15)
 
-const ACTION_PRIO := {"swing": 1, "stagger": 2, "flop": 3}
-
-func has_action(n: String) -> bool:
-	return anim != null and anim.has_animation(n)
-
-func play_action(n: String) -> bool:
-	## 한 번짜리 동작(D-304 공격 개그 — 보이기만, 판정과 무관). 더 높은(같은) 순위 동작이 도는 중이면 안 끊음.
-	if not has_action(n):
-		return false
-	var cur: int = ACTION_PRIO.get(action_name, 0)
-	var nxt: int = ACTION_PRIO.get(n, 0)
-	if action_t > 0.0 and nxt < cur:
-		return false
-	if action_t > 0.0 and nxt == cur and n != "swing":
-		return false
-	if tree:
-		var full := n == "flop"   # 엉덩방아만 몸 전체(주저앉음)
-		var bt := tree.tree_root as AnimationNodeBlendTree
-		(bt.get_node("full_act" if full else "up_act") as AnimationNodeAnimation).animation = n
-		tree.set("parameters/%s/request" % ("full" if full else "up"), AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
-	else:
-		anim.play(n, 0.05)
-	action_name = n
-	action_t = anim.get_animation(n).length
-	action_count += 1
-	return true
+func play_final(n: String) -> void:
+	## 판 끝 개그 동작(D-313): 쓰러질 때 down(마지막 모습 유지) · 승리할 때 cheer(반복). 모델에 없으면 아무 일 없음.
+	if anim == null or not anim.has_animation(n):
+		return
+	final = true
+	anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR if n == "cheer" else Animation.LOOP_NONE
+	anim.play(n, 0.1)
 
 func _process(delta: float) -> void:
 	_t += delta
-	action_t = maxf(action_t - delta, 0.0)
 	# 경공 충전 · 무적
 	if not qg.is_empty() and charges < int(qg.charges):
 		charge_t -= delta
