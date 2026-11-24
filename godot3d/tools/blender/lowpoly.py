@@ -403,3 +403,37 @@ def gag_actions(rig, kind):
     make_action(rig, "swing", list(range(0, 15)), a)
     make_action(rig, "stagger", list(range(0, 19)), b)
     make_action(rig, "flop", list(range(0, 37)), _gag_flop)
+
+
+def render_views(out_dir, prefix, center_z=1.0, ortho=2.8, views=("front", "side", "back")):
+    """설정화와 맞대 보기용 렌더(D-311): 흰 바탕 정면 · 옆 · 뒤(정사영)."""
+    from mathutils import Vector
+    scn = bpy.context.scene
+    bpy.ops.object.light_add(type="SUN", location=(0, -4, 6))
+    sun = bpy.context.object
+    sun.data.energy = 3.0
+    sun.rotation_euler = (math.radians(40), 0, math.radians(15))
+    w = bpy.data.worlds.new("w")
+    scn.world = w
+    w.use_nodes = True
+    w.node_tree.nodes["Background"].inputs[0].default_value = (1, 1, 1, 1)
+    w.node_tree.nodes["Background"].inputs[1].default_value = 0.8
+    scn.render.engine = "CYCLES"
+    scn.cycles.device = "CPU"
+    scn.cycles.samples = 16
+    scn.render.resolution_x, scn.render.resolution_y = 400, 440
+    scn.view_settings.view_transform = "Standard"
+    cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
+    scn.collection.objects.link(cam)
+    scn.camera = cam
+    cam.data.type = "ORTHO"
+    cam.data.ortho_scale = ortho
+    pos = {"front": (0, -8, center_z), "side": (8, 0, center_z), "back": (0, 8, center_z), "quarter": (-5, -6, center_z + 1.0)}
+    for name in views:
+        p = pos[name]
+        cam.location = p
+        cam.rotation_euler = (Vector((0, 0, center_z)) - Vector(p)).to_track_quat("-Z", "Y").to_euler()
+        scn.render.filepath = os.path.join(out_dir, f"{prefix}_{name}.png")
+        bpy.ops.render.render(write_still=True)
+    bpy.data.objects.remove(sun)
+    bpy.data.objects.remove(cam)

@@ -1,8 +1,11 @@
-# 제갈량 저폴리 모델 + 뼈대 + 동작(idle · walk) — 블렌더 코드로만(D-295, 임시).
-# 설정화 없이 글 설명으로: 윤건(검푸른 두건, 뒤로 끈 두 가닥) · 흰 학창의(넓은 소매 · 검은 테) · 푸른 회색 속옷 ·
-# 검은 허리띠 + 옥 장식 · 짧은 콧수염 · 가는 턱수염 · 오른손에 흰 학우선(깃털 부채). 설정화를 받으면 맞춰 고침.
+# 제갈량 저폴리 모델 + 뼈대 + 동작 — 블렌더 코드로만 만든다.
+# D-295 임시(글 설명, 윤건) → D-311: 설정화(godot3d/art/concept/zhuge_liang.webp)를 보고 처음부터 큰 머리(약 2등신)로:
+#   세로 골이 진 높은 검은 관 + 아래 띠 / 양옆으로 늘어진 긴 검은 머리 / 가는 눈 · 팔자 콧수염 · 뾰족한 턱수염 · 볼 홍조 /
+#   흰 학창의(하늘색 깃 · 앞섶 · 자락 테 · 소맷부리) · 검은 허리띠 + 초록 옥 장식 + 검은 술 · 흰 바지 · 검은 신.
+#   학우선은 설정화에선 가슴에 꽂혀 있지만, 공격 개그(부채질)를 오른팔로 하므로 오른손에 듦.
+# 동작: idle · walk + 개그 동작(lowpoly.gag_actions "fan").
 # 실행: python godot3d/tools/blender/zhuge_liang.py <출력 폴더> [--render]   (pip install bpy)
-# 결과: zhuge_liang.glb (뼈 이름 · 동작은 다른 장수들과 같음)
+# 결과: zhuge_liang.glb (--render면 정면 · 옆 · 뒤 zl_*.png)
 import math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lowpoly as lp
@@ -11,90 +14,89 @@ OUT, FLAGS = lp.args()
 lp.reset_scene()
 R = math.radians
 
-SKIN  = lp.mat("skin",  "f0c8a8")
-WHITE = lp.mat("white", "eeeae0")          # 학창의
-EYEW  = lp.mat("eyew",  "f6f2ea")
-BLACK = lp.mat("black", "1e1e24")          # 테 · 머리 · 눈
-HAT   = lp.mat("hat",   "2a3448")          # 윤건
-INNER = lp.mat("inner", "6a7a9a")          # 속옷
-JADE  = lp.mat("jade",  "6ab89a", 0.4)
-FEATH = lp.mat("feath", "f8f8f4")          # 학우선 깃털
+SKIN  = lp.mat("skin",  "f2cdb4")
+BLUSH = lp.mat("blush", "f0a0a0")
+WHITE = lp.mat("white", "eeeeec")          # 학창의
+PANTS = lp.mat("pants", "dcdcda")
+TRIM  = lp.mat("trim",  "9cc6e8")          # 하늘색 테
+BLACK = lp.mat("black", "242424")          # 관 · 머리 · 띠 · 신
+JADE  = lp.mat("jade",  "5e9a7c", 0.4)
+FEATH = lp.mat("feath", "fafaf8")
 WOOD  = lp.mat("wood",  "6a4a30")
 
 b = lp.Body()
-# 앞쪽 = -Y, 발밑 z=0, 키 약 2.2. 오른쪽 = -X.
+# 앞쪽 = -Y, 발밑 z = 0, 키 약 2.1(관 끝). 오른쪽 = -X.
 for side, bone in ((-1, "leg_R"), (1, "leg_L")):
     b.bone = bone
-    x = 0.15 * side
-    b.box(0.18, 0.27, 0.18, (x, -0.02, 0.09), BLACK)                   # 검은 신
-    b.cone(0.11, 0.13, 0.18, 0.56, INNER, x=x, v=6)
+    x = 0.14 * side
+    b.box(0.17, 0.27, 0.09, (x, -0.03, 0.045), BLACK)                 # 검은 신
+    b.cone(0.11, 0.12, 0.08, 0.24, PANTS, x=x, v=8)                   # 흰 바지
 
 b.bone = "torso"
-b.cone(0.50, 0.36, 0.30, 1.00, WHITE)                                 # 긴 학창의 자락(발목까지)
-b.cone(0.51, 0.50, 0.26, 0.34, BLACK)                                 # 검은 단
-b.box(0.06, 0.03, 0.70, (-0.05, -0.43, 0.65), BLACK, (R(-10), 0, R(-4)))   # 앞섶 검은 테
-b.cone(0.37, 0.37, 0.94, 1.04, BLACK)                                 # 허리띠
-b.box(0.10, 0.05, 0.10, (0, -0.38, 0.99), JADE)                       # 옥 장식
-b.cone(0.03, 0.02, 0.62, 0.92, JADE, x=0.10, y=-0.40, v=5)            # 늘어진 옥 술
-b.cone(0.36, 0.40, 1.02, 1.40, WHITE)                                 # 가슴
-b.box(0.06, 0.03, 0.40, (-0.08, -0.385, 1.24), BLACK, (0, R(-22), 0))   # 교차 깃(검은 테)
-b.box(0.06, 0.03, 0.40, ( 0.08, -0.385, 1.24), BLACK, (0, R(22), 0))
-b.poly([(-0.10, 1.42), (0.10, 1.42), (0.0, 1.16)], -0.38, 0.02, INNER)
-b.cone(0.27, 0.23, 1.38, 1.46, BLACK, v=8)                            # 목깃
-b.poly([(-0.32, 1.40), (0.32, 1.40), (0.36, 0.34), (-0.36, 0.34)], 0.44, 0.025, WHITE)   # 뒤 자락
+b.cone(0.44, 0.33, 0.16, 0.62, WHITE, v=10)                           # 학창의 자락
+b.cone(0.445, 0.43, 0.14, 0.20, TRIM, v=10)                           # 자락 하늘색 테
+b.box(0.06, 0.02, 0.46, (0.12, -0.41, 0.40), TRIM, (R(-14), 0, 0))    # 앞섶 테(세로)
+b.cone(0.33, 0.29, 0.62, 0.98, WHITE, v=10)                           # 윗몸
+b.box(0.07, 0.02, 0.44, (-0.06, -0.31, 0.80), TRIM, (0, R(-30), R(-38)))   # 깃(대각선, 하늘색)
+b.box(0.07, 0.02, 0.24, ( 0.10, -0.30, 0.90), TRIM, (0, R(30), R(38)))
+b.cone(0.30, 0.26, 0.95, 1.01, TRIM, v=10)                            # 목깃
+b.cone(0.34, 0.34, 0.60, 0.68, BLACK, v=10)                           # 검은 허리띠
+b.box(0.16, 0.04, 0.14, (0.02, -0.355, 0.62), JADE)                   # 옥 장식
+b.box(0.05, 0.03, 0.10, (0.02, -0.36, 0.50), JADE)
+b.cone(0.03, 0.015, 0.36, 0.46, BLACK, x=0.02, y=-0.36, v=5)          # 검은 술
+b.box(0.04, 0.02, 0.26, (-0.16, -0.34, 0.50), BLACK, (0, 0, R(-25)))  # 늘어진 끈
+b.box(0.30, 0.05, 0.40, (0, 0.32, 0.40), WHITE)                       # 뒤 자락
 
 for side, bone in ((1, "arm_L"), (-1, "arm_R")):
     b.bone = bone
     rot = (0, R(-24 * side), 0)
-    b.cone(0.26, 0.12, 0.84, 1.32, WHITE, x=0.55 * side, v=8, rot=rot)     # 넓은 소매
-    b.cone(0.27, 0.265, 0.80, 0.88, BLACK, x=0.66 * side, v=8, rot=rot)    # 검은 소매 끝
-    b.box(0.09, 0.13, 0.14, (0.70 * side, -0.02, 0.74), SKIN, rot)          # 손
-# 학우선(오른손, 손잡이 + 부채꼴 깃털 판)
+    b.cone(0.17, 0.14, 0.60, 0.97, WHITE, x=0.44 * side, v=8, rot=rot)   # 넓은 소매
+    b.cone(0.175, 0.17, 0.58, 0.65, TRIM, x=0.52 * side, v=8, rot=rot)   # 하늘색 소맷부리
+    b.ball(0.11, (0.58 * side, -0.02, 0.50), SKIN, 1)                 # 주먹
+# 학우선(오른손, 크게)
 b.bone = "arm_R"
-FX, FY = -0.72, -0.10
-b.cone(0.025, 0.025, 0.66, 0.96, WOOD, x=FX, y=FY, v=6)
-b.cone(0.04, 0.04, 0.95, 1.00, JADE, x=FX, y=FY, v=6)
-FS = 1.0 if "--classic" in FLAGS else 1.6   # D-308: 큰 머리 그림체에선 부채를 크게
-fan = [(FX, 0.98)]
+FX, FY = -0.60, -0.10
+b.cone(0.025, 0.025, 0.42, 0.66, WOOD, x=FX, y=FY, v=6)
+b.cone(0.045, 0.045, 0.64, 0.70, JADE, x=FX, y=FY, v=6)
+fan = [(FX, 0.68)]
 for k in range(9):
     a = R(-50 + k * 12.5)
-    fan.append((FX + math.sin(a) * 0.42 * FS, 0.98 + math.cos(a) * 0.48 * FS))
-b.poly(fan, FY, 0.02, FEATH)
-b.poly([(FX, 0.98), (FX - 0.05 * FS, 0.98 + 0.32 * FS), (FX + 0.05 * FS, 0.98 + 0.32 * FS)], FY - 0.015, 0.01, BLACK)   # 가운데 깃대
+    fan.append((FX + math.sin(a) * 0.52, 0.68 + math.cos(a) * 0.60))
+b.poly(fan, FY, 0.025, FEATH)
+for k in range(5):   # 깃털 결
+    a = R(-36 + k * 18)
+    b.box(0.015, 0.012, 0.52, (FX + math.sin(a) * 0.28, FY - 0.02, 0.68 + math.cos(a) * 0.30), lp.mat("quill", "d8d8d0"), (0, a, 0))
 
 b.bone = "head"
-b.ball(0.31, (0, 0, 1.70), SKIN, 2, (0.96, 0.95, 1.08))
+b.ball(0.33, (0, 0, 1.26), SKIN, 2, (1.0, 0.95, 1.0))                # 얼굴
 for side in (-1, 1):
-    b.box(0.06, 0.08, 0.13, (0.31 * side, 0.02, 1.68), SKIN)
-    b.box(0.11, 0.03, 0.06, (0.11 * side, -0.29, 1.73), EYEW)
-    b.box(0.06, 0.03, 0.06, (0.10 * side, -0.305, 1.73), BLACK)
-    b.box(0.13, 0.03, 0.03, (0.12 * side, -0.29, 1.81), BLACK, (0, R(-6 * side), 0))     # 가는 눈썹
-    b.box(0.11, 0.03, 0.025, (0.06 * side, -0.315, 1.59), BLACK, (0, R(-18 * side), 0))  # 짧은 콧수염
-b.box(0.05, 0.05, 0.07, (0, -0.32, 1.66), SKIN)
-b.cone(0.0, 0.05, 1.36, 1.54, BLACK, y=-0.28, v=5)                    # 가는 턱수염
-b.ball(0.33, (0, 0.10, 1.84), BLACK, 2, (1.0, 1.0, 0.9))              # 머리
-b.box(0.56, 0.18, 0.26, (0, 0.18, 1.62), BLACK)
-# 윤건: 머리를 덮는 두건 + 위로 솟은 네모 + 뒤로 늘어진 끈 두 가닥
-b.cone(0.35, 0.33, 1.84, 2.00, HAT)
-b.box(0.40, 0.34, 0.24, (0, 0.04, 2.10), HAT)
-b.box(0.30, 0.26, 0.04, (0, 0.04, 2.23), HAT)
-for side in (-1, 1):
-    b.box(0.06, 0.02, 0.50, (0.08 * side, 0.36, 1.82), HAT, (R(12), 0, R(6 * side)))
+    b.ball(0.075, (0.33 * side, 0.02, 1.25), SKIN, 1, (0.6, 1.0, 1.1))  # 귀
+    b.box(0.11, 0.03, 0.025, (0.12 * side, -0.31, 1.30), BLACK)       # 가는 눈
+    b.box(0.12, 0.03, 0.025, (0.12 * side, -0.30, 1.38), BLACK, (0, R(-8 * side), 0))   # 가는 눈썹
+    b.box(0.08, 0.02, 0.05, (0.20 * side, -0.27, 1.20), BLUSH)        # 볼 홍조
+    b.box(0.11, 0.03, 0.03, (0.07 * side, -0.33, 1.17), BLACK, (0, R(25 * side), 0))   # 팔자 콧수염
+    b.box(0.06, 0.12, 0.62, (0.31 * side, 0.02, 1.02), BLACK)         # 양옆 긴 머리
+b.box(0.05, 0.05, 0.07, (0, -0.33, 1.23), SKIN)                       # 코
+b.cone(0.0, 0.06, 0.90, 1.10, BLACK, y=-0.29, v=6)                    # 뾰족한 턱수염
+b.box(0.66, 0.26, 0.56, (0, 0.20, 1.16), BLACK)                       # 뒷머리(관 아래 ~ 목, 뒤통수를 다 덮음)
+b.cone(0.345, 0.34, 1.40, 1.54, BLACK, v=12)                          # 관 아래 띠
+b.cone(0.45, 0.49, 1.52, 2.00, BLACK, v=4, rot=(0, 0, R(45)))         # 높은 관(얼굴만큼 넓고 위로 살짝 넓어지는 네모)
+b.box(0.68, 0.68, 0.04, (0, 0.0, 2.00), BLACK)                        # 관 윗면
+for k in range(5):   # 세로 골(앞 · 뒤)
+    x = -0.24 + k * 0.12
+    b.box(0.04, 0.03, 0.46, (x, -0.335, 1.76), lp.mat("ridge", "3a3a3a"))
+    b.box(0.04, 0.03, 0.46, (x, 0.335, 1.76), lp.mat("ridge", "3a3a3a"))
 
 mesh = b.join("zhuge_liang")
-CH = lp.Chibi(leg_top=0.56, neck=1.45) if "--classic" not in FLAGS else None   # D-308: 큰 머리 비율이 기본(--classic이면 예전)
-if CH:
-    CH.apply_mesh(mesh)
-BONES = [
-    ("root",  (0, 0, 0),         (0, 0, 0.3),        None),
-    ("torso", (0, 0, 0.95),      (0, 0, 1.45),       "root"),
-    ("head",  (0, 0, 1.45),      (0, 0, 2.1),        "torso"),
-    ("leg_L", ( 0.15, 0, 0.56),  ( 0.15, 0, 0.0),    "root"),
-    ("leg_R", (-0.15, 0, 0.56),  (-0.15, 0, 0.0),    "root"),
-    ("arm_L", ( 0.40, 0, 1.32),  ( 0.70, 0, 0.76),   "torso"),
-    ("arm_R", (-0.40, 0, 1.32),  (-0.72, -0.10, 0.76), "torso"),
-]
-rig = lp.make_rig("zhuge_liang", mesh, CH.bones(BONES) if CH else BONES)
+rig = lp.make_rig("zhuge_liang", mesh, [
+    ("root",  (0, 0, 0),            (0, 0, 0.3),            None),
+    ("torso", (0, 0, 0.50),         (0, 0, 1.00),           "root"),
+    ("head",  (0, 0, 1.00),         (0, 0, 1.60),           "torso"),
+    ("leg_L", ( 0.14, 0, 0.24),     ( 0.14, 0, 0.0),        "root"),
+    ("leg_R", (-0.14, 0, 0.24),     (-0.14, 0, 0.0),        "root"),
+    ("arm_L", ( 0.32, 0, 0.94),     ( 0.58, 0, 0.50),       "torso"),
+    ("arm_R", (-0.32, 0, 0.94),     (-0.58, -0.08, 0.50),   "torso"),
+])
 
 def idle(f):
     t = f / 24 * 2 * math.pi
@@ -103,39 +105,17 @@ def idle(f):
 
 def walk(f):   # 부채 든 팔은 덜 흔듦(차분하게)
     s = math.sin(f / 16 * 2 * math.pi)
-    rot = {"leg_L": (-24 * s, 0, 0), "leg_R": (24 * s, 0, 0), "arm_L": (-16 * s, 0, 0), "arm_R": (6 * s, 0, 0),
+    rot = {"leg_L": (-30 * s, 0, 0), "leg_R": (30 * s, 0, 0), "arm_L": (-16 * s, 0, 0), "arm_R": (6 * s, 0, 0),
            "torso": (-3, 0, 3 * s), "head": (2, 0, -2 * s)}
     return rot, {"root": (0, 0.03 * abs(s), 0)}
 
 lp.make_action(rig, "idle", list(range(0, 25, 2)), idle)
 lp.make_action(rig, "walk", list(range(0, 17, 2)), walk)
-if CH:
-    lp.gag_actions(rig, "fan")   # 개그 동작(D-308)
+lp.gag_actions(rig, "fan")   # 개그 동작(D-307)
 print("TRIS", lp.tris(mesh))
 
 if "--render" in FLAGS:
-    import bpy
-    from mathutils import Vector
-    scn = bpy.context.scene
-    bpy.ops.object.light_add(type="SUN", location=(0, -4, 6))
-    sun = bpy.context.object
-    sun.data.energy = 3.0
-    sun.rotation_euler = (R(40), 0, R(15))
-    w = bpy.data.worlds.new("w"); scn.world = w; w.use_nodes = True
-    w.node_tree.nodes["Background"].inputs[0].default_value = (0.75, 0.8, 0.85, 1)
-    w.node_tree.nodes["Background"].inputs[1].default_value = 0.8
-    scn.render.engine = "CYCLES"; scn.cycles.device = "CPU"; scn.cycles.samples = 16
-    scn.render.resolution_x, scn.render.resolution_y = 360, 480
-    scn.view_settings.view_transform = "Standard"
-    cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
-    scn.collection.objects.link(cam); scn.camera = cam
-    cam.data.type = "ORTHO"; cam.data.ortho_scale = 3.8
-    for name, p in (("front", (0, -8, 1.3)), ("side", (-8, 0, 1.3)), ("quarter", (-5, -6, 2.4))):
-        cam.location = p
-        cam.rotation_euler = (Vector((0, 0, 1.3)) - Vector(p)).to_track_quat("-Z", "Y").to_euler()
-        scn.render.filepath = os.path.join(OUT, f"zl_{name}.png")
-        bpy.ops.render.render(write_still=True)
-    bpy.data.objects.remove(sun); bpy.data.objects.remove(cam)
+    lp.render_views(OUT, "zl", center_z=1.05, ortho=2.6)
 
 lp.export(os.path.join(OUT, "zhuge_liang.glb"), [rig, mesh], animated=True)
 print("DONE")

@@ -118,10 +118,10 @@ func _card(k: int, pos: Vector2) -> void:
 	if not open:
 		_silhouette(model)
 	var cam := Camera3D.new()
-	cam.position = Vector3(0, 1.45, 4.6)
+	cam.position = Vector3(0, 1.25, 4.8)   # D-312: 큰 머리 모델(키 약 2.0)에 맞춤
 	cam.fov = 38
 	vp.add_child(cam)
-	cam.look_at(Vector3(0, 1.15, 0))
+	cam.look_at(Vector3(0, 1.05, 0))
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-40, 25, 0)
 	sun.light_energy = 1.1
