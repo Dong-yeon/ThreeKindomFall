@@ -69,6 +69,8 @@ var ult_key_was := false
 var last_hits := 0
 var last_kills := 0
 var dyn := 1.0                # 이번 프레임 공격 배율(주화입마 × 광폭)
+var passive_mod: Node3D       # 고유 심법 모듈(D-332 — 청룡의 피 · 천기: scripts/martial/passive_*.gd, 없으면 null)
+const PASSIVE_MODS := {"dragon": "res://scripts/martial/passive_dragon.gd", "weather": "res://scripts/martial/passive_weather.gd"}
 var curve_marks := [60.0, 180.0, 360.0, 540.0]
 var stage: Node3D             # 황건적 스테이지(D-289 — 진영 · 정예 · 상자)
 var foe_dmg_total := 0.0
@@ -179,8 +181,12 @@ func _ready() -> void:
 	add_child(gems)
 	# 무공(D-285): 경공 · 고유 심법 · 내공 · 의용군 · 절기
 	player.setup_qinggong(hero.qinggong)
+	if PASSIVE_MODS.has(hero.passive.id):
+		passive_mod = load(PASSIVE_MODS[hero.passive.id]).new()
+		add_child(passive_mod)
+		passive_mod.setup(self)
 	match hero.passive.id:
-		"wipung":
+		"wipung":   # (예전 관우 — D-332에서 청룡의 피로 바뀜)
 			weapon.mods.area *= hero.passive.area
 			weapon.mods.knock *= hero.passive.knock
 			weapon.refresh_fx()
@@ -615,6 +621,8 @@ func _martial_tick(delta: float, p2: Vector2) -> void:
 	if hero.passive.id == "gwangpok":
 		dyn *= 1.0 + hero.passive.max * clampf(1.0 - hero_hp / max_hp, 0.0, 1.0)
 	weapon.dyn = dyn
+	if passive_mod:   # 고유 심법 모듈이 무기 배율(dyn · haste · dyn_area)을 더 손봄
+		passive_mod.tick(delta)
 	for tac in tactics.values():
 		tac.atk_mul = atk_mul * dyn
 	# 인덕(D-293): 둘레 적이 많을수록 공격 속도 ↑
@@ -659,6 +667,12 @@ func _martial_tick(delta: float, p2: Vector2) -> void:
 	if player.blinked:   # 축지: 닿은 자리에 잠깐 빛
 		player.blinked = false
 		_blink_fx(p2)
+	if player.landed:   # 도약이 내려앉음: 용약 충격파(D-332)
+		player.landed = false
+		if hero.qinggong.has("land"):
+			var ld: Dictionary = hero.qinggong.land
+			horde.hit_circle(p2, ld.r, ld.dmg * atk_mul * dyn, ld.knock, Vector2.ZERO, 99, p2, horde.CH_ULT)
+			_land_fx(p2, ld.r)
 	if player.is_dashing() and hero.qinggong.has("impact"):
 		var im: Dictionary = hero.qinggong.impact
 		var dd := Vector2(player.dash_dir.x, player.dash_dir.z)
@@ -704,15 +718,41 @@ func _blink_fx(at: Vector2) -> void:
 	ps.emitting = true
 	get_tree().create_timer(1.0).timeout.connect(ps.queue_free)
 
+func _land_fx(at: Vector2, r: float) -> void:
+	## 용약 내려앉는 자리: 바닥에 퍼지는 고리 + 흙먼지.
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.85
+	tm.outer_radius = 1.0
+	ring.mesh = tm
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(0.4, 1.0, 0.8, 0.7)
+	ring.material_override = m
+	ring.position = Vector3(at.x, 0.1, at.y)
+	ring.scale = Vector3(0.3, 0.3, 0.3)
+	add_child(ring)
+	var tw := create_tween()
+	tw.tween_property(ring, "scale", Vector3(r, 1.0, r), 0.25)
+	tw.parallel().tween_property(m, "albedo_color:a", 0.0, 0.3)
+	tw.tween_callback(ring.queue_free)
+	_blink_fx(at)
+
 func cast_ult(id: String, origin: Vector2, facing: Vector2, is_evolved: bool) -> Ult:
 	## 절기 시전 — 독립 모듈에 시전 맥락만 넘김(나중에 어시스트 호출도 이 함수를 다른 origin · facing으로 부르면 됨).
 	var u: Ult = UltTable.make(id)
 	add_child(u)
 	u.cast({"origin": origin, "facing": facing.normalized() if facing.length() > 0.01 else Vector2(0, 1),
-		"horde": horde, "atk_mul": atk_mul * dyn, "evolved": is_evolved, "level": level,
+		"horde": horde, "atk_mul": atk_mul * dyn, "evolved": is_evolved, "level": level, "anchor": player,
+		"weather": passive_mod.weather() if passive_mod and passive_mod.has_method("weather") else "",
 		"spec": UltTable.params(id, is_evolved)})
 	active_ults.append(u)
 	ult_casts += 1
+	if passive_mod and passive_mod.has_method("on_ult"):
+		passive_mod.on_ult()
+	if is_evolved and passive_mod and passive_mod.has_method("force_wind") and u.p.has("gale_r"):   # 동남풍: 진 시간 동안 바람에 묶음
+		passive_mod.force_wind(float(u.p.dur))
 	return u
 
 func _apply_wave() -> void:
@@ -777,6 +817,8 @@ func _exit_tree() -> void:
 				",".join(stage.foes.map(func(f): return "%s:%d/%d:%s" % [f.id, int(f.hp), int(f.hp_max), str(f.casts)]))])
 		print("ENEMY spawned soldier=%d archer=%d rusher=%d shield=%d arrows_shot=%d arrows_hit=%d" % [
 			horde.spawned_kind[0], horde.spawned_kind[1], horde.spawned_kind[2], horde.spawned_kind[3], horde.arrows_shot, horde.arrows_hit])
+		if passive_mod:
+			print(passive_mod.stats())
 		if neigong:
 			print("MARTIAL hero=%s attacks=%d dashes=%d ults=%d ult_hits=%d zhuhuo=%d evolved=%s stunned=%d neigong=%.0f" % [
 				hero_id, weapon.attacks, player.dash_count, ult_casts, ult_hits, neigong.zhuhuo_count, evolved,

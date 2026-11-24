@@ -21,6 +21,7 @@ var iframe_t := 0.0           # 경공 무적 남은 시간(main이 피해 계�
 var dash_count := 0
 var final := false            # 판 끝 개그 동작 중(D-313)
 var blinked := false          # 이번 프레임에 축지했는가(main이 효과를 그리고 끔)
+var landed := false           # 이번 프레임에 도약이 내려앉았는가(용약 충격파 — main이 쓰고 끔, D-332)
 var _dash_key_was := false
 var _move_dir := Vector3.ZERO
 var has_goal := false          # 봇(D-289): 목표 자리로 가서 그 둘레를 돎(진영 정예와 싸우기)
@@ -109,8 +110,11 @@ func _process(delta: float) -> void:
 		if qg.type == "leap" and model:   # 도약: 모델을 포물선으로 띄움
 			var f: float = 1.0 - maxf(dash_t, 0.0) / qg.time
 			model.position.y = qg.height * sin(PI * f)
-		if dash_t <= 0.0 and model:
-			model.position.y = 0.0
+		if dash_t <= 0.0:
+			if model:
+				model.position.y = 0.0
+			if qg.type == "leap":
+				landed = true
 	var dir := Vector3.ZERO
 	if auto_walk:
 		# 스크린샷용: 처음 0.6초는 서 있고, 그 뒤 원을 그리며 걷는다

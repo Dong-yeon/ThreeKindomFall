@@ -25,6 +25,7 @@ var hp: UiKit.Bar
 var hp_flash := 0.0
 var last_hp := -1.0
 var nei: UiKit.Bar
+var gauge: UiKit.Bar          # 고유 심법 막대(D-332 — 관우 용기 · 제갈량 날씨, passive_mod.hud_info()가 있을 때만)
 var zhuhuo_lbl: Label
 var build_box: Panel
 var build_lbl: RichTextLabel
@@ -91,14 +92,18 @@ func setup(m) -> void:
 	build_lbl.add_theme_color_override("default_color", UiKit.TEXT)
 	build_box.add_child(build_lbl)
 	# 왼쪽 아래 장수 칸
-	add_child(UiKit.panel(Rect2(10, H - 104, 340, 94)))
+	var has_g: bool = m.passive_mod != null and m.passive_mod.has_method("hud_info")
+	var top := 128.0 if has_g else 104.0
+	add_child(UiKit.panel(Rect2(10, H - top, 340, top - 10)))
 	name_lbl = UiKit.label("%s  ·  %s" % [m.hero.name, m.hero.role], 18, UiKit.GOLD, 3)
-	name_lbl.position = Vector2(22, H - 98)
+	name_lbl.position = Vector2(22, H - top + 6)
 	add_child(name_lbl)
+	if has_g:
+		gauge = UiKit.Bar.new(self, Rect2(22, H - 94, 316, 18), UiKit.NEIGONG, 13)
 	hp = UiKit.Bar.new(self, Rect2(22, H - 70, 316, 22), UiKit.HP, 15)
 	nei = UiKit.Bar.new(self, Rect2(22, H - 42, 316, 16), UiKit.NEIGONG, 12)
 	zhuhuo_lbl = UiKit.label("", 15, UiKit.RED, 4)
-	zhuhuo_lbl.position = Vector2(22, H - 132)
+	zhuhuo_lbl.position = Vector2(22, H - top - 28)
 	add_child(zhuhuo_lbl)
 	# 오른쪽 아래 기술 칸
 	for k in 2:
@@ -183,6 +188,13 @@ func refresh(m, delta: float) -> void:
 	nei.fill.color = (Color("e84a3a") if fmod(m.t, 0.3) < 0.15 else Color("ffb040")) if nz else UiKit.NEIGONG
 	nei.set_value(m.neigong.value / MartialRules.NEIGONG_MAX, "내공 %d" % int(m.neigong.value))
 	zhuhuo_lbl.text = "주화입마 %.0f초 — 절기를 쓰면 풀림" % m.neigong.zhuhuo_t if nz else ""
+	if gauge:
+		var gi: Dictionary = m.passive_mod.hud_info()
+		var gc: Color = gi.color
+		if gi.get("pulse", false):
+			gc = gc.lerp(Color.WHITE, 0.25 + 0.25 * sin(m.t * 10.0))
+		gauge.fill.color = gc
+		gauge.set_value(gi.f, gi.text)
 	# 기술 칸: 절기
 	var cost: float = UltTable.LIST[m.ult_id].cost
 	var uf: float = clampf(m.neigong.value / cost, 0.0, 1.0)

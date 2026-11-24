@@ -24,7 +24,14 @@ var attacks := 0
 # 레벨업으로 붙는 배율 · 더하기(D-283) — 실제 값은 아래 함수로 읽음
 var mods := {"dmg": 1.0, "cd": 1.0, "area": 1.0, "count": 0, "pierce": 0, "knock": 1.0}
 var dyn := 1.0               # 매 프레임 바뀌는 공격 배율(주화입마 · 광폭 — main이 넣음, D-285)
-var haste := 1.0             # 매 프레임 바뀌는 공격 속도 배율(인덕 — main이 넣음, D-293)
+var haste := 1.0             # 매 프레임 바뀌는 공격 속도 배율(인덕 · 청룡 상태 — main · 고유 심법이 넣음, D-293 · D-332)
+var dyn_area := 1.0          # 잠깐 바뀌는 범위 배율(청룡 상태 — 바꾸면 refresh_fx, D-332)
+var swing_hits := 0          # 마지막 휘두르기 · 찌르기에 맞힌 수(청룡의 피 용기, D-332)
+var swing_dir := Vector2(0, 1)   # 마지막 휘두른 쪽
+var dyn_speed := 1.0         # 날아가는 속도 배율(천기 바람, D-333)
+var dyn_knock := 1.0         # 밀침 배율(천기 바람)
+var dyn_pierce := 0          # 꿰뚫음 더하기(천기 비)
+var hit_hook: Callable       # 바람날이 맞힐 때 (자리, 맞힌 수)를 받음(천기 번개 — 없으면 안 부름)
 var blades: Array = []       # boomerang: [{node, pos, dir, left, back}]
 var model_scale := 1.0        # 무기 모양 glb 크기(spec.model_scale)
 var fans: Array = []         # fan: [{node, pos, dir, left, pierce}] — 바람 칼날(D-295)
@@ -32,13 +39,13 @@ var returns := 0             # 돌아오는 길에 맞힌 수(--stats)
 var outs := 0                # 가는 길에 맞힌 수
 
 func dmg() -> float: return spec.dmg * mods.dmg * dyn
-func knock() -> float: return spec.knock * mods.knock
+func knock() -> float: return spec.knock * mods.knock * dyn_knock
 func cooldown() -> float: return spec.cd * mods.cd / haste
-func reach() -> float: return spec.range * mods.area
+func reach() -> float: return spec.range * mods.area * dyn_area
 func width() -> float: return spec.get("width", 0.0) * sqrt(mods.area)   # 찌르기 폭은 범위 강화의 절반 비율(제곱근) — 길이는 그대로 다 늚(D-283: 폭까지 다 늘면 앞을 다 쓸어 너무 셈 · 고정하면 너무 약함)
 func fly_radius() -> float: return spec.get("radius", 0.0) * mods.area
 func fly_count() -> int: return int(spec.get("count", 1)) + int(mods.count)   # boomerang도 같음(칼 수)
-func fly_pierce() -> int: return int(spec.get("pierce", 1)) + int(mods.pierce)
+func fly_pierce() -> int: return int(spec.get("pierce", 1)) + int(mods.pierce) + dyn_pierce
 
 func refresh_fx() -> void:
 	## 범위가 바뀌면 효과 모양도 다시.
@@ -138,11 +145,13 @@ func tick(delta: float) -> void:
 		match spec.type:
 			"sweep":
 				var d: Vector2 = _aim(c)[0]
-				horde.hit_arc(c, atan2(d.y, d.x), deg_to_rad(spec.arc) * 0.5, reach(), dmg(), knock())
+				swing_hits = horde.hit_arc(c, atan2(d.y, d.x), deg_to_rad(spec.arc) * 0.5, reach(), dmg(), knock())
+				swing_dir = d
 				_show_fx(d, 0.0)
 			"thrust":
 				var d: Vector2 = _aim(c)[0]
-				horde.hit_line(c, d, reach(), width() * 0.5, dmg(), knock())
+				swing_hits = horde.hit_line(c, d, reach(), width() * 0.5, dmg(), knock())
+				swing_dir = d
 				_show_fx(d, reach() * 0.5)
 			"fly":
 				for d in _aim(c, fly_count()):
@@ -195,11 +204,14 @@ func tick(delta: float) -> void:
 	# 바람 칼날(D-295): 멀어질수록 약해짐(끝에서 falloff배)
 	for k in range(fans.size() - 1, -1, -1):
 		var s: Dictionary = fans[k]
-		var step: float = spec.speed * delta
+		var step: float = spec.speed * dyn_speed * delta
 		s.pos += s.dir * step
 		s.left -= step
 		var f: float = lerpf(spec.falloff, 1.0, clampf(s.left / reach(), 0.0, 1.0))
-		s.pierce -= horde.hit_circle(s.pos, fly_radius(), dmg() * f, knock(), s.dir, s.pierce, c)
+		var nh: int = horde.hit_circle(s.pos, fly_radius(), dmg() * f, knock(), s.dir, s.pierce, c)
+		s.pierce -= nh
+		if nh > 0 and hit_hook.is_valid():
+			hit_hook.call(s.pos, nh)
 		var node: MeshInstance3D = s.node
 		node.position = Vector3(s.pos.x, 0.8, s.pos.y)
 		node.rotation = Vector3(-PI * 0.5, atan2(s.dir.x, s.dir.y), 0)

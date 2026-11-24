@@ -8,7 +8,9 @@ var p: Dictionary
 var player: Node3D
 var horde: Node3D
 var atk_mul := 1.0            # 무력(main이 넣음)
-var strat_mul := 1.0          # 책략 계열 배율(제갈량 와룡 — main이 넣음, D-295)
+var strat_mul := 1.0          # 책략 계열 배율(예전 제갈량 와룡 — main이 넣음, D-295 · 지금은 쓰는 장수 없음)
+var weather_mul := 1.0        # 날씨 피해 배율(천기 — 번개 때 낙뢰 · 동남풍 때 불, D-333)
+var knock_mul := 1.0          # 날씨 밀침 배율(천기 바람)
 var ch := 3                   # 맞음 대기 채널(D-287 — main이 슬롯마다 다르게)
 var cd := 0.5
 var fired := 0                # 발동 횟수(--stats)
@@ -84,7 +86,8 @@ func _disc(r: float, mat: Material) -> MeshInstance3D:
 
 func tick(delta: float) -> void:
 	var c := Vector2(player.position.x, player.position.z)
-	var dmg: float = p.dmg * atk_mul * strat_mul
+	var dmg: float = p.dmg * atk_mul * strat_mul * weather_mul
+	var kn: float = p.knock * knock_mul
 	match TacticTable.LIST[id].type:
 		"orbit":
 			spin_a += delta * p.spin
@@ -94,7 +97,7 @@ func tick(delta: float) -> void:
 				var bp: Vector2 = c + Vector2(cos(a), sin(a)) * p.r
 				blades[k].position = Vector3(bp.x, 0.8, bp.y)
 				blades[k].rotation.y = -a
-				hits += horde.hit_circle(bp, p.size, dmg, p.knock, (bp - c).normalized(), 99, c, ch)
+				hits += horde.hit_circle(bp, p.size, dmg, kn, (bp - c).normalized(), 99, c, ch)
 		"rain":
 			cd -= delta
 			if cd <= 0.0:
@@ -108,7 +111,7 @@ func tick(delta: float) -> void:
 				var node: MeshInstance3D = e.node
 				(node.material_override as StandardMaterial3D).albedo_color.a = 0.25 + 0.5 * (1.0 - e.t / p.delay)
 				if e.t <= 0.0:
-					hits += horde.hit_circle(e.pos, p.r, dmg, p.knock, Vector2.ZERO, 999, c, ch)
+					hits += horde.hit_circle(e.pos, p.r, dmg, kn, Vector2.ZERO, 999, c, ch)
 					node.queue_free()
 					pending.remove_at(k)
 					_flash(e.pos, 2.5, Color(0.9, 0.85, 0.6, 0.8), 0.12)
@@ -124,7 +127,7 @@ func tick(delta: float) -> void:
 			for k in range(fires.size() - 1, -1, -1):
 				var e: Dictionary = fires[k]
 				e.t -= delta
-				hits += horde.hit_circle(e.pos, p.r, dmg, p.knock, Vector2.ZERO, 999, c, ch)   # 맞음 대기(0.3초)마다 한 번씩
+				hits += horde.hit_circle(e.pos, p.r, dmg, kn, Vector2.ZERO, 999, c, ch)   # 맞음 대기(0.3초)마다 한 번씩
 				var node: MeshInstance3D = e.node
 				(node.material_override as StandardMaterial3D).albedo_color.a = 0.35 + 0.2 * sin(e.t * 12.0)
 				if e.t <= 0.0:
@@ -136,7 +139,7 @@ func tick(delta: float) -> void:
 				cd = p.cd
 				fired += 1
 				for tp in horde.random_in(c, p.seek, int(p.count)):
-					hits += horde.hit_circle(tp, p.r, dmg, p.knock, Vector2.ZERO, 999, c, ch)
+					hits += horde.hit_circle(tp, p.r, dmg, kn, Vector2.ZERO, 999, c, ch)
 					_flash(tp, 6.0, Color(1.0, 0.95, 0.5, 0.9), 0.15)
 					var at: Vector2 = tp
 					for j in int(p.get("chain", 0)):   # 연쇄(D-294): 맞은 자리에서 가장 가까운 아직 안 맞은 적에게(맞음 대기로 같은 적은 빠짐)
@@ -148,7 +151,7 @@ func tick(delta: float) -> void:
 								break
 						if to == Vector2.INF:
 							break
-						hits += horde.hit_circle(to, p.r, dmg * 0.7, p.knock, Vector2.ZERO, 999, c, ch)
+						hits += horde.hit_circle(to, p.r, dmg * 0.7, kn, Vector2.ZERO, 999, c, ch)
 						_flash(to, 4.0, Color(0.8, 0.9, 1.0, 0.9), 0.15)
 						chains += 1
 						at = to
@@ -209,7 +212,7 @@ func tick(delta: float) -> void:
 		var step: float = p.speed * delta
 		s.pos += s.dir * step
 		s.left -= step
-		var hn: int = horde.hit_circle(s.pos, p.r, dmg, p.knock, s.dir, s.pierce, c, ch)
+		var hn: int = horde.hit_circle(s.pos, p.r, dmg, kn, s.dir, s.pierce, c, ch)
 		s.pierce -= hn
 		hits += hn
 		var node: MeshInstance3D = s.node
