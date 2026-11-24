@@ -111,12 +111,17 @@ elif VARIANT == "rusher":    # 돌격병: 쌍단도 · 붉은 띠
     b.bone = "torso"
     b.cone(0.30, 0.30, 0.74, 0.80, RED, v=6)                          # 붉은 띠
 else:                        # 졸병 · 방패병 · 의용군: 창
+    # 대나무 죽창(D-322, 무기 설정화 yellow_turban_spear.webp): 마디 있는 대나무 자루 · 비스듬히 깎은 끝 · 새끼줄로 묶은 노란 천
     PX, PY = -0.36, -0.12
+    BAMBOO = lp.mat("bamboo", "c8b878")
+    BNODE = lp.mat("bnode", "a89a5a")
     top = 1.60 if VARIANT == "shield" else 1.95                       # 방패병은 짧은 창
-    b.cone(0.025, 0.025, 0.0, top, WOOD, x=PX, y=PY, v=5)                # 나무 자루
-    for z in (0.08, top - 0.17):
-        b.cone(0.035, 0.035, z, z + 0.08, MUSTARD, x=PX, y=PY, v=5)       # 감은 끈
-    b.poly([(PX, top - 0.01), (PX + 0.07, top + 0.13), (PX, top + 0.41), (PX - 0.07, top + 0.13)], PY, 0.03, IRON)  # 녹슨 창날(잎 모양)
+    b.cone(0.035, 0.035, 0.0, top, BAMBOO, x=PX, y=PY, v=6)           # 대나무 자루(굵게)
+    for k in range(1, int(top / 0.34) + 1):
+        b.cone(0.043, 0.043, k * 0.34, k * 0.34 + 0.03, BNODE, x=PX, y=PY, v=6)   # 마디
+    b.poly([(PX - 0.035, top), (PX + 0.035, top), (PX + 0.035, top + 0.12), (PX - 0.035, top + 0.42)], PY, 0.07, BAMBOO)   # 비스듬히 깎은 끝
+    b.cone(0.045, 0.045, top - 0.20, top - 0.14, ROPE, x=PX, y=PY, v=6)   # 새끼줄
+    b.poly([(PX - 0.03, top - 0.16), (PX - 0.24, top - 0.18), (PX - 0.26, top - 0.40), (PX - 0.15, top - 0.44), (PX - 0.03, top - 0.42)], PY - 0.02, 0.025, MUSTARD)   # 노란 천(바깥쪽 — 몸에 안 가리게)
     if VARIANT == "shield":  # 방패병: 왼팔에 큰 둥근 방패
         b.bone = "arm_L"
         b.cone(0.34, 0.34, -0.03, 0.03, DKBRN, x=0.30, y=-0.30, v=10, rot=(R(90), 0, 0)).location.z = 0.80
