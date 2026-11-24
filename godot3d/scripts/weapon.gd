@@ -26,6 +26,7 @@ var mods := {"dmg": 1.0, "cd": 1.0, "area": 1.0, "count": 0, "pierce": 0, "knock
 var dyn := 1.0               # 매 프레임 바뀌는 공격 배율(주화입마 · 광폭 — main이 넣음, D-285)
 var haste := 1.0             # 매 프레임 바뀌는 공격 속도 배율(인덕 — main이 넣음, D-293)
 var blades: Array = []       # boomerang: [{node, pos, dir, left, back}]
+var model_scale := 1.0        # 무기 모양 glb 크기(spec.model_scale)
 var fans: Array = []         # fan: [{node, pos, dir, left, pierce}] — 바람 칼날(D-295)
 var returns := 0             # 돌아오는 길에 맞힌 수(--stats)
 var outs := 0                # 가는 길에 맞힌 수
@@ -83,6 +84,18 @@ func setup(weapon_spec: Dictionary, p: Node3D, h: Node3D) -> void:
 			fly_mat.metallic = 0.7
 			fly_mat.emission_enabled = true
 			fly_mat.emission = col * 0.4
+			if spec.has("model") and ResourceLoader.exists(spec.model):   # 무기 모양 glb(D-317 — 유비 쌍고검): 그 메시를 그대로, 재질도 glb 것
+				var src: Node = load(spec.model).instantiate()
+				var mi := src.find_child("*", true, false) as MeshInstance3D
+				if mi == null:
+					for c2 in src.find_children("*", "MeshInstance3D", true, false):
+						mi = c2
+						break
+				if mi:
+					fly_mesh = mi.mesh
+					fly_mat = null
+					model_scale = float(spec.get("model_scale", 1.0))
+				src.free()
 	if fx:
 		fx.material_override = fx_mat
 		fx.visible = false
@@ -156,6 +169,7 @@ func tick(delta: float) -> void:
 					var n := MeshInstance3D.new()
 					n.mesh = fly_mesh
 					n.material_override = fly_mat
+					n.scale = Vector3.ONE * model_scale
 					add_child(n)
 					blades.append({"node": n, "pos": c, "dir": d, "left": reach(), "back": false, "life": 4.0})
 	# 효과 흐려지기

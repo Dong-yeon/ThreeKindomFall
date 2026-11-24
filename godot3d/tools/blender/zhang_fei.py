@@ -3,7 +3,7 @@
 #   두 겹 봉긋한 검은 두건 + 뒤 매듭 · 두 끈 + 등까지 내려오는 검은 뒷천 / 그을린 얼굴 · 성난 눈썹 · 부릅뜬 둥근 눈 · 크게 웃는 입 /
 #   사방으로 뻗친 검은 수염 · 콧수염 / 붉은 목수건 / 호랑이 얼굴 청동 견갑(양쪽) / 갈색 가죽 갑옷 조끼(판) /
 #   남색 소매 · 옷 · 바지 / 붉은 허리띠 + 구리 육각 버클 · 늘어진 붉은 띠 / 갈색 신.
-#   설정화엔 무기가 없지만 게임용으로 장팔사모(뱀 창날, 크게)를 오른손에.
+#   장팔사모는 무기 설정화(D-317)대로 오른손에.
 # 동작: idle · walk + 개그 동작(lowpoly.end_actions: down · cheer, D-313).
 # 실행: python godot3d/tools/blender/zhang_fei.py <출력 폴더> [--render]   (pip install bpy)
 import math, os, sys
@@ -57,19 +57,31 @@ for side, bone in ((1, "arm_L"), (-1, "arm_R")):
     b.cone(0.15, 0.13, 0.60, 0.95, NAVY, x=0.45 * side, v=8, rot=rot)
     b.ball(0.125, (0.59 * side, -0.02, 0.50), SKIN, 1)                # 큰 주먹
 
-# 장팔사모(오른손, 뱀 창날 크게)
+# 장팔사모(오른손) — 무기 설정화(D-317, art/concept/zhang_fei_spear.webp): 갈색 자루 · 구리 고리 둘 · 둥근 구리 물미 ·
+#   붉은 술(가닥) · 구리 목 고리 둘 · 굵고 매끈한 물결 칼날(옆에서 보면 얇음)
 b.bone = "arm_R"
 PX, PY = -0.60, -0.10
-b.cone(0.028, 0.028, -0.05, 2.0, BLACK, x=PX, y=PY, v=6)
-b.cone(0.0, 0.045, -0.15, -0.05, STEEL, x=PX, y=PY, v=4)
-for z in (0.45, 1.75):
-    b.cone(0.04, 0.04, z, z + 0.05, STEEL, x=PX, y=PY, v=6)
-b.cone(0.055, 0.035, 1.95, 2.05, STEEL, x=PX, y=PY, v=6)
-b.box(0.06, 0.03, 0.18, (PX, PY - 0.04, 1.98), RED)                   # 붉은 술
-snake = [(-0.04, 2.46), (-0.11, 2.58), (-0.05, 2.70), (-0.13, 2.84), (-0.07, 2.97), (-0.14, 3.10),
-         (-0.10, 3.24), (-0.05, 3.36), (0.08, 3.48), (0.02, 3.32), (0.0, 3.20), (0.05, 3.07),
-         (0.0, 2.94), (0.06, 2.81), (0.01, 2.69), (0.06, 2.57), (0.04, 2.46)]
-b.poly([(PX + x * 1.5, 2.05 + (z - 2.46) * 1.5) for x, z in snake], PY, 0.04, STEEL)
+SBROWN = lp.mat("sbrown", "5a4038")
+COPPER = lp.mat("copper", "d08a68", 0.45, 0.5)
+b.cone(0.035, 0.035, -0.05, 1.66, SBROWN, x=PX, y=PY, v=8)           # 갈색 자루
+for z in (0.55, 1.15):
+    b.cone(0.05, 0.05, z, z + 0.06, COPPER, x=PX, y=PY, v=8)          # 구리 고리
+b.cone(0.05, 0.05, -0.08, -0.03, COPPER, x=PX, y=PY, v=8)
+b.ball(0.05, (PX, PY, -0.11), COPPER, 1, (1.0, 1.0, 1.2))            # 둥근 구리 물미
+b.cone(0.05, 0.10, 1.50, 1.70, RED, x=PX, y=PY, v=10)                # 붉은 술(아래로 퍼짐)
+for k in range(6):
+    a = R(k * 60)
+    b.box(0.03, 0.03, 0.20, (PX + math.cos(a) * 0.08, PY + math.sin(a) * 0.08, 1.58), RED)   # 술 가닥
+b.cone(0.06, 0.06, 1.70, 1.76, COPPER, x=PX, y=PY, v=10)             # 구리 목 고리 둘
+b.cone(0.08, 0.08, 1.78, 1.83, COPPER, x=PX, y=PY, v=10)
+x0, z0 = PX, 1.83                                                    # 물결 칼날: 짧은 상자를 이어 S자로(끝이 가늘어짐)
+for k in range(12):
+    t0, t1 = k / 12, (k + 1) / 12
+    xa, xb = PX + 0.10 * math.sin(t0 * 2.6 * math.pi), PX + 0.10 * math.sin(t1 * 2.6 * math.pi)
+    za, zb = 1.83 + t0 * 1.0, 1.83 + t1 * 1.0
+    w = 0.13 * (1.0 - 0.55 * t0)
+    seg = math.hypot(xb - xa, zb - za)
+    b.box(w, 0.06, seg + 0.07, ((xa + xb) / 2, PY, (za + zb) / 2), STEEL, (0, math.atan2(xb - xa, zb - za), 0))   # 이음새 틈이 안 보이게 겹침
 
 b.bone = "head"
 b.ball(0.34, (0, 0, 1.27), SKIN, 2, (1.02, 0.95, 0.98))               # 얼굴

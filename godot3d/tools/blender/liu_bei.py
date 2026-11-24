@@ -45,8 +45,10 @@ for side in (-1, 1):   # 양 허리 쌍고검(칼집째, 비스듬히 — 뒤로
     x = 0.36 * side
     tilt = (R(55), 0, R(-8 * side))   # 손잡이가 앞 위, 칼집 끝이 뒤 아래(설정화 옆모습)
     b.box(0.06, 0.07, 0.70, (x, 0.02, 0.48), MAROON, tilt)            # 칼집
-    b.box(0.08, 0.09, 0.05, (x, -0.27, 0.68), GOLD, tilt)             # 코등이
-    b.box(0.05, 0.06, 0.16, (x, -0.35, 0.74), MAROON, tilt)           # 손잡이
+    b.box(0.16, 0.10, 0.07, (x, -0.27, 0.68), GOLD, tilt)             # 구름 모양 금 코등이(D-317 쌍검 설정화)
+    b.box(0.05, 0.06, 0.16, (x, -0.35, 0.74), MAROON, tilt)           # 자주색 손잡이
+    b.box(0.07, 0.07, 0.04, (x, -0.41, 0.79), GOLD, tilt)             # 금 자루 끝
+    b.cone(0.03, 0.06, 0.0, 0.16, MAROON, x=x, y=-0.45, v=6, rot=tilt).location.z = 0.70   # 자주색 술
     b.box(0.07, 0.08, 0.06, (x, 0.30, 0.28), GOLD, tilt)              # 칼집 끝 금
 
 for side, bone in ((1, "arm_L"), (-1, "arm_R")):
@@ -106,4 +108,19 @@ if "--render" in FLAGS:
     lp.render_views(OUT, "lb", center_z=1.0, ortho=2.5)
 
 lp.export(os.path.join(OUT, "liu_bei.glb"), [rig, mesh], animated=True)
+
+# 날아가는 쌍고검(D-317, 쌍검 설정화 art/concept/liu_bei_swords.webp): 판에서 회선 무기로 날아가는 칼 한 자루 — 바닥에 눕힌 모양
+# (칼날이 +Y, 두께가 Z — 게임에선 눕혀 빙빙 돎). 은 칼날(둥근 끝) · 금 가운데 줄 · 구름 모양 금 코등이 · 자주색 손잡이 · 금 끝 · 자주색 술.
+sw = lp.Body()
+L = 1.0   # 칼날 길이(게임 판정 반지름과 무관 — weapon.gd가 크기를 맞춤)
+bl = sw.poly([(-0.11, 0.0), (0.11, 0.0), (0.11, L * 0.82), (0.05, L * 0.96), (0.0, L), (-0.05, L * 0.96), (-0.11, L * 0.82)], 0.0, 0.035, lp.mat("blade", "e2e6ea", 0.3, 0.9))
+bl.rotation_euler = (math.radians(-90), 0, 0)   # XZ 다각형 → XY 평면(눕힘, 칼날이 +Y)
+sw.box(0.012, 0.75 * L, 0.05, (0, 0.42 * L, 0), GOLD)                  # 금 가운데 줄
+sw.box(0.30, 0.10, 0.07, (0, -0.04, 0), GOLD)                         # 구름 모양 금 코등이
+sw.ball(0.06, (-0.12, -0.04, 0), GOLD, 1); sw.ball(0.06, (0.12, -0.04, 0), GOLD, 1)
+sw.box(0.08, 0.26, 0.07, (0, -0.22, 0), MAROON)                       # 자주색 손잡이
+sw.box(0.12, 0.06, 0.08, (0, -0.37, 0), GOLD)                         # 금 끝
+sw.box(0.08, 0.22, 0.04, (0, -0.51, 0), MAROON)                       # 자주색 술
+smesh = sw.join("liu_bei_sword")
+lp.export(os.path.join(OUT, "liu_bei_sword.glb"), [smesh], animated=False)
 print("DONE")

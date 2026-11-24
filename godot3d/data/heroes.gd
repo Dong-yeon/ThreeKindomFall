@@ -49,7 +49,8 @@ const HEROES := {
 		"name": "유비", "glb": "res://assets/models/liu_bei.glb",
 		"role": "쌍검 · 난전", "stars": 2, "star_label": "대기만성",   # D-293: 의용군 누적형 → 쌍고검을 직접 쓰는 장수
 		"weapon": {"name": "쌍고검 회선", "type": "boomerang", "cd": 1.1, "dmg": 2.0, "knock": 0.5, "seek": 9.0,
-			"count": 2, "speed": 13.0, "range": 6.5, "radius": 0.75, "spread": 0.35, "color": Color(1.0, 0.92, 0.6)},
+			"count": 2, "speed": 13.0, "range": 6.5, "radius": 0.75, "spread": 0.35, "color": Color(1.0, 0.92, 0.6),
+			"model": "res://assets/models/liu_bei_sword.glb", "model_scale": 1.1},   # 날아가는 칼 모양(D-317 쌍검 설정화) — 판정 반지름은 그대로
 		"passive": {"id": "indeok", "name": "인덕", "desc": "둘레 4m 적이 많을수록 공격 속도 ↑(최대 +40%) · 근검: 초당 회복 +0.6",
 			"r": 4.0, "full": 20, "haste": 0.4, "regen": 0.6},
 		"ult": "militia",
