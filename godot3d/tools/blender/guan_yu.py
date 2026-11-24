@@ -7,11 +7,15 @@
 # 동작: idle · walk + 개그 동작(lowpoly.end_actions: 쓰러질 때 down · 승리할 때 cheer, D-313).
 # 실행: python godot3d/tools/blender/guan_yu.py <출력 폴더> [--render]   (pip install bpy)
 # 결과: guan_yu.glb (--render면 정면 · 옆 · 뒤 gy_*.png — 설정화와 맞대 보기용)
+# --cute(귀여움 실험, 결과 guan_yu_cute.glb — 게임은 아직 guan_yu.glb): 점 눈 · 눈썹 대신 설정화에서 잘라낸 얼굴 데칼
+#   (assets/textures/face_guanyu_default.png, tools/face_decal.py)을 얼굴 곡면에 Shrinkwrap으로 붙이고,
+#   모든 조각 shade_smooth + Subdivision Surface(2) · 머리 무리(머리 뼈 조각 = 얼굴 · 두건 · 수염 · 데칼) 1.4배.
 import math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lowpoly as lp
 
 OUT, FLAGS = lp.args()
+CUTE = "--cute" in FLAGS
 lp.reset_scene()
 R = math.radians
 
@@ -80,12 +84,13 @@ for dy in (-0.03, 0.03):   # 금 용 무늬(흉내 — 몸통 S자 + 머리)
 
 # ── 머리 ──
 b.bone = "head"
-b.ball(0.34, (0, 0, 1.27), FACE, 2, (1.0, 0.95, 0.98))               # 얼굴
+face_ball = b.ball(0.34, (0, 0, 1.27), FACE, 2, (1.0, 0.95, 0.98))   # 얼굴
 for side in (-1, 1):
     b.ball(0.08, (0.34 * side, 0.02, 1.27), FACE, 1, (0.6, 1.0, 1.1))  # 귀
-    b.ball(0.05, (0.12 * side, -0.30, 1.32), BLACK, 1)                # 까만 눈
-    b.ball(0.015, (0.11 * side, -0.345, 1.34), lp.mat("white", "f8f8f4"), 1)   # 눈 빛
-    b.box(0.17, 0.06, 0.06, (0.13 * side, -0.30, 1.42), BLACK, (0, R(-20 * side), 0))  # 굵은 성난 눈썹(안쪽이 내려감)
+    if not CUTE:   # --cute는 얼굴 데칼이 눈 · 눈썹 · 입을 맡음
+        b.ball(0.05, (0.12 * side, -0.30, 1.32), BLACK, 1)                # 까만 눈
+        b.ball(0.015, (0.11 * side, -0.345, 1.34), lp.mat("white", "f8f8f4"), 1)   # 눈 빛
+        b.box(0.17, 0.06, 0.06, (0.13 * side, -0.30, 1.42), BLACK, (0, R(-20 * side), 0))  # 굵은 성난 눈썹(안쪽이 내려감)
     b.box(0.07, 0.02, 0.04, (0.21 * side, -0.28, 1.22), BLUSH)        # 볼 홍조
     b.box(0.06, 0.10, 0.40, (0.31 * side, 0.06, 1.10), BLACK)         # 양옆 긴 머리(귀 뒤)
     b.box(0.07, 0.10, 0.20, (0.28 * side, -0.14, 1.15), BLACK)        # 구레나룻
@@ -105,7 +110,72 @@ b.box(0.16, 0.10, 0.10, (0, 0.36, 1.48), DKGRN)                      # 뒤 매�
 for side in (-1, 1):
     b.box(0.07, 0.03, 0.30, (0.05 * side, 0.40, 1.30), DKGRN, (R(8), R(12 * side), 0))
 
+if CUTE:
+    import bpy
+    CREASE = float(next((f.split("=", 1)[1] for f in FLAGS if f.startswith("--crease=")), "0.6"))
+    for o, _ in b.parts:   # 모든 조각: 매끈하게(Subdivision Surface 2단계) — 합칠 때 적용됨
+        # 받침 모서리 없는 저폴리 조각은 그냥 나누면 녹아내림(자루가 실처럼 · 몸통 조각 사이가 벌어짐) → 모든 모서리에 크리스를 줘 부피를 지킴
+        at = o.data.attributes.get("crease_edge") or o.data.attributes.new("crease_edge", "FLOAT", "EDGE")
+        at.data.foreach_set("value", [CREASE] * len(o.data.edges))
+        for md in o.modifiers:
+            if md.type == "SOLIDIFY":
+                md.edge_crease_inner = md.edge_crease_outer = md.edge_crease_rim = CREASE
+        md = o.modifiers.new("subd", "SUBSURF")
+        md.levels = md.render_levels = 2
+    # 얼굴 데칼: 머리 앞 격자 평면(설정화 픽셀 0.00213m — 두 눈 사이 0.26) → 얼굴 공(매끈하게 한 뒤) 곡면에 Shrinkwrap(앞뒤로 투영)
+    PNG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "assets", "textures", "face_guanyu_default.png")
+    DW, DH, DTOP = 0.464, 0.332, 1.425   # 데칼 폭 · 높이 · 위끝(눈 줄 z ≈ 1.29, 눈썹은 두건 띠 1.42 아래)
+    bpy.ops.mesh.primitive_grid_add(x_subdivisions=24, y_subdivisions=18, size=1, calc_uvs=True,
+                                    location=(0, -0.60, DTOP - DH / 2), rotation=(R(90), 0, 0))
+    decal = bpy.context.object
+    decal.scale = (DW, DH, 1)
+    md = decal.modifiers.new("subd", "SUBSURF")
+    md.levels = md.render_levels = 2
+    sw = decal.modifiers.new("wrap", "SHRINKWRAP")
+    sw.target = face_ball
+    sw.wrap_method = "PROJECT"
+    sw.use_project_z = True                       # 평면 로컬 Z = 정면(-Y)
+    sw.use_negative_direction = sw.use_positive_direction = True
+    sw.offset = 0.006
+    dm = bpy.data.materials.new("face_decal")
+    dm.use_nodes = True
+    nt = dm.node_tree
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = bpy.data.images.load(os.path.abspath(PNG))
+    bsdf = nt.nodes["Principled BSDF"]
+    nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    nt.links.new(tex.outputs["Alpha"], bsdf.inputs["Alpha"])
+    bsdf.inputs["Roughness"].default_value = 0.8
+    for attr, val in (("surface_render_method", "BLENDED"), ("blend_method", "BLEND")):   # 알파 블렌드(블렌더 판마다 이름이 다름)
+        if hasattr(dm, attr):
+            try:
+                setattr(dm, attr, val)
+            except Exception:
+                pass
+    decal.data.materials.append(dm)
+    b.parts.append((decal, "head"))
+
 mesh = b.join("guan_yu")
+if CUTE:
+    import bpy
+    bpy.ops.object.shade_smooth()
+    names = {g.index: g.name for g in mesh.vertex_groups}
+    hv = [v for v in mesh.data.vertices if v.groups and names[v.groups[0].group] == "head"]
+    fi = [i for i, m in enumerate(mesh.data.materials) if m and m.name == "face"][0]
+    hset = {v.index for v in hv}
+    face_idx = {i for p in mesh.data.polygons if p.material_index == fi for i in p.vertices
+                if i in hset and abs(mesh.data.vertices[i].co.x) < 0.08}
+    def ratio():   # 머리 높이(턱 = 얼굴 공 아래 끝 ~ 머리 무리 위끝) / 전체 키(발밑 ~ 머리 위끝)
+        top = max(v.co.z for v in hv)
+        chin = min(mesh.data.vertices[i].co.z for i in face_idx)   # 얼굴 공 아래 끝(가운데)
+        return top, chin, (top - chin) / top
+    top0, chin0, r0 = ratio()
+    HEAD_K = 1.4
+    for v in hv:   # 머리 무리를 턱 아래(목 자리)를 축으로 1.4배 — 얼굴이 몸 위에 그대로 앉게
+        x, y, z = v.co
+        v.co = (x * HEAD_K, y * HEAD_K, chin0 + (z - chin0) * HEAD_K)
+    top1, chin1, r1 = ratio()
+    print("HEAD ratio before %.2f (chin %.2f top %.2f) -> after %.2f (top %.2f)" % (r0, chin0, top0, r1, top1))
 rig = lp.make_rig("guan_yu", mesh, [
     ("root",  (0, 0, 0),            (0, 0, 0.3),            None),
     ("torso", (0, 0, 0.50),         (0, 0, 1.00),           "root"),
@@ -134,7 +204,7 @@ lp.end_actions(rig)   # 개그 동작: 쓰러질 때 down · 승리할 때 cheer
 print("TRIS", lp.tris(mesh))
 
 if "--render" in FLAGS:
-    lp.render_views(OUT, "gy", center_z=1.0, ortho=2.5)
+    lp.render_views(OUT, "gy_cute" if CUTE else "gy", center_z=1.15 if CUTE else 1.0, ortho=3.0 if CUTE else 2.5)
 
-lp.export(os.path.join(OUT, "guan_yu.glb"), [rig, mesh], animated=True)
+lp.export(os.path.join(OUT, "guan_yu_cute.glb" if CUTE else "guan_yu.glb"), [rig, mesh], animated=True)
 print("DONE")
