@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **2단계(D-287~291):** 황건적 스테이지(맵 경계 · 진영 3곳 · 잡병 4종 · 정예 장보 · 장량 · 황건 도사) + 10분 뒤 호뢰관 여포 보스. 적장 공통 `godot3d/scripts/foe/foe.gd` · `data/foes.gd`, 스테이지 `scripts/stage.gd` · `data/stage_yellow.gd`, 잡병 `data/enemies.gd`. 점검 `--boss`(곧바로 보스전) · `--no-stage`.
 - **3단계(D-292~296):** 메타 진행(자동 로드 `Meta` · `user://save3d.json` · 과제 `godot3d/data/unlocks.gd` — 시작 관우 · 제갈량, 해금 장비 · 유비 · 공용 무기 4종), 장수 고유 무기 + 공용 무기 8종, 유비 쌍고검 회선, 제갈량(임시 모델). 점검 `--save=<경로>` · `--unlock-all`(봇은 저장 안 씀 = 처음 해금 상태).
 - **UI · 그림체(D-297~312):** UI 모듈 `godot3d/scripts/ui/`(HUD · 레벨업 카드 · 결과 창 · 일시정지), 큰 머리 그림체(`tools/blender/lowpoly.py` `Chibi` · `gag_actions` — 개그 동작은 윗몸만), 관우 · 제갈량은 새 설정화(`godot3d/art/concept/guan_yu_v2.webp` · `zhuge_liang.webp`)로. 카메라 13 · 12 · 50°(`--cam=`).
+- **두 장수 컨셉(D-331 · 333 · 334):** 당분간 판에는 관우 · 제갈량만(장비 · 유비는 숨김 — `--hero=`로는 씀). 관우 = 청룡의 피(용기 → 6초 청룡 상태) · 절기 청룡강림 · 경공 용약, 제갈량 = 천기(바람 → 비 → 번개 20초마다 · 부적) · 팔진도 날씨 덧씌움. 고유 심법은 독립 모듈 `godot3d/scripts/martial/passive_*.gd`.
 - 다음 할 일은 정해 두지 않는다 — 최근 흐름은 `docs/decision-log.md` 끝 항목을 본다(지금 D-273까지 — 하위 세션끼리 번호가 겹쳐 D-260대는 파일 안 순서가 조금 뒤섞임).
 - 현재 기획 요약: `docs/current-design.md` / 결정 기록: `docs/decision-log.md`(D-1~, 이전 저장소 Happy-Unhappy에서 이어짐)
 
