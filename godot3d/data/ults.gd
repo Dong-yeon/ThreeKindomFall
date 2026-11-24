@@ -24,13 +24,15 @@ const LIST := {
 		"base": {"count": 12, "dmg": 6.0, "knock": 1.2, "range": 7.0, "speed": 14.0, "radius": 0.9, "size": 1.3},
 		"evolve": {"name": "쌍룡 난무", "chosik": [["w_count", 2], ["t:rain", 2]], "simbeop": ["hp", 2],
 			"mul": {"count": 1.5, "dmg": 2.0, "radius": 1.3, "size": 1.25}}},
-	"bagua": {"name": "팔진도", "script": "res://scripts/martial/ult_bagua.gd", "cost": 100.0,   # D-295 제갈량
-		# D-334 날씨 덧씌움(ctx.weather): wind 진 안 적을 가운데로 pull(초당) · rain 감속 rain_slow배 · bolt 진 안에 bolt_cd초마다 bolt_n번 벼락(bolt_dmg)
-		#   오의 동남풍: 천기를 진 시간 동안 바람에 묶고(불 계열 초식 피해 ↑) 펼칠 때 큰 바람이 둘레를 쓸어냄(gale_r · gale_push)
-		"base": {"dmg": 3.0, "r": 6.0, "dur": 6.0, "slow": 0.4, "pull": 2.5, "rain_slow": 0.25, "bolt_cd": 0.5, "bolt_n": 2, "bolt_dmg": 8.0,
-			"gale_r": 0.0, "gale_push": 4.0},
+	"bagua": {"name": "팔진도", "script": "res://scripts/martial/ult_bagua.gd", "cost": 100.0,   # D-295 제갈량 · 연출 명세 D-336
+		# r 반지름(제갈량 키 2.4 × 5) · inner 안쪽 고리 비율(피해 2배) · dmg 맞음 대기(0.3초)마다 피해 · confuse 진을 나간 뒤 혼란이 남는 시간
+		# unfold 펼쳐지는 시간 · pillar_gap 돌기둥 사이 시간 · dur 지속
+		# 날씨 덧씌움(D-334, ctx.weather): wind 진 안 적을 가운데로 pull(초당) · rain 진 안 rain_slow배 · bolt 진 안에 bolt_cd초마다 bolt_n번 벼락(bolt_dmg)
+		# 오의 동남풍: 불빛판 · 천기를 진 시간 동안 바람에 묶고(불 계열 초식 피해 ↑) 펼칠 때 큰 바람이 둘레를 쓸어냄(gale_r · gale_push)
+		"base": {"dmg": 2.0, "r": 12.0, "inner": 0.4, "dur": 5.0, "confuse": 0.4, "unfold": 0.5, "pillar_gap": 0.05,
+			"pull": 1.5, "rain_slow": 0.5, "bolt_cd": 0.5, "bolt_n": 2, "bolt_dmg": 8.0, "gale_r": 0.0, "gale_push": 4.0},
 		"evolve": {"name": "동남풍", "add": {"gale_r": 14.0}, "chosik": [["w_count", 2], ["t:fire", 2]], "simbeop": ["mu", 2],
-			"mul": {"dmg": 2.5, "r": 1.2, "dur": 1.3}}},
+			"mul": {"dmg": 2.5, "dur": 1.3}}},
 }
 
 static func params(id: String, evolved: bool) -> Dictionary:

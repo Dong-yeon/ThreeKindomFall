@@ -42,6 +42,13 @@ var atk := PackedFloat32Array()     # 찌르기 준비 시간(궁병은 쏘기 �
 var lunge := PackedFloat32Array()   # 남은 찌르기 동작 시간(0이면 안 찌름)
 var kind := PackedByteArray()       # EnemyTable.KINDS 번호
 var stun := PackedFloat32Array()    # 남은 기절 시간(사자후) — 기절하면 안 움직이고 안 찌름
+var conf := PackedFloat32Array()    # 남은 혼란 시간(팔진도, D-336) — 이리저리 헤매고 안 찌름 · 안 쏨, 머리 위 물음표
+var conf_dir := PackedVector2Array()
+var conf_turn := PackedFloat32Array()
+const CONF_CAP := 400                # 물음표를 그리는 최대 수
+var conf_mm: MultiMesh
+var conf_buf := PackedFloat32Array()
+var confused_total := 0              # 혼란시킨 수(점검용)
 var mm: Array[MultiMesh] = []       # [kind × FRAMES + f]
 var bufs: Array[PackedFloat32Array] = []
 var head := PackedInt32Array()      # 격자 칸마다 첫 적(-1 없음)
@@ -77,6 +84,8 @@ func setup(max_count: int) -> void:
 	rng.seed = 11
 	pos.resize(cap); phase.resize(cap); face.resize(cap); next.resize(cap); kind.resize(cap)
 	hp.resize(cap); atk.resize(cap); lunge.resize(cap); stun.resize(cap); cd.resize(cap * N_CH)
+	conf.resize(cap); conf_dir.resize(cap); conf_turn.resize(cap)
+	_setup_conf_marks()
 	head.resize(GRID * GRID)
 	for kd in EnemyTable.KINDS:
 		var src: Node = load(kd.glb).instantiate()
@@ -153,6 +162,7 @@ func _respawn(i: int, center: Vector2, near := 22.0) -> void:
 	atk[i] = rng.randf() * EnemyTable.KINDS[k].wind * 0.5   # 처음 찌르는 때를 흩어 둠
 	lunge[i] = 0.0
 	stun[i] = 0.0
+	conf[i] = 0.0
 
 # ── 맞히기 ──
 func _damage(i: int, push: Vector2, dmg: float, knock: float, center: Vector2, ch := CH_WEAPON) -> bool:
@@ -229,6 +239,42 @@ func stun_circle(center: Vector2, r: float, t: float) -> int:
 		if tg.alive and tg.pos2().distance_to(center) <= r + tg.radius:
 			tg.stun_for(t)
 	stun_total += n
+	return n
+
+func _setup_conf_marks() -> void:
+	## 혼란 물음표(D-336): 노란 "?" 글자 메시 하나를 MultiMesh로(카메라를 보게 매 프레임 기저를 넣음).
+	var tm := TextMesh.new()
+	tm.text = "?"
+	tm.font = load("res://assets/fonts/Galmuri11.ttf")
+	tm.font_size = 32
+	tm.pixel_size = 0.022
+	tm.depth = 0.04
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(1.0, 0.95, 0.75)
+	tm.material = m
+	conf_mm = MultiMesh.new()
+	conf_mm.transform_format = MultiMesh.TRANSFORM_3D
+	conf_mm.mesh = tm
+	conf_mm.instance_count = CONF_CAP
+	conf_mm.visible_instance_count = 0
+	var inst := MultiMeshInstance3D.new()
+	inst.multimesh = conf_mm
+	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(inst)
+	conf_buf.resize(CONF_CAP * 12)
+
+func confuse_circle(center: Vector2, r: float, t: float) -> int:
+	## 반지름 안 잡병을 t초 혼란(이미 혼란이면 늘리기만). 새로 혼란에 빠진 수를 돌려줌.
+	var n := 0
+	var r2 := r * r
+	for i in count:
+		if pos[i].distance_squared_to(center) <= r2:
+			if conf[i] <= 0.0:
+				n += 1
+				conf_turn[i] = 0.0
+			conf[i] = maxf(conf[i], t)
+	confused_total += n
 	return n
 
 func push_from(center: Vector2, r: float, dist: float) -> void:
@@ -411,6 +457,13 @@ func update(delta: float, player: Vector2) -> float:
 		var stunned := stun[i] > 0.0
 		if stunned:
 			stun[i] -= delta
+		var confused := conf[i] > 0.0
+		if confused:   # 혼란: 0.35~0.8초마다 아무 쪽으로 방향을 바꿈
+			conf[i] -= delta
+			conf_turn[i] -= delta
+			if conf_turn[i] <= 0.0:
+				conf_turn[i] = rng.randf_range(0.35, 0.8)
+				conf_dir[i] = Vector2.from_angle(rng.randf() * TAU)
 		for c in N_CH:
 			var k := i * N_CH + c
 			if cd[k] > 0.0:
@@ -419,7 +472,12 @@ func update(delta: float, player: Vector2) -> float:
 		for z in slow_zones:
 			if p.distance_squared_to(z.c) <= z.r2:
 				spd *= z.f
-		if kd.has("ranged"):
+		if confused and not stunned:   # 헤맴(찌르기 · 쏘기 없음)
+			v = conf_dir[i] * spd * 0.8
+			atk[i] = 0.0
+			if lunge[i] > 0.0:
+				lunge[i] -= delta
+		elif kd.has("ranged"):
 			# 궁병: keep 거리 근처를 유지하며 쏨
 			var rg: Dictionary = kd.ranged
 			if lunge[i] > 0.0:
@@ -474,7 +532,9 @@ func update(delta: float, player: Vector2) -> float:
 						j = next[j]
 			v += push * 6.0
 		pos[i] = _clamp(p + v * delta)
-		if dist > 0.01:
+		if confused:
+			face[i] = atan2(conf_dir[i].x, conf_dir[i].y)
+		elif dist > 0.01:
 			face[i] = atan2(to.x, to.y)
 		phase[i] = fmod(phase[i] + delta * STEP_HZ, 1.0)
 
@@ -507,9 +567,28 @@ func update(delta: float, player: Vector2) -> float:
 		mm[g].buffer = b
 		mm[g].visible_instance_count = k / 12
 		bufs[g] = b
+	_conf_marks()
 	last_update_us = Time.get_ticks_usec() - t0
 	slow_zones.clear()
 	return hits
+
+func _conf_marks() -> void:
+	## 혼란한 잡병 머리 위 물음표(카메라를 봄 · 살짝 까딱).
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	var bs := cam.global_transform.basis if cam else Basis()
+	var k := 0
+	var tsec := Time.get_ticks_msec() * 0.001
+	for i in count:
+		if conf[i] <= 0.0 or k >= CONF_CAP * 12:
+			continue
+		var bob := 0.12 * sin(tsec * 6.0 + i)
+		var x := bs.x
+		conf_buf[k] = x.x;     conf_buf[k + 1] = bs.y.x; conf_buf[k + 2] = bs.z.x;  conf_buf[k + 3] = pos[i].x
+		conf_buf[k + 4] = x.y; conf_buf[k + 5] = bs.y.y; conf_buf[k + 6] = bs.z.y;  conf_buf[k + 7] = 2.1 + bob
+		conf_buf[k + 8] = x.z; conf_buf[k + 9] = bs.y.z; conf_buf[k + 10] = bs.z.z; conf_buf[k + 11] = pos[i].y
+		k += 12
+	conf_mm.buffer = conf_buf
+	conf_mm.visible_instance_count = k / 12
 
 func _shoot(from: Vector2, dir: Vector2, rg: Dictionary) -> void:
 	if arrow_n >= ARROW_CAP:
