@@ -29,8 +29,8 @@ const LIST := {
 			{"type": "circles", "cd": 3.2, "wind": 1.0, "dmg": 12.0, "n": 3, "r": 1.7, "spread": 2.5},
 			{"type": "ring", "cd": 6.0, "wind": 0.8, "dmg": 10.0, "r": 9.0, "speed": 9.0, "width": 0.9},
 		]},
-	"lubu": {"name": "여포", "glb": "res://assets/models/lu_bu.glb", "hp": 7500.0, "hp_time": 0.0,
-		"speed": 3.2, "radius": 1.0, "scale": 1.35, "knock": 0.03, "stun": 0.0, "leash": 0.0, "aggro": 99.0, "color": Color("c82a2a"),
+	"lubu": {"name": "여포", "glb": "res://assets/models/lu_bu.glb", "hp": 7500.0, "hp_time": 0.0,   # D-310: scale 1.35 → 2.0(큰 머리 그림체에서 보스 느낌 — 맞는 반지름은 그대로)
+		"speed": 3.2, "radius": 1.0, "scale": 2.0, "knock": 0.03, "stun": 0.0, "leash": 0.0, "aggro": 99.0, "color": Color("c82a2a"),
 		"boss": true,
 		"patterns": [
 			{"type": "sweep", "cd": 2.8, "wind": 0.7, "dmg": 12.0, "range": 4.5, "arc": 200.0},
