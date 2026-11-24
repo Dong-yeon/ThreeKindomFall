@@ -24,7 +24,7 @@ const ARROW_CAP := 256
 # 맞음 대기 채널(D-287) — 한 배열에 [적 i × N_CH + ch]
 const CH_WEAPON := 0          # 대표 무기(시작 초식)
 const CH_ULT := 1             # 절기 · 경공 부딪힘
-const CH_ALLY := 2            # 의용군
+const CH_ALLY := 2            # (비어 있음 — 의용군은 D-330에서 뺌, 채널 번호는 그대로 둠)
 const CH_TACTIC := 3          # 추가 초식 — 슬롯마다 3~7(기본 3칸 + 과제 칸 + 와룡 칸, D-292)
 const CH_RETURN := 8          # 돌아오는 무기(쌍고검 회선 — 가는 길과 같은 적을 또 맞힘, D-293)
 const N_CH := 9

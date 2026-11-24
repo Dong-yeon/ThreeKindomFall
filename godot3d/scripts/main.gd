@@ -60,7 +60,6 @@ var pick_open_ms := 0         # 키를 누른 채로 다음 고르기까지 넘�
 var invuln := 0.0
 # 무공(D-285)
 var neigong: Neigong
-var allies: Node3D
 var ult_id := ""
 var evolved := false
 var active_ults: Array = []
@@ -190,9 +189,6 @@ func _ready() -> void:
 		"wolong":   # 와룡(D-295): 추가 초식 칸 +1(max_slots) · 책략 계열 피해 ↑(tactic.strat_mul)
 			pass
 	neigong = Neigong.new()
-	allies = preload("res://scripts/allies.gd").new()
-	add_child(allies)
-	allies.setup(horde)
 	ult_id = hero.ult
 	if opts.has("force-evolve"):
 		evolved = true
@@ -625,11 +621,6 @@ func _martial_tick(delta: float, p2: Vector2) -> void:
 	if hero.passive.id == "indeok":
 		var near: int = horde.count_within(p2, hero.passive.r)
 		weapon.haste = 1.0 + hero.passive.haste * clampf(float(near) / hero.passive.full, 0.0, 1.0)
-	# 의용군(기한부 — 도원의 기치)
-	allies.atk_mul = atk_mul * dyn
-	allies.enemy_dmg = enemy_dmg
-	allies.level = level
-	allies.update(delta, p2)
 	# 점검: --dash-at=초[,초…] 그 시각에 경공(이단 도약은 두 시각을 가깝게 주면 공중에서 한 번 더)
 	if opts.has("dash-at"):
 		var ts := String(opts["dash-at"]).split(",")
@@ -695,7 +686,7 @@ func _martial_tick(delta: float, p2: Vector2) -> void:
 	# 1 · 3 · 6 · 9분 곡선(밸런스)
 	if opts.has("stats") and not curve_marks.is_empty() and t >= curve_marks[0]:
 		curve_marks.pop_front()
-		print("CURVE hero=%s t=%d lv=%d kills=%d hp=%d allies=%d ults=%d" % [hero_id, int(t), level, horde.kills, maxf(hero_hp, 0.0), allies.count, ult_casts])
+		print("CURVE hero=%s t=%d lv=%d kills=%d hp=%d ults=%d" % [hero_id, int(t), level, horde.kills, maxf(hero_hp, 0.0), ult_casts])
 
 func _blink_fx(at: Vector2) -> void:
 	var ps := CPUParticles3D.new()
@@ -718,7 +709,7 @@ func cast_ult(id: String, origin: Vector2, facing: Vector2, is_evolved: bool) ->
 	var u: Ult = UltTable.make(id)
 	add_child(u)
 	u.cast({"origin": origin, "facing": facing.normalized() if facing.length() > 0.01 else Vector2(0, 1),
-		"horde": horde, "allies": allies, "atk_mul": atk_mul * dyn, "evolved": is_evolved, "level": level,
+		"horde": horde, "atk_mul": atk_mul * dyn, "evolved": is_evolved, "level": level,
 		"spec": UltTable.params(id, is_evolved)})
 	active_ults.append(u)
 	ult_casts += 1
@@ -787,9 +778,9 @@ func _exit_tree() -> void:
 		print("ENEMY spawned soldier=%d archer=%d rusher=%d shield=%d arrows_shot=%d arrows_hit=%d" % [
 			horde.spawned_kind[0], horde.spawned_kind[1], horde.spawned_kind[2], horde.spawned_kind[3], horde.arrows_shot, horde.arrows_hit])
 		if neigong:
-			print("MARTIAL hero=%s attacks=%d dashes=%d ults=%d ult_hits=%d zhuhuo=%d evolved=%s stunned=%d allies=%d summoned=%d lost=%d ally_swings=%d ally_hits=%d neigong=%.0f" % [
+			print("MARTIAL hero=%s attacks=%d dashes=%d ults=%d ult_hits=%d zhuhuo=%d evolved=%s stunned=%d neigong=%.0f" % [
 				hero_id, weapon.attacks, player.dash_count, ult_casts, ult_hits, neigong.zhuhuo_count, evolved,
-				horde.stun_total, allies.count, allies.summoned, allies.lost, allies.swings, allies.hits, neigong.value])
+				horde.stun_total, neigong.value])
 
 func _die() -> void:
 	dead = true

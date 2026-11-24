@@ -13,10 +13,10 @@ const LIST := {
 		"base": {"dmg": 8.0, "knock": 5.0, "r": 6.0, "stun": 2.0, "time": 0.4},
 		"evolve": {"name": "장판교 호령", "chosik": [["w_spd", 3], ["t:fire", 2]], "simbeop": ["gap", 2],
 			"mul": {"dmg": 3.0, "r": 1.5, "stun": 1.5}}},
-	"militia": {"name": "도원의 기치", "script": "res://scripts/martial/ult_militia.gd", "cost": 100.0,   # D-293: 누적 없이 기한부(life초)
-		"base": {"add": 8, "max": 8, "life": 15.0, "hp": 60.0, "dmg": 2.0, "cd": 0.6, "reach": 1.7, "arc": 120.0, "speed": 4.8},
-		"evolve": {"name": "도원의 맹세", "chosik": [["w_count", 2], ["t:rain", 2]], "simbeop": ["hp", 2],
-			"mul": {"add": 1.5, "max": 1.5, "life": 1.334, "dmg": 2.0}}},
+	"twin": {"name": "쌍룡 회선", "script": "res://scripts/martial/ult_twin.gd", "cost": 100.0,   # D-330: 의용군 소환(도원의 기치)을 대신 — 사방으로 쌍고검을 던져 갔다 돌아옴
+		"base": {"count": 12, "dmg": 6.0, "knock": 1.2, "range": 7.0, "speed": 14.0, "radius": 0.9, "size": 1.3},
+		"evolve": {"name": "쌍룡 난무", "chosik": [["w_count", 2], ["t:rain", 2]], "simbeop": ["hp", 2],
+			"mul": {"count": 1.5, "dmg": 2.0, "radius": 1.3, "size": 1.25}}},
 	"bagua": {"name": "팔진도", "script": "res://scripts/martial/ult_bagua.gd", "cost": 100.0,   # D-295 제갈량
 		"base": {"dmg": 3.0, "r": 6.0, "dur": 6.0, "slow": 0.4},
 		"evolve": {"name": "동남풍 화공", "chosik": [["w_count", 2], ["t:fire", 2]], "simbeop": ["mu", 2],

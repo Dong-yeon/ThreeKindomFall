@@ -53,7 +53,7 @@ const HEROES := {
 			"model": "res://assets/models/liu_bei_sword.glb", "model_scale": 1.1},   # 날아가는 칼 모양(D-317 쌍검 설정화) — 판정 반지름은 그대로
 		"passive": {"id": "indeok", "name": "인덕", "desc": "둘레 4m 적이 많을수록 공격 속도 ↑(최대 +40%) · 근검: 초당 회복 +0.6",
 			"r": 4.0, "full": 20, "haste": 0.4, "regen": 0.6},
-		"ult": "militia",
+		"ult": "twin",   # D-330: 쌍룡 회선(의용군 소환 뺌)
 		"qinggong": {"type": "leap", "name": "이단 도약", "dist": 4.0, "time": 0.45, "height": 1.6, "iframe": 0.45, "cd": 3.5, "charges": 2},
 		"neigong": 1.0,
 	},
