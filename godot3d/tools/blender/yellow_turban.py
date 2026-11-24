@@ -124,20 +124,102 @@ if VARIANT == "archer":      # 궁병: 왼손에 활 · 등에 화살통
     b.box(0.05, 0.02, 0.60, (0.02, 0.29, 0.86), QUIV, (0, R(-42), 0))  # 등 멜빵
     b.bone = "arm_L"
     b.cone(0.085, 0.085, 0.66, 0.74, MUSTARD, x=0.33, v=8)            # 노란 손목 감개
-elif VARIANT == "zhangbao":   # 장보: 큰 칼(대도)
+elif ELITE:   # D-331: 정예 무기 설정화대로(elite_zhangbao_dao · elite_zhangliang_sword · elite_zhangjiao_staff.webp) — 오른손, 날은 위로
     b.bone = "arm_R"
-    b.cone(0.03, 0.03, 0.30, 1.00, WOOD, x=-0.36, y=-0.12, v=5)
-    b.poly([(-0.40, 1.00), (-0.24, 1.05), (-0.20, 1.55), (-0.30, 1.75), (-0.40, 1.60)], -0.12, 0.04, IRON)
-elif VARIANT == "zhangliang": # 장량: 긴 극(창 + 초승달 날)
-    b.bone = "arm_R"
-    b.cone(0.03, 0.03, 0.0, 2.30, WOOD, x=-0.36, y=-0.12, v=5)
-    b.poly([(-0.36, 2.28), (-0.30, 2.45), (-0.36, 2.75), (-0.42, 2.45)], -0.12, 0.03, IRON)
-    b.poly([(-0.36, 2.15), (-0.18, 2.20), (-0.12, 2.38), (-0.20, 2.30), (-0.36, 2.28)], -0.12, 0.03, IRON)
-elif VARIANT == "daoshi":     # 황건 도사: 지팡이 + 누런 부적
-    b.bone = "arm_R"
-    b.cone(0.03, 0.025, 0.0, 1.90, WOOD, x=-0.36, y=-0.12, v=5)
-    b.ball(0.10, (-0.36, -0.12, 1.95), MUSTARD, 1)
-    b.box(0.10, 0.01, 0.22, (-0.36, -0.20, 1.75), MUSTARD)
+    AX, AY = -0.36, -0.12
+
+    def slab(pts, thick, m, y=AY):   # XZ 다각형을 y 가운데로 두께 thick(두께가 붙는 쪽은 면 방향 따라 다르므로 만든 뒤 재서 가운데로 옮김)
+        import bpy
+        o = b.poly(pts, y, thick, m)
+        ev = o.evaluated_get(bpy.context.evaluated_depsgraph_get())
+        ys = [v.co.y for v in ev.data.vertices]
+        o.location.y += y - (min(ys) + max(ys)) / 2
+        return o
+
+    def ring(c, e1, e2, rad, t, m, n=12, mats=None):   # 고리: c 가운데, e1 · e2 방향으로 반지름 rad(튜플이면 축마다) — 짧은 6각 막대 n개
+        from mathutils import Vector
+        c, e1, e2 = Vector(c), Vector(e1), Vector(e2)
+        r1, r2 = rad if isinstance(rad, tuple) else (rad, rad)
+        pt = lambda a: c + e1 * (math.cos(a) * r1) + e2 * (math.sin(a) * r2)
+        for k in range(n):
+            p0, p1 = pt(2 * math.pi * k / n), pt(2 * math.pi * (k + 1) / n)
+            d = p1 - p0
+            o = b.cone(t / 2, t / 2, -d.length / 2 - t * 0.25, d.length / 2 + t * 0.25, mats[k] if mats else m, v=6,
+                       rot=Vector((0, 0, 1)).rotation_difference(d.normalized()).to_euler())
+            o.location = (p0 + p1) / 2
+
+    if VARIANT == "zhangbao":   # 장보: 녹슬고 녹청 낀 고리 대도 — 둥근 고리 자루 끝(노란 천 매듭) · 가죽 손잡이 · 네모 코등이 · 넓고 끝이 둥근 칼날(날 쪽만 은빛)
+        RUSTB = lp.mat("rustb", "7a5038", 0.8, 0.3)    # 녹슨 청동(고리 · 코등이)
+        VERD = lp.mat("verd", "5e9a7e", 0.9, 0.1)      # 녹청
+        RUST = lp.mat("rust", "5e463e", 0.7, 0.3)      # 녹슨 칼날 바탕
+        DRUST = lp.mat("drust", "7a3e28", 0.9, 0.2)    # 붉은 녹 얼룩
+        EDGE = lp.mat("edge", "c8ccd0", 0.3, 0.9)      # 은빛 날
+        LEATH = lp.mat("leather", "5a3a2c")
+        DLEATH = lp.mat("dleather", "3a2620")
+        ring((AX, AY, 0.38), (1, 0, 0), (0, 0, 1), (0.065, 0.11), 0.03, RUSTB, n=10, mats=[VERD if k in (1, 2, 6) else RUSTB for k in range(10)])   # 고리(아래쪽은 큰 머리 변환에서 0.6배라 세로로 길게)
+        b.cone(0.042, 0.042, 0.48, 0.51, RUSTB, x=AX, y=AY, v=6)       # 고리와 손잡이 사이 테
+        b.ball(0.04, (AX - 0.05, AY - 0.02, 0.45), MUSTARD, 1)          # 노란 천 매듭
+        slab([(AX - 0.06, 0.46), (AX - 0.17, 0.40), (AX - 0.19, 0.24), (AX - 0.12, 0.27), (AX - 0.07, 0.22), (AX - 0.04, 0.42)], 0.02, MUSTARD, AY - 0.03)   # 늘어진 노란 천(바깥쪽)
+        b.cone(0.033, 0.033, 0.51, 0.70, LEATH, x=AX, y=AY, v=6)        # 가죽 감은 손잡이
+        for z in (0.55, 0.61, 0.67):
+            b.box(0.075, 0.075, 0.014, (AX, AY, z), DLEATH, (0, R(25), 0))   # 비스듬히 감은 가죽 끈
+        b.box(0.18, 0.10, 0.06, (AX, AY, 0.73), RUSTB)                  # 네모난 코등이
+        for dx, dz in ((-0.05, 0.74), (0.04, 0.72)):
+            for sy in (-1, 1):
+                b.box(0.05, 0.012, 0.035, (AX + dx, AY + 0.05 * sy, dz), VERD)   # 코등이 녹청 얼룩(앞뒤)
+        BL = [(AX + 0.075, 0.76), (AX + 0.085, 1.60), (AX + 0.06, 1.69), (AX - 0.01, 1.74), (AX - 0.09, 1.73), (AX - 0.12, 1.66), (AX - 0.105, 1.10), (AX - 0.085, 0.76)]
+        slab(BL, 0.04, RUST)                                             # 넓고 끝이 둥근 녹슨 칼날
+        slab([(AX - 0.085, 0.80), (AX - 0.105, 1.10), (AX - 0.12, 1.66), (AX - 0.09, 1.73), (AX - 0.01, 1.74), (AX - 0.03, 1.69), (AX - 0.07, 1.63), (AX - 0.07, 1.10), (AX - 0.06, 0.84)], 0.046, EDGE)   # 날 쪽만 은빛
+        for pts in ([(AX - 0.04, 0.86), (AX + 0.05, 0.84), (AX + 0.06, 0.98), (AX - 0.01, 1.02)],
+                    [(AX - 0.03, 1.18), (AX + 0.07, 1.14), (AX + 0.075, 1.30), (AX + 0.02, 1.36), (AX - 0.04, 1.30)],
+                    [(AX - 0.05, 1.46), (AX + 0.04, 1.44), (AX + 0.03, 1.58), (AX - 0.04, 1.60)]):
+            slab(pts, 0.05, DRUST)                                       # 붉은 녹 얼룩(앞뒤로 비침)
+    elif VARIANT == "zhangliang":   # 장량: 검은 칼날 + 가운데 보라 빛 줄 · 보라 구름 코등이 · 검은 손잡이에 금 끈 X자 · 끝 보라 구슬 · 노란 술
+        BLACK = lp.mat("blackb", "2a2830", 0.4, 0.6)
+        GRIPB = lp.mat("gripb", "222026")
+        GOLDC = lp.mat("goldc", "d8a840", 0.5, 0.6)
+        PURP = lp.mat("swpurple", "8a74b4", 0.6, 0.1)   # 구름 코등이 · 구슬(재질 이름은 도포 "purple"과 겹치지 않게)
+        GLOW = lp.mat("glow", "c8a8ff", 0.4, 0.0)
+        bsdf = GLOW.node_tree.nodes["Principled BSDF"]               # 보라 빛 줄은 스스로 빛남
+        bsdf.inputs["Emission Color"].default_value = (0.58, 0.39, 1.0, 1)
+        bsdf.inputs["Emission Strength"].default_value = 1.5
+        b.ball(0.045, (AX, AY, 0.44), PURP, 1)                          # 끝 보라 구슬
+        b.box(0.012, 0.012, 0.10, (AX - 0.03, AY - 0.02, 0.42), GOLDC, (0, R(-30), 0))   # 술 끈
+        slab([(AX - 0.05, 0.38), (AX - 0.12, 0.36), (AX - 0.15, 0.22), (AX - 0.09, 0.20), (AX - 0.05, 0.30)], 0.02, MUSTARD, AY - 0.03)   # 노란 술
+        b.cone(0.03, 0.03, 0.48, 0.70, GRIPB, x=AX, y=AY, v=6)          # 검은 손잡이
+        for z in (0.53, 0.60, 0.67):
+            for a in (35, -35):
+                for sy in (-1, 1):
+                    b.box(0.07, 0.008, 0.012, (AX, AY + 0.03 * sy, z), GOLDC, (0, R(a), 0))   # 금 끈 X자(앞뒤)
+        b.box(0.20, 0.07, 0.05, (AX, AY, 0.72), PURP)                   # 구름 코등이 바탕
+        b.ball(0.06, (AX, AY, 0.76), PURP, 1, (1, 0.6, 0.8))            # 구름 가운데 봉우리
+        for sx in (-1, 1):
+            b.ball(0.05, (AX + 0.085 * sx, AY, 0.735), PURP, 1, (1, 0.6, 0.8))   # 구름 양 볼
+        slab([(AX - 0.055, 0.76), (AX + 0.055, 0.76), (AX + 0.05, 1.62), (AX, 1.86), (AX - 0.05, 1.62)], 0.035, BLACK)   # 검은 칼날
+        slab([(AX - 0.016, 0.82), (AX + 0.016, 0.82), (AX + 0.016, 1.58), (AX, 1.64), (AX - 0.016, 1.58)], 0.045, GLOW)  # 가운데 보라 빛 줄
+    else:   # 장각(daoshi): 흰 자루 · 금 큰 고리 안 태극 원판 · 큰 고리 아래 작은 금 고리 여럿 · 금 띠 + 노란 술 둘 · 금 물미
+        WHITES = lp.mat("whites", "ece6dc")
+        GOLD = lp.mat("gold", "e0b040", 0.4, 0.6)
+        DGOLD = lp.mat("dgold", "9a7420", 0.5, 0.6)
+        CZ, RR = 1.86, 0.21        # 큰 고리 가운데 · 반지름(머리 위로 올려 큰 머리에 안 가리게 · 목 위는 세로 1.2배 · 가로 1.08배라 세로를 0.9배로)
+        b.cone(0.045, 0.04, -0.02, 0.08, GOLD, x=AX, y=AY, v=6)         # 금 물미
+        b.cone(0.032, 0.032, 0.08, CZ - 0.10, WHITES, x=AX, y=AY, v=6)  # 흰 자루(원판 아래까지)
+        b.cone(0.042, 0.042, 1.08, 1.13, GOLD, x=AX, y=AY, v=6)         # 금 띠
+        for sx in (-1, 1):
+            b.ball(0.025, (AX + 0.04 * sx, AY - 0.02, 1.08), GOLD, 1)  # 술 매듭
+            slab([(AX + 0.03 * sx, 1.06), (AX + 0.06 * sx, 1.06), (AX + 0.11 * sx, 0.84), (AX + 0.07 * sx, 0.86), (AX + 0.04 * sx, 0.82)], 0.02, MUSTARD, AY - 0.03)   # 노란 술 둘
+        ring((AX, AY, CZ), (1, 0, 0), (0, 0, 1), (RR, RR * 0.9), 0.04, GOLD, n=18)                    # 금 큰 고리
+        disc = [(AX + math.cos(2 * math.pi * k / 14) * 0.105, CZ + math.sin(2 * math.pi * k / 14) * 0.095) for k in range(14)]
+        slab(disc, 0.03, GOLD)                                          # 태극 원판
+        yin = [(AX + math.cos(math.pi / 2 + math.pi * k / 7) * 0.088, CZ + math.sin(math.pi / 2 + math.pi * k / 7) * 0.08) for k in range(8)]
+        yin += [(AX - 0.04, CZ - 0.045), (AX, CZ), (AX + 0.04, CZ + 0.045)]   # 반원 + S자 경계
+        slab(yin, 0.038, DGOLD)                                         # 태극 무늬(어두운 금, 앞뒤)
+        for dz, mm in ((0.045, DGOLD), (-0.045, GOLD)):
+            b.box(0.025, 0.044, 0.022, (AX, AY, CZ + dz), GOLD if mm is DGOLD else DGOLD)   # 태극 눈 둘
+        for k, deg in enumerate((-162, -140, -118, -62, -40, -18)):    # 작은 금 고리(자루 양쪽으로 셋씩) — 큰 고리에 걸려 늘어지고, 비스듬히 돌아 정면 · 옆 모두 동그랗게 보임
+            a = R(deg)
+            tw = R(50 if k % 2 else -50)
+            ring((AX + math.cos(a) * RR, AY, CZ + math.sin(a) * RR * 0.9 - 0.045), (math.cos(tw), math.sin(tw), 0), (0, 0, 1), (0.06, 0.055), 0.02, GOLD, n=8)
 elif VARIANT == "rusher":    # 돌격병: 녹슨 도끼(D-326 무기 설정화 yt_rusher_axe.webp) — 오른손에 하나
     b.bone = "arm_R"
     AX = -0.40
