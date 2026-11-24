@@ -5,6 +5,7 @@
 #   통바지 + 다리 감개 · 짚신 · 끈 감은 나무 자루에 녹슨 쇠 창날, 오른손.
 # 적 떼(MultiMesh)용이라 삼각형을 아낌(작은 구 · 6각 기둥).
 # 실행: python godot3d/tools/blender/yellow_turban.py <출력 폴더> [--render]   (pip install bpy)
+# 돌격병 무기는 D-326부터 녹슨 도끼(쌍단도 → 도끼 하나).
 # 결과: yellow_turban.glb(뼈대 · walk) + yellow_turban_poses.glb(walk 4프레임 정지 메시 pose_0~3)
 #       --variant=militia면 militia.glb · militia_poses.glb(녹색 두건 의용군)
 import math, os, sys
@@ -130,11 +131,18 @@ elif VARIANT == "daoshi":     # 황건 도사: 지팡이 + 누런 부적
     b.cone(0.03, 0.025, 0.0, 1.90, WOOD, x=-0.36, y=-0.12, v=5)
     b.ball(0.10, (-0.36, -0.12, 1.95), MUSTARD, 1)
     b.box(0.10, 0.01, 0.22, (-0.36, -0.20, 1.75), MUSTARD)
-elif VARIANT == "rusher":    # 돌격병: 쌍단도 · 붉은 띠
-    for side, bone in ((1, "arm_L"), (-1, "arm_R")):
-        b.bone = bone
-        b.box(0.05, 0.04, 0.12, (0.35 * side, -0.14, 0.55), WOOD)     # 자루
-        b.box(0.07, 0.025, 0.48, (0.36 * side, -0.24, 0.62), IRON, (R(-60), 0, 0))   # 앞으로 내민 칼날
+elif VARIANT == "rusher":    # 돌격병: 녹슨 도끼(D-326 무기 설정화 yt_rusher_axe.webp) — 오른손에 하나
+    b.bone = "arm_R"
+    AX = -0.40
+    RUST = lp.mat("rust", "5a3a30", 0.7, 0.3)
+    EDGE = lp.mat("edge", "c8ccd0", 0.3, 0.9)
+    HAND = lp.mat("haft", "5a3e2e")
+    b.cone(0.04, 0.035, 0.40, 1.22, HAND, x=AX, y=-0.12, v=6)        # 나무 자루(위로 세움)
+    for z in (0.50, 1.02):
+        b.cone(0.05, 0.05, z, z + 0.06, ROPE, x=AX, y=-0.12, v=6)     # 감은 끈
+    b.poly([(AX + 0.035, 0.46), (AX + 0.14, 0.42), (AX + 0.12, 0.34)], -0.12, 0.02, MUSTARD)   # 자루 끝 노란 천
+    b.poly([(AX - 0.04, 1.02), (AX - 0.04, 1.24), (AX - 0.20, 1.20), (AX - 0.36, 1.34), (AX - 0.38, 0.96), (AX - 0.22, 1.04)], -0.12, 0.06, RUST)   # 녹슨 도끼날(바깥으로 퍼짐)
+    b.poly([(AX - 0.33, 1.32), (AX - 0.40, 1.36), (AX - 0.42, 0.94), (AX - 0.35, 0.98)], -0.12, 0.065, EDGE)   # 은빛 날
 
 else:                        # 졸병 · 방패병 · 의용군: 창
     # 대나무 죽창(D-322, 무기 설정화 yellow_turban_spear.webp): 마디 있는 대나무 자루 · 비스듬히 깎은 끝 · 새끼줄로 묶은 노란 천
