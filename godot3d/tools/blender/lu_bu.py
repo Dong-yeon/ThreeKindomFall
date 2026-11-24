@@ -96,7 +96,10 @@ for side in (-1, 1):
         x, y, z = nx, ny, nz
 
 mesh = b.join("lu_bu")
-rig = lp.make_rig("lu_bu", mesh, [
+CH = lp.Chibi(leg_top=0.64, neck=1.46, weapon=1.0, blade=1.6, blade_from=2.50, blade_pivot=(PX, PY)) if "--classic" not in FLAGS else None   # D-309: 큰 머리 비율 기본 · 방천화극 칼날 ×1.6(보스라 개그 동작 없음)
+if CH:
+    CH.apply_mesh(mesh)
+BONES = [
     ("root",  (0, 0, 0),           (0, 0, 0.3),           None),
     ("torso", (0, 0, 0.96),        (0, 0, 1.46),          "root"),
     ("head",  (0, 0, 1.46),        (0, 0, 2.1),           "torso"),
@@ -104,7 +107,8 @@ rig = lp.make_rig("lu_bu", mesh, [
     ("leg_R", (-0.18, 0, 0.64),    (-0.18, 0, 0.0),       "root"),
     ("arm_L", ( 0.52, 0, 1.32),    ( 0.62, 0, 0.72),      "torso"),
     ("arm_R", (-0.52, 0, 1.32),    (-0.59, -0.12, 0.72),  "torso"),
-])
+]
+rig = lp.make_rig("lu_bu", mesh, CH.bones(BONES) if CH else BONES)
 
 def idle(f):
     t = f / 24 * 2 * math.pi

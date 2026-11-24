@@ -86,7 +86,7 @@ func setup(foe_id: String, at: Vector2, h: Node3D, font: Font = null) -> void:
 		label.pixel_size = 0.01
 		if font:
 			label.font = font
-		label.position = Vector3(0, 3.6, 0)
+		label.position = Vector3(0, 3.0, 0)   # D-309: 큰 머리 모델이 낮아져 3.6 → 3.0
 		add_child(label)
 
 func _bar(col: Color, w: float) -> MeshInstance3D:
@@ -101,7 +101,7 @@ func _bar(col: Color, w: float) -> MeshInstance3D:
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.albedo_color = col
 	mi.material_override = m
-	mi.position = Vector3(0, 3.2, 0)
+	mi.position = Vector3(0, 2.6, 0)   # D-309: 3.2 → 2.6
 	add_child(mi)
 	return mi
 
