@@ -24,7 +24,7 @@ const LIST := {
 		"base": {"count": 12, "dmg": 6.0, "knock": 1.2, "range": 7.0, "speed": 14.0, "radius": 0.9, "size": 1.3},
 		"evolve": {"name": "쌍룡 난무", "chosik": [["w_count", 2], ["t:rain", 2]], "simbeop": ["hp", 2],
 			"mul": {"count": 1.5, "dmg": 2.0, "radius": 1.3, "size": 1.25}}},
-	"bagua": {"name": "팔진도", "script": "res://scripts/martial/ult_bagua.gd", "cost": 100.0,   # D-295 제갈량 · 연출 명세 D-336
+	"bagua": {"name": "팔진도", "script": "res://scripts/martial/ult_bagua.gd", "cost": 100.0,   # D-295 제갈량 · 연출 명세 D-338
 		# r 반지름(제갈량 키 2.4 × 5) · inner 안쪽 고리 비율(피해 2배) · dmg 맞음 대기(0.3초)마다 피해 · confuse 진을 나간 뒤 혼란이 남는 시간
 		# unfold 펼쳐지는 시간 · pillar_gap 돌기둥 사이 시간 · dur 지속
 		# 날씨 덧씌움(D-334, ctx.weather): wind 진 안 적을 가운데로 pull(초당) · rain 진 안 rain_slow배 · bolt 진 안에 bolt_cd초마다 bolt_n번 벼락(bolt_dmg)

@@ -1,4 +1,4 @@
-# 팔진도 돌기둥(D-336, 설정화 godot3d/art/concept/bagua_parts.webp 왼쪽): 둥근 돌 셋을 쌓은 기둥 · 넓은 받침 · 두 덩이 머리돌 · 꼭대기 흰 깃털.
+# 팔진도 돌기둥(D-338, 설정화 godot3d/art/concept/bagua_parts.webp 왼쪽): 둥근 돌 셋을 쌓은 기둥 · 넓은 받침 · 두 덩이 머리돌 · 꼭대기 흰 깃털.
 # 팔괘 문양(빛)은 게임(scripts/martial/ult_bagua.gd)이 기둥마다 자기 괘를 앞면(블렌더 −Y → Godot +Z)에 붙임 — 여기선 돌만.
 # 높이 1.5(게임에서 배율). 실행: python godot3d/tools/blender/bagua_pillar.py <출력 폴더> [--render]   (pip install bpy)
 import math, os, sys

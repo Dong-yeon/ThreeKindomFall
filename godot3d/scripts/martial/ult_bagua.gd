@@ -1,5 +1,5 @@
 extends Ult
-## 팔진도(제갈량 절기, D-295 · 연출 명세 D-336 — 설정화 art/concept/bagua_skill.webp · bagua_parts.webp):
+## 팔진도(제갈량 절기, D-295 · 연출 명세 D-338 — 설정화 art/concept/bagua_skill.webp · bagua_parts.webp):
 ##   1. 시전: 장수가 학우선을 치켜듦(ctx.anchor.play_once("cast")) · 바닥에 하늘색 팔각 진이 가운데에서 바깥으로 unfold초 동안 펼쳐짐
 ##      (무늬는 설정화에서 잘라 낸 assets/textures/bagua_glow.png — 정확한 팔괘 여덟 + 가운데 태극)
 ##   2. 돌기둥: 바깥 팔각 꼭짓점 여덟 곳에서 차례로(pillar_gap초 간격) 솟음 — 기둥마다 자기 쪽 괘가 빛남(복희 팔괘 차례)

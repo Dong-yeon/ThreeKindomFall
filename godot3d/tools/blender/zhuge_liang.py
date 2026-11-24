@@ -3,7 +3,7 @@
 #   세로 골이 진 높은 검은 관 + 아래 띠 / 양옆으로 늘어진 긴 검은 머리 / 가는 눈 · 팔자 콧수염 · 뾰족한 턱수염 · 볼 홍조 /
 #   흰 학창의(하늘색 깃 · 앞섶 · 자락 테 · 소맷부리) · 검은 허리띠 + 초록 옥 장식 + 검은 술 · 흰 바지 · 검은 신.
 #   학우선은 설정화에선 가슴에 꽂혀 있지만 무기라 오른손에 듦 — 모양은 무기 설정화(D-316)대로.
-# 동작: idle · walk · cast(팔진도 — 부채를 치켜듦, D-336) + 개그 동작(lowpoly.end_actions: down · cheer, D-313).
+# 동작: idle · walk · cast(팔진도 — 부채를 치켜듦, D-338) + 개그 동작(lowpoly.end_actions: down · cheer, D-313).
 # 실행: python godot3d/tools/blender/zhuge_liang.py <출력 폴더> [--render]   (pip install bpy)
 # 결과: zhuge_liang.glb (--render면 정면 · 옆 · 뒤 zl_*.png)
 import math, os, sys
@@ -55,7 +55,7 @@ for side, bone in ((1, "arm_L"), (-1, "arm_R")):
     b.ball(0.11, (0.58 * side, -0.02, 0.50), SKIN, 1)                 # 주먹
 # 학우선(오른손) — 무기 설정화(D-316, art/concept/zhuge_liang_fan.webp): 두 겹으로 겹친 둥근 흰 깃털(끝 하늘색) ·
 #   갈색 자루 · 갈색 테 안 초록 옥 · 금 고리 · 금 띠 · 하늘색 술
-b.bone = "fan"   # 부채만 따로 뼈(D-336 — 팔을 치켜들어도 부채는 위를 보게)
+b.bone = "fan"   # 부채만 따로 뼈(D-338 — 팔을 치켜들어도 부채는 위를 보게)
 FX, FY = -0.60, -0.10
 FWHITE = lp.mat("fwhite", "f6f6f4")
 FBLUE  = lp.mat("fblue",  "bcd6ee")
@@ -122,7 +122,7 @@ def walk(f):   # 부채 든 팔은 덜 흔듦(차분하게)
 lp.make_action(rig, "idle", list(range(0, 25, 2)), idle)
 lp.make_action(rig, "walk", list(range(0, 17, 2)), walk)
 FAN_ARM, FAN_FIX, FAN_TWIST = 125, 125, -60   # 부채 뼈: 팔이 돈 만큼 되돌려 세우고(FAN_FIX) · 앞면이 보이게 비틂(FAN_TWIST)
-def cast(f):   # 0 ~ 12(0.5초): 학우선을 머리 위로 치켜듦(팔진도 시전, D-336) — 0.25초에 올리고 그대로
+def cast(f):   # 0 ~ 12(0.5초): 학우선을 머리 위로 치켜듦(팔진도 시전, D-338) — 0.25초에 올리고 그대로
     k = lp._ease(0, 1, f / 6)
     return ({"arm_R": (-20 * k, 0, FAN_ARM * k), "fan": (0, FAN_TWIST * k, FAN_FIX * k), "arm_L": (0, 0, -20 * k), "torso": (-4 * k, 0, -5 * k), "head": (-10 * k, 0, 0)}, {})
 

@@ -42,7 +42,7 @@ var atk := PackedFloat32Array()     # 찌르기 준비 시간(궁병은 쏘기 �
 var lunge := PackedFloat32Array()   # 남은 찌르기 동작 시간(0이면 안 찌름)
 var kind := PackedByteArray()       # EnemyTable.KINDS 번호
 var stun := PackedFloat32Array()    # 남은 기절 시간(사자후) — 기절하면 안 움직이고 안 찌름
-var conf := PackedFloat32Array()    # 남은 혼란 시간(팔진도, D-336) — 이리저리 헤매고 안 찌름 · 안 쏨, 머리 위 물음표
+var conf := PackedFloat32Array()    # 남은 혼란 시간(팔진도, D-338) — 이리저리 헤매고 안 찌름 · 안 쏨, 머리 위 물음표
 var conf_dir := PackedVector2Array()
 var conf_turn := PackedFloat32Array()
 const CONF_CAP := 400                # 물음표를 그리는 최대 수
@@ -242,7 +242,7 @@ func stun_circle(center: Vector2, r: float, t: float) -> int:
 	return n
 
 func _setup_conf_marks() -> void:
-	## 혼란 물음표(D-336): 노란 "?" 글자 메시 하나를 MultiMesh로(카메라를 보게 매 프레임 기저를 넣음).
+	## 혼란 물음표(D-338): 노란 "?" 글자 메시 하나를 MultiMesh로(카메라를 보게 매 프레임 기저를 넣음).
 	var tm := TextMesh.new()
 	tm.text = "?"
 	tm.font = load("res://assets/fonts/Galmuri11.ttf")

@@ -21,7 +21,7 @@ var iframe_t := 0.0           # 경공 무적 남은 시간(main이 피해 계�
 var dash_count := 0
 var final := false            # 판 끝 개그 동작 중(D-313)
 var blinked := false          # 이번 프레임에 축지했는가(main이 효과를 그리고 끔)
-var once_t := 0.0             # 한 번 동작(절기 시전 등) 남은 시간 — 그동안 걷기 · 서기로 안 바꿈(D-336)
+var once_t := 0.0             # 한 번 동작(절기 시전 등) 남은 시간 — 그동안 걷기 · 서기로 안 바꿈(D-338)
 var landed := false           # 이번 프레임에 도약이 내려앉았는가(용약 충격파 — main이 쓰고 끔, D-333)
 var _dash_key_was := false
 var _move_dir := Vector3.ZERO
@@ -83,7 +83,7 @@ func walk_loops() -> bool:
 	return anim != null and anim.has_animation("walk") and anim.get_animation("walk").loop_mode == Animation.LOOP_LINEAR
 
 func play_once(n: String, sec: float) -> void:
-	## 한 번 동작(D-336 — 팔진도 cast): sec초 동안 그 동작, 그 뒤 걷기 · 서기로 돌아감. 모델에 없으면 아무 일 없음.
+	## 한 번 동작(D-338 — 팔진도 cast): sec초 동안 그 동작, 그 뒤 걷기 · 서기로 돌아감. 모델에 없으면 아무 일 없음.
 	if final or anim == null or not anim.has_animation(n):
 		return
 	anim.get_animation(n).loop_mode = Animation.LOOP_NONE
