@@ -19,7 +19,7 @@ extends Node3D
 ##   --shots=<폴더>  자동으로 원을 그리며 걷고 스크린샷 몇 장 찍은 뒤 끝냄(--shot-at=초,초…로 시각 지정)
 ##   --test          모델 · 동작 이름만 확인하고 끝냄(headless 가능)
 
-const CAM_OFFSET := Vector3(0, 13.0, 12.0)   # D-306: 7 · 8.5 · 55° → 13 · 12 · 50°(둘레 무리 · 예고가 보이게)
+const CAM_OFFSET := Vector3(0, 10.4, 9.6)   # D-306: 7 · 8.5 · 55° → 13 · 12 · 50°(둘레 무리 · 예고가 보이게) → D-343: 거리 20% 가깝게(17.7 → 14.2, 피치 47.3° 그대로)
 var cam_offset := CAM_OFFSET
 var shake_t := 0.0            # 화면 흔들림 남은 시간(청룡파천 착지, D-335)
 var shake_len := 1.0
