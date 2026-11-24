@@ -61,6 +61,7 @@ var stun_total := 0         # 기절시킨 수(점검용)
 var targets: Array = []     # 적장(foe.gd) — pos2() · radius · alive · hurt(dmg, push, knock, ch) · stun_for(t) · push_by(v)
 var spawned_kind := PackedInt32Array([0, 0, 0, 0])
 # 궁병 화살
+const ARROW_GLB := "res://assets/models/yt_arrow.glb"
 var arrow_pos := PackedVector2Array()
 var arrow_dir := PackedVector2Array()
 var arrow_life := PackedFloat32Array()
@@ -95,11 +96,20 @@ func setup(max_count: int) -> void:
 		src.free()
 	# 화살(가는 막대)
 	arrow_pos.resize(ARROW_CAP); arrow_dir.resize(ARROW_CAP); arrow_life.resize(ARROW_CAP)
-	var am := BoxMesh.new()
-	am.size = Vector3(0.05, 0.05, 0.7)
-	var amat := StandardMaterial3D.new()
-	amat.albedo_color = Color("3a2a1e")
-	am.material = amat
+	var am: Mesh = null
+	if ResourceLoader.exists(ARROW_GLB):   # 화살 모델(D-328 — 돌 촉 · 노란 깃, tools/blender/yt_arrow.py), 없으면 막대
+		var asrc: Node = load(ARROW_GLB).instantiate()
+		for c in asrc.find_children("*", "MeshInstance3D", true, false):
+			am = (c as MeshInstance3D).mesh
+			break
+		asrc.free()
+	if am == null:
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.05, 0.05, 0.7)
+		var amat := StandardMaterial3D.new()
+		amat.albedo_color = Color("3a2a1e")
+		bm.material = amat
+		am = bm
 	arrow_mm = MultiMesh.new()
 	arrow_mm.transform_format = MultiMesh.TRANSFORM_3D
 	arrow_mm.mesh = am
