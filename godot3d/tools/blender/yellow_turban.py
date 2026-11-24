@@ -148,7 +148,19 @@ else:                        # 졸병 · 방패병 · 의용군: 창
     b.poly([(PX - 0.035, top), (PX + 0.035, top), (PX + 0.035, top + 0.12), (PX - 0.035, top + 0.42)], PY, 0.07, BAMBOO)   # 비스듬히 깎은 끝
     b.cone(0.045, 0.045, top - 0.20, top - 0.14, ROPE, x=PX, y=PY, v=6)   # 새끼줄
     b.poly([(PX - 0.03, top - 0.16), (PX - 0.24, top - 0.18), (PX - 0.26, top - 0.40), (PX - 0.15, top - 0.44), (PX - 0.03, top - 0.42)], PY - 0.02, 0.025, MUSTARD)   # 노란 천(바깥쪽 — 몸에 안 가리게)
-    if VARIANT == "shield":  # 방패병: 왼팔에 큰 둥근 방패
+    if VARIANT == "shield":  # 방패병(D-325 설정화 yt_shield.webp): 옷 위 가죽 비늘 갑옷(조각 판을 겹겹이)
+        b.bone = "torso"
+        PLATE = lp.mat("plate", "9a6440")
+        DPLATE = lp.mat("dplate", "7a4c30")
+        for row, z in enumerate((0.92, 0.82, 0.72, 0.62, 0.52)):
+            n = 12
+            r = 0.30 + 0.012 * row
+            for k in range(n):
+                a = 2 * math.pi * (k + 0.5 * (row % 2)) / n
+                b.box(0.15, 0.03, 0.11, (math.sin(a) * r, -math.cos(a) * r, z), PLATE if (k + row) % 2 else DPLATE, (R(-6), 0, -a))
+        for side in (-1, 1):
+            b.box(0.10, 0.20, 0.06, (0.22 * side, 0.0, 1.00), PLATE)  # 어깨 끈 판
+    if VARIANT == "shield":  # 방패병: 왼팔에 큰 둥근 방패(설정화엔 없지만 판에서 막는 적이라 그대로)
         b.bone = "arm_L"
         b.cone(0.34, 0.34, -0.03, 0.03, DKBRN, x=0.30, y=-0.30, v=10, rot=(R(90), 0, 0)).location.z = 0.80
         b.cone(0.10, 0.06, -0.06, 0.06, MUSTARD, x=0.30, y=-0.34, v=8, rot=(R(90), 0, 0)).location.z = 0.80   # 방패 가운데 징
@@ -172,12 +184,17 @@ for side in (-1, 1):
     else:
         b.ball(0.035, (0.11 * side, -0.28, 1.25), HAIR, 1)            # 까만 눈
     b.box(0.15, 0.05, 0.05, (0.12 * side, -0.28, 1.34), HAIR, (0, R(-24 * side), 0))  # 성난 굵은 눈썹
-    if VARIANT != "archer":
+    if VARIANT not in ("archer", "shield"):
         b.box(0.07, 0.10, 0.20, (0.27 * side, -0.06, 1.12), HAIR)     # 구레나룻
     if VARIANT != "rusher":
         b.box(0.06, 0.12, 0.18, (0.28 * side, 0.10, 1.18), HAIR)      # 두건 밖 옆머리
 b.box(0.06, 0.06, 0.07, (0, -0.30, 1.19), SKIN)                       # 코
-if VARIANT == "archer":   # 궁병(D-323 설정화): 수염 없는 젊은 얼굴 · 한쪽 눈 찡긋 · 씩 웃는 입 · 볼 홍조
+if VARIANT == "shield":   # 방패병(D-325): 수염 없이 콧수염 · 악문 이
+    b.box(0.24, 0.05, 0.04, (0, -0.295, 1.14), HAIR, (0, 0, 0))
+    b.box(0.16, 0.03, 0.05, (0, -0.30, 1.08), lp.mat("teeth", "f2efe8"))
+    for side in (-1, 1):
+        b.box(0.07, 0.02, 0.05, (0.19 * side, -0.27, 1.17), lp.mat("blush", "e09a8a"))
+elif VARIANT == "archer":   # 궁병(D-323 설정화): 수염 없는 젊은 얼굴 · 한쪽 눈 찡긋 · 씩 웃는 입 · 볼 홍조
     b.box(0.12, 0.02, 0.02, (0.03, -0.305, 1.10), lp.mat("mouth", "8a3a30"), (0, 0, R(-10)))
     for side in (-1, 1):
         b.box(0.07, 0.02, 0.05, (0.19 * side, -0.27, 1.17), lp.mat("blush", "e09a8a"))
@@ -191,8 +208,9 @@ else:
 if VARIANT != "rusher":
     b.box(0.50, 0.20, 0.26, (0, 0.17, 1.12), HAIR)                    # 뒷머리(돌격병은 빡빡 깎은 머리)
 b.cone(0.325, 0.32, 1.30, 1.42, MUSTARD, v=10)                        # 노란 두건: 이마 띠
-b.ball(0.31, (0, 0.03, 1.42), MUSTARD, 2, (1.0, 1.0, 0.6))            # 아래 봉긋
-if VARIANT != "rusher":
+if VARIANT != "shield":
+    b.ball(0.31, (0, 0.03, 1.42), MUSTARD, 2, (1.0, 1.0, 0.6))        # 아래 봉긋(방패병은 삿갓 아래 노란 띠만)
+if VARIANT not in ("rusher", "shield"):
     b.ball(0.23, (0, 0.07, 1.58), MUSTARD, 2, (1.0, 1.0, 0.7))        # 위 봉긋(두 겹 — 돌격병은 납작한 한 겹)
 b.box(0.14, 0.10, 0.11, (0, 0.33, 1.34), MUSTARD)                     # 뒤 매듭
 b.box(0.10, 0.03, 0.42, (-0.07, 0.38, 1.10), MUSTARD, (R(12), R(-8), 0))  # 늘어진 끈
@@ -202,9 +220,12 @@ if CHIBI and VARIANT in ("archer", "rusher", "shield"):   # D-303: 위에서 보
         pass
     elif VARIANT == "rusher":  # D-324: 설정화엔 표시가 없음 — 위에서는 납작한 두건 · 우람한 맨팔 · 엇갈린 노란 띠로 구분
         pass
-    else:                      # 방패병: 녹슨 쇠 투구 테 + 정수리 쇠판
-        b.cone(0.34, 0.34, 1.30, 1.42, IRON, v=8)
-        b.box(0.30, 0.30, 0.06, (0, 0.02, 1.58), IRON)
+    else:                      # 방패병(D-325): 두건 대신 넓은 챙의 뾰족한 가죽 삿갓 + 꼭대기 노란 술(위에서 원뿔로 구분)
+        HAT = lp.mat("hat", "8a5a38")
+        b.cone(0.42, 0.41, 1.36, 1.40, HAT, v=12)                    # 챙
+        b.cone(0.34, 0.02, 1.38, 1.86, HAT, v=8)                     # 뾰족한 갓
+        b.ball(0.04, (0, 0, 1.88), MUSTARD, 1)                       # 꼭대기 꼭지
+        b.box(0.05, 0.03, 0.22, (0, 0.08, 1.72), MUSTARD, (R(-40), 0, 0))   # 뒤로 늘어진 노란 술
 
 mesh = b.join("yellow_turban")
 CH = lp.Chibi(leg_top=0.50, neck=1.0, weapon=1.2 if ELITE else 0.9) if CHIBI else None   # 정예 무기는 크게(D-307)
