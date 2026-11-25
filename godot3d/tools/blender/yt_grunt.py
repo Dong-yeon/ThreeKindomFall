@@ -84,11 +84,28 @@ for side, bone in ((1, "arm_L"), (-1, "arm_R")):
         c = b.cone(0.17, 0.16, 0.56, 0.94, SKIN, x=0.46 * side, v=12, rot=rot)
         c["soft_caps"] = True
         b.ball(0.15, (0.60 * side, -0.02, 0.50), SKIN, 1)              # 큰 주먹
-    else:
-        c = b.cone(0.15, 0.125, 0.76, 0.97, ROBE_T, x=0.44 * side, v=12, rot=rot)   # 해진 반소매
-        c["soft_caps"] = True
-        b.cone(0.095, 0.10, 0.58, 0.78, SKIN, x=0.52 * side, v=10, rot=rot)        # 맨팔
-        b.ball(0.12, (0.59 * side, -0.02, 0.50), SKIN, 1)              # 주먹
+    else:   # D-353(병사 보강 1): 어깨에서 손까지 한 축 — 비스듬히 내려오는 넓고 짧은 소매(끝이 해져 삐죽) · 굵은 아래팔 · 큰 둥근 주먹
+        from mathutils import Matrix, Vector
+        ANG = 28.0                                         # 팔이 몸에서 벌어진 각(설정화)
+        sh = Vector((0.33 * side, 0.0, 0.97))              # 어깨
+        dv = Vector((math.sin(R(ANG)) * side, 0.0, -math.cos(R(ANG))))   # 어깨 → 손
+        arot = (0, R(-ANG * side), 0)
+        def along(t0, t1, r_top, r_bot, mat, v=16):
+            mid = sh + dv * ((t0 + t1) / 2)
+            c = b.cone(r_bot, r_top, -(t1 - t0) / 2, (t1 - t0) / 2, mat, v=v, rot=arot)
+            c.location = mid
+            c["soft_caps"] = True
+            return c
+        along(0.02, 0.30, 0.14, 0.17, ROBE_T)             # 소매(어깨 쪽 좁고 끝이 넓음)
+        cuff = sh + dv * 0.30
+        u = Vector((0, 1, 0)); w = dv.cross(u)
+        for k in range(7):                                 # 해진 소매 끝(삐죽한 천 조각)
+            ph = 2 * math.pi * (k + 0.3) / 7
+            pos = cuff + (u * math.cos(ph) + w * math.sin(ph)) * 0.155 + dv * 0.035
+            fl = b.box(0.075, 0.025, 0.08, pos, ROBE_T)
+            fl.rotation_euler = (Matrix.Rotation(R(-ANG * side), 4, "Y") @ Matrix.Rotation(-ph, 4, "Z") @ Matrix.Rotation(R(12), 4, "X")).to_euler()
+        along(0.26, 0.50, 0.10, 0.115, SKIN, v=14)        # 굵은 아래팔(손목 쪽이 조금 굵음)
+        b.ball(0.14, tuple(sh + dv * 0.555), SKIN, 2, (1.0, 0.92, 1.05))   # 큰 둥근 주먹(무기 쥔 자리 그대로)
 
 # ── 머리 ──
 b.bone = "head"
@@ -185,7 +202,9 @@ if KIND == "soldier":   # 죽창(설정화 yellow_turban_spear — 대나무는 
 
 elif KIND == "archer":   # 궁병: 왼 팔뚝 노란 천 · 등에 화살통(화살 깃) + 가슴 멜빵 · 왼손에 막대 활(설정화 yt_archer_bow)
     b.bone = "arm_L"
-    b.cone(0.112, 0.112, 0.62, 0.71, MUSTARD, x=0.52, v=10, rot=(0, R(-22), 0))   # 팔뚝 노란 천
+    _t = 0.40   # 팔뚝 노란 천 — 새 팔 축(어깨 (0.33, 0, 0.97)에서 28° 벌어져 내려옴, D-353)에 맞춤
+    cl = b.cone(0.122, 0.122, -0.045, 0.045, MUSTARD, v=14, rot=(0, R(-28), 0))
+    cl.location = (0.33 + math.sin(R(28)) * _t, 0.0, 0.97 - math.cos(R(28)) * _t)
     BOWW = lp.mat("bow", "6a4434")
     pts = [(0.60, 0.02), (0.69, 0.20), (0.73, 0.40), (0.73, 0.60), (0.69, 0.80), (0.60, 0.98)]
     for (x0, z0), (x1, z1) in zip(pts, pts[1:]):
