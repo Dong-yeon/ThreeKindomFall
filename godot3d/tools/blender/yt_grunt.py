@@ -120,8 +120,10 @@ cute.face_decal(b, os.path.join(TEX, "face_yt_%s.png" % KIND), face_ball, DEC["w
 # ── 머리 장식 ──
 if KIND == "shield":   # 원뿔형 가죽 투구(챙이 이마를 살짝 파고듦) · 꼭대기 노란 술 · 뒤 노란 끈
     HELM = lp.mat("helmet", "9d765e")
-    brim = b.cone(0.40, 0.40, BAND_LO - 0.02, BAND_LO + 0.03, HELM, v=16)   # 챙(머리 폭 + 5% 이내 — 원뿔 투구 챙만 조금 넓음)
-    b.cone(0.355, 0.03, BAND_LO + 0.02, BAND_LO + 0.52, HELM, v=10)    # 뾰족한 원뿔
+    # D-351: 규칙 3(폭 머리 + 5%)의 예외 — 설정화처럼 넓고 두꺼운 챙이 바깥으로 처짐 · 원뿔 밑동도 넓게(얼굴 공 0.34의 약 1.35배)
+    brim = b.cone(0.46, 0.41, BAND_LO - 0.04, BAND_LO + 0.04, HELM, v=16)   # 챙(아래가 넓어 바깥으로 처짐)
+    brim["crease"] = 0.5
+    b.cone(0.40, 0.03, BAND_LO + 0.02, BAND_LO + 0.54, HELM, v=12)    # 뾰족한 원뿔(밑동 넓게)
     b.ball(0.045, (0, 0, BAND_LO + 0.55), MUSTARD, 1)                  # 꼭지
     for k, (dx, ry) in enumerate(((-0.03, -8), (0.03, 8))):
         b.box(0.05, 0.035, 0.24, (dx, 0.07, BAND_LO + 0.42), MUSTARD, (R(-38), R(ry), 0))   # 늘어진 노란 술
