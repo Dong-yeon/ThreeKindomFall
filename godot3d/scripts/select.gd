@@ -124,8 +124,8 @@ func _card(k: int, pos: Vector2) -> void:
 	cam.fov = 38
 	vp.add_child(cam)
 	cam.look_at(Vector3(0, 1.05, 0))
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-40, 25, 0)
+	var sun := DirectionalLight3D.new()   # 조명은 판(main.gd)과 같게(D-349 — 해 방향 · 세기 · 환경광 · 선형 톤매핑)
+	sun.rotation_degrees = Vector3(-55, 35, 0)
 	sun.light_energy = 1.1
 	vp.add_child(sun)
 	var env := WorldEnvironment.new()
@@ -133,7 +133,8 @@ func _card(k: int, pos: Vector2) -> void:
 	e.background_mode = Environment.BG_CLEAR_COLOR
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color("c8d0d8")
-	e.ambient_light_energy = 0.5
+	e.ambient_light_energy = 0.7
+	e.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.environment = e
 	vp.add_child(env)
 	# 글
