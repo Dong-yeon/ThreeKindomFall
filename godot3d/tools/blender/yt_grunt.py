@@ -44,7 +44,7 @@ for side, bone in ((-1, "leg_R"), (1, "leg_L")):
     b.box(0.15, 0.04, 0.04, (x, -0.09, 0.06), ROPE)                    # 짚신 끈
     if RUSHER:
         b.cone(0.135, 0.13, 0.05, 0.22, lp.mat("shin", "776758"), x=x, v=10)          # 정강이 천
-        b.cone(0.17, 0.18, 0.20, 0.34, lp.mat("pants", "615246"), x=x, v=10)          # 짧고 통 넓은 바지
+        b.cone(0.16, 0.19, 0.18, 0.37, lp.mat("pants", "615246"), x=x, v=10)          # 짧고 통 넓은 바지(무릎 위까지, 위가 넓음)
     else:
         b.cone(0.12, 0.14, 0.05, 0.30, ROBE_T, x=x, v=10)              # 통바지(텍스처 덧댐)
 
@@ -52,8 +52,10 @@ for side, bone in ((-1, "leg_R"), (1, "leg_L")):
 b.bone = "torso"
 if RUSHER:   # 돌격병: 옆으로 넓고 둥근 몸 · 앞이 열린 민소매 가죽 조끼 · 가슴 X자 노란 천 · 허리 천
     VEST = lp.mat("vest", "775a4e")
-    b.ball(0.36, (0, 0.0, 0.36), lp.mat("pants", "615246"), 2, (1.15, 1.0, 0.55))   # 바지 윗부분(둥글게)
-    w = b.cone(0.42, 0.42, 0.40, 0.50, lp.mat("waist", "7d6e5f"), v=12)   # 허리 천
+    # D-347: 허리 천이 조끼보다 넓어 고리(튜브)처럼 튀어나오던 것 → 조끼 아래 끝 굵기에 맞춘 좁은 띠 + 아래로 좁아지는 바지 윗부분
+    pt = b.cone(0.21, 0.355, 0.24, 0.40, lp.mat("pants", "615246"), v=12)   # 바지 윗부분(엉덩이 → 두 다리로 좁아지며 이어짐)
+    pt["soft_caps"] = True
+    w = b.cone(0.355, 0.375, 0.37, 0.46, lp.mat("waist", "7d6e5f"), v=12)   # 허리 천(조끼 아래 끝에 반쯤 묻힘)
     w["soft_caps"] = True
     b.ball(0.40, (0, 0.0, 0.70), VEST, 2, (1.22, 1.0, 0.95))          # 둥근 몸(조끼)
     b.ball(0.24, (0, -0.25, 0.72), SKIN, 1, (0.75, 0.55, 1.1))         # 조끼 사이로 드러난 가슴
@@ -204,9 +206,24 @@ elif KIND == "shield":   # 방패병: 가로로 겹친 가죽 비늘 갑옷 · �
         pk["crease"] = 0.7
     for dz in (-0.27, 0.27):
         b.box(W + 0.02, 0.035, 0.07, (SX, SY - 0.04, SZ + dz), PLANK)["crease"] = 0.7    # 가로 대
+    # D-347: 새끼줄 테 — 따로 뜬 막대 넷 대신 판 가장자리를 감싸는 둥근 사각 고리 하나(모서리 둥글게, 끊김 없이) + 가로 대 끝 매듭
+    from mathutils import Vector
+    HW, HH, RC, RR = W / 2 + 0.005, 0.425, 0.11, 0.024   # 고리 반폭 · 반높이 · 모서리 반지름 · 새끼줄 굵기
+    path = []
+    for cx, cz, a0 in ((HW - RC, HH - RC, 0), (-(HW - RC), HH - RC, 90), (-(HW - RC), -(HH - RC), 180), (HW - RC, -(HH - RC), 270)):
+        for k in range(5):   # 모서리마다 4토막(직선은 모서리 사이를 이음)
+            a = R(a0 + 90 * k / 4)
+            path.append(Vector((SX + cx + math.cos(a) * RC, SY, SZ + cz + math.sin(a) * RC)))
+    for p0, p1 in zip(path, path[1:] + path[:1]):
+        d = p1 - p0
+        if d.length < 1e-4:
+            continue
+        seg = b.cone(RR, RR, -d.length / 2 - RR * 0.5, d.length / 2 + RR * 0.5, ROPE, v=6,
+                     rot=Vector((0, 0, 1)).rotation_difference(d.normalized()).to_euler())
+        seg.location = (p0 + p1) / 2
     for side in (-1, 1):
-        b.box(0.035, 0.07, 0.80, (SX + (W / 2 + 0.01) * side, SY, SZ), ROPE)   # 새끼줄 테(옆)
-        b.box(W, 0.07, 0.035, (SX, SY, SZ + 0.43 * side), ROPE)                 # (위아래)
+        for dz in (-0.27, 0.27):
+            b.cone(0.045, 0.045, SZ + dz - 0.05, SZ + dz + 0.05, ROPE, x=SX + HW * side, y=SY - 0.01, v=8)   # 가로 대 끝을 묶은 매듭
     disc = b.cone(W / 4, W / 4, -0.02, 0.02, MUSTARD, v=16, rot=(R(90), 0, 0))   # 노란 원(지름 = 방패 폭의 절반)
     disc.location = (SX, SY - 0.05, SZ)
 
