@@ -254,8 +254,10 @@ func _build_world() -> void:
 	e.background_color = Color("9fb3c8")
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color("c8d0d8")
-	e.ambient_light_energy = 0.35
-	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	# D-348: Forward+(D-344)에 맞춰 다시 — 0.35 · 해 0.55 · Filmic은 어둡고 피부가 탁했음. 같은 장면 색을 설정화와 재서 고름
+	#   (관우 녹색 (91,161,107) · 노란 두건 (239,193,117) · 피부 (221,174,142) — 설정화 (99,155,110) · (233,186,98) · (228,178,148)).
+	e.ambient_light_energy = 0.7
+	e.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	# D-340: 주변광 차폐(SSAO) — 맞닿는 곳(모자/얼굴 · 수염/몸통 · 팔/몸통)에 은은한 접촉 그림자.
 	#   Godot SSAO는 Forward+ 렌더러에서만 그려짐 — 지금 프로젝트(Compatibility)에선 켜져 있어도 효과 없음.
 	e.ssao_enabled = true
@@ -268,9 +270,17 @@ func _build_world() -> void:
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, 35, 0)
-	sun.light_energy = 0.55
+	sun.light_energy = 1.1
 	sun.shadow_enabled = true
+	sun.shadow_blur = 1.5          # 부드러운 그림자(D-348 — 규칙 8)
 	add_child(sun)
+	if opts.has("light"):   # 점검: --light=환경광,해,노출,톤매퍼(0 선형 · 2 Filmic · 3 ACES · 4 AgX),그림자 흐림(D-348)
+		var lv := String(opts["light"]).split(",")
+		e.ambient_light_energy = float(lv[0])
+		sun.light_energy = float(lv[1])
+		if lv.size() > 2: e.tonemap_exposure = float(lv[2])
+		if lv.size() > 3: e.tonemap_mode = int(lv[3]) as Environment.ToneMapper
+		if lv.size() > 4: sun.shadow_blur = float(lv[4])
 
 	var ground := MeshInstance3D.new()
 	var pm := PlaneMesh.new()

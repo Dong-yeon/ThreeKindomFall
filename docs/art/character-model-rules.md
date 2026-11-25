@@ -111,8 +111,9 @@
   - 황건 잡병(MultiMesh)은 `scripts/horde.gd`가 메시 재질을 복사해 같은 툰 · rim으로 바꿔 끼움(`data/enemies.gd`의 `TOON`).
 - 렌더러: PC **Forward+**(웹 · 모바일은 Compatibility — 웹은 Forward+가 안 됨, D-344).
 - 환경(`scripts/main.gd`): **SSAO 은은하게**(radius 0.5 · intensity 3.0 · power 1.5 · light_affect 0.25), **MSAA 3D 4x + FXAA**(`project.godot`).
-- 부드러운 그림자: 비교 도구(`tools/cute_compare.gd`)엔 `shadow_blur` 2.5 + SOFT_HIGH 필터.
-  - 현재: 판(`main.gd`)의 해에는 아직 안 넣음. Forward+로 바꾼 뒤 조명값도 다시 맞춰야 함(D-344).
+- 조명(판 `main.gd` · 비교 도구 `tools/cute_compare.gd` 같게, D-348): 환경광 0.7(색 `#C8D0D8`) · 해 1.1 · **선형 톤매핑** · **부드러운 그림자**(`shadow_blur` 1.5). 같은 장면 색을 설정화와 재서 고름 — 관우 녹색 (91,161,107) · 노란 두건 (239,193,117) · 피부 (220,173,141) vs 설정화 (99,155,110) · (233,186,98) · (228,178,148). Filmic은 피부를 탁하게 눌러서 뺌.
+  - 점검: `--light=환경광,해,노출,톤매퍼,그림자 흐림`(톤매퍼 0 선형 · 2 Filmic · 3 ACES · 4 AgX).
+  - 선택 화면 미리보기(`scripts/select.gd`)의 조명은 아직 그대로.
 - 카메라: 높이 10.4 · 뒤 9.6(피치 47.3°, 거리 14.2 — D-343).
 
 ## 9. 무기
