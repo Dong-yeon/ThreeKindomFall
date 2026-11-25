@@ -123,10 +123,36 @@ if KIND == "shield":   # 원뿔형 가죽 투구(챙이 이마를 살짝 파고�
     # D-351: 규칙 3(폭 머리 + 5%)의 예외 — 설정화처럼 넓고 두꺼운 챙이 바깥으로 처짐 · 원뿔 밑동도 넓게(얼굴 공 0.34의 약 1.35배)
     brim = b.cone(0.46, 0.41, BAND_LO - 0.04, BAND_LO + 0.04, HELM, v=16)   # 챙(아래가 넓어 바깥으로 처짐)
     brim["crease"] = 0.5
-    b.cone(0.40, 0.03, BAND_LO + 0.02, BAND_LO + 0.54, HELM, v=12)    # 뾰족한 원뿔(밑동 넓게)
-    b.ball(0.045, (0, 0, BAND_LO + 0.55), MUSTARD, 1)                  # 꼭지
+    # D-352: 곧은 뾰족 원뿔 → 설정화 윤곽대로 낮고 옆선이 볼록한 둥근 원뿔(돌림체). 설정화에서 잰 높이별 폭(밑동 대비):
+    #   위에서 0 · 0.1 · 0.275 · 0.52 · 0.77 · 1.0 → 0.07 · 0.22 · 0.41 · 0.71 · 0.90 · 1.0, 높이 ÷ 밑동 폭 ≈ 0.71
+    import bmesh as _bm
+    HB, HH, HN = 0.39, 0.48, 14                        # 밑동 반지름 · 높이 · 둘레 토막
+    prof = [(0.0, 0.0), (0.07, 0.006), (0.22, 0.10), (0.41, 0.275), (0.71, 0.52), (0.90, 0.77), (1.0, 1.0)]   # (반지름 비, 위에서 내려온 비)
+    bm = _bm.new()
+    rings = []
+    for rk, tk in prof:
+        z = BAND_LO + 0.03 + HH * (1 - tk)
+        if rk == 0.0:
+            rings.append([bm.verts.new((0, 0, z))])
+            continue
+        rings.append([bm.verts.new((math.cos(2 * math.pi * i / HN) * HB * rk, math.sin(2 * math.pi * i / HN) * HB * rk, z)) for i in range(HN)])
+    for i in range(HN):   # 꼭대기 부채꼴
+        bm.faces.new((rings[0][0], rings[1][(i + 1) % HN], rings[1][i]))
+    for ra, rb in zip(rings[1:], rings[2:]):
+        for i in range(HN):
+            bm.faces.new((ra[i], ra[(i + 1) % HN], rb[(i + 1) % HN], rb[i]))
+    bm.faces.new(list(reversed(rings[-1])))           # 밑면
+    bm.normal_update()
+    _me = bpy.data.meshes.new("helmet_dome")
+    bm.to_mesh(_me)
+    bm.free()
+    dome = bpy.data.objects.new("helmet_dome", _me)
+    bpy.context.scene.collection.objects.link(dome)
+    b._done(dome, HELM)
+    HTOP = BAND_LO + 0.03 + HH
+    b.ball(0.045, (0, 0, HTOP + 0.01), MUSTARD, 1)                    # 꼭지
     for k, (dx, ry) in enumerate(((-0.03, -8), (0.03, 8))):
-        b.box(0.05, 0.035, 0.24, (dx, 0.07, BAND_LO + 0.42), MUSTARD, (R(-38), R(ry), 0))   # 늘어진 노란 술
+        b.box(0.05, 0.035, 0.24, (dx, 0.07, HTOP - 0.12), MUSTARD, (R(-38), R(ry), 0))   # 늘어진 노란 술
     b.box(0.14, 0.08, 0.08, (0, 0.33, BAND_LO - 0.03), MUSTARD)        # 뒤 매듭
     for side in (-1, 1):
         b.box(0.06, 0.03, 0.26, (0.04 * side, 0.37, BAND_LO - 0.20), MUSTARD, (R(8), R(10 * side), 0))
