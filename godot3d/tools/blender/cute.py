@@ -53,7 +53,7 @@ def face_decal(b, png, face_ball, w, h, top, cx=0.0, offset=0.006, grid=(24, 18)
 
 
 def beard_shell(b, mat, top_c, top_s, bot_c, bot_s, th_max=80.0, thick=0.12, bulge=0.04, side_from=45.0,
-                face_z=1.27, face_r=0.34, chest_r=(0.31, 0.33), grid=(21, 10)):
+                face_z=1.27, face_r=0.34, chest_r=(0.31, 0.33), grid=(21, 10), fringe=None):
     """얼굴 둘레를 감는 수염 껍데기 한 장(D-342): θ(0 = 정면 · ±th_max = 귀 바로 앞)마다 세로 띠.
     위끝: 가운데 top_c(입 아래) → 옆 top_s(구레나룻, 두건 아래), 아래끝: 가운데 bot_c(V 끝) → 옆 bot_s.
     얼굴 높이에선 얼굴 공 + 0.03, 그 아래는 가슴 앞으로 둥글게."""
@@ -81,6 +81,7 @@ def beard_shell(b, mat, top_c, top_s, bot_c, bot_s, th_max=80.0, thick=0.12, bul
             bl = bulge * (1 - k) * math.cos(t) ** 2
             col.append(bm.verts.new((rx * math.sin(t), -(ry + bl) * math.cos(t) + yo, z)))
         grid.append(col)
+    bottom = [tuple(col[0].co) for col in grid]   # 아래 가장자리(덥수룩한 끝 술용)
     for i in range(NC - 1):
         for j in range(NR - 1):
             bm.faces.new((grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]))
@@ -95,7 +96,20 @@ def beard_shell(b, mat, top_c, top_s, bot_c, bot_s, th_max=80.0, thick=0.12, bul
     bpy.context.scene.collection.objects.link(o)
     o.modifiers.new("solid", "SOLIDIFY").thickness = thick
     o["soft_rim"] = True
-    return b._done(o, mat)
+    b._done(o, mat)
+    if fringe:   # D-355: 아래 가장자리를 따라 아래 · 바깥으로 삐죽한 술(덥수룩한 끝) — fringe = (길이, 굵기)
+        ln, rr = fringe
+        import random
+        rnd = random.Random(3)
+        pts = bottom + [((a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (a[2] + c[2]) / 2) for a, c in zip(bottom, bottom[1:])]
+        for (x, y, z) in pts:
+            out = math.atan2(x, -y)                       # 바깥쪽 방향(정면 0)
+            l = ln * rnd.uniform(0.7, 1.15)
+            c = b.cone(rr, 0.004, -l / 2, l / 2, mat, v=5)
+            c.rotation_euler = (R(8), 0, -out)            # 거의 곧게 아래로(앞으로 튀어나오지 않게)
+            c.location = (x + math.sin(out) * 0.04 * -1, y + math.cos(out) * 0.04, z - l * 0.35)   # 껍데기 두께 안쪽으로 조금
+            c["crease"] = 0.0
+    return o
 
 
 def smooth_all(b, levels, cap=0.8, box=0.25, plate=0.6, soft_caps=0.3):

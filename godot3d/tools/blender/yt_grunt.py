@@ -128,8 +128,9 @@ b.box(0.06, 0.05, 0.07, (0, -0.335, 1.21), NOSE_BL)                    # 코
 BAND_LO = EYE_Z + DEC["brow_top_from_eye"] + 0.005                     # 두건 아래 가장자리 = 눈썹 바로 위(규칙 3)
 MOUTH_Z = EYE_Z - DEC["mouth_from_eye"]
 if KIND in ("soldier", "rusher"):   # 덥수룩한 턱수염: 구레나룻(두건 아래)부터 턱까지 한 덩어리(규칙 4) + 작은 콧수염
-    cute.beard_shell(b, BEARD, top_c=MOUTH_Z - 0.035, top_s=BAND_LO, bot_c=0.90, bot_s=1.06, thick=0.09, bulge=0.0,
-                     chest_r=(0.29, 0.27), grid=(13, 6))
+    # D-355(병사 보강 3): 판처럼 얇던 수염 → 두껍게(0.09 → 0.15) · 턱 아래를 앞으로 볼록 · 아래 가장자리에 삐죽한 술(덥수룩)
+    cute.beard_shell(b, BEARD, top_c=MOUTH_Z - 0.035, top_s=BAND_LO, bot_c=0.88, bot_s=1.04, thick=0.15, bulge=0.0,
+                     chest_r=(0.30, 0.25), grid=(13, 6), fringe=(0.08, 0.035))   # 턱 아래는 가슴 쪽으로 붙임(옆에서 앞으로 튀어나오지 않게)
     for side in (-1, 1):
         b.box(0.11, 0.04, 0.035, (0.06 * side, -0.335, MOUTH_Z + 0.04), BEARD, (0, R(14 * side), 0))
 else:               # 궁병 · 방패병: 수염 없이 두건 아래 귀 앞 옆머리로 얼굴 윤곽과 이음(규칙 3)
