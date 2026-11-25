@@ -5,14 +5,14 @@
 #   cute.reshape(머리 1.2배 · 어깨에 묻힘 · 몸통 폭 1.25배) → 전체 GRUNT_K배(장수보다 작게).
 # 설정화: art/concept/yellow_turban_v2 · yt_archer · yt_rusher · yt_shield(.webp), 무기 yellow_turban_spear · yt_archer_bow ·
 #   yt_rusher_axe · yt_shield_shield. 얼굴 데칼 · 베옷 텍스처는 tools/face_decal_yt.py가 만듦.
-# 실행: python godot3d/tools/blender/yt_grunt.py <출력 폴더> --kind=soldier|archer|rusher|shield [--render] [--subd=1]
+# 실행: python godot3d/tools/blender/yt_grunt.py <출력 폴더> --kind=soldier|archer|rusher|shield [--render] [--subd=0|1](기본 0, D-346)
 import json, math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lowpoly as lp
 
 OUT, FLAGS = lp.args()
 KIND = next((f.split("=", 1)[1] for f in FLAGS if f.startswith("--kind=")), "soldier")
-SUBD = int(next((f.split("=", 1)[1] for f in FLAGS if f.startswith("--subd=")), "1"))   # 규칙 6: 잡몹 1단계
+SUBD = int(next((f.split("=", 1)[1] for f in FLAGS if f.startswith("--subd=")), "0"))   # 잡몹 0단계(D-346 — 1단계는 적 떼에 너무 무거움, --subd=1로 되돌림)
 NAME = {"soldier": "yellow_turban", "archer": "yt_archer", "rusher": "yt_rusher", "shield": "yt_shield"}[KIND]
 GRUNT_K = 0.8          # 관우 틀(키 약 2.03) → 잡병 키 약 1.63(예전 잡병 1.64와 같게)
 lp.reset_scene()
